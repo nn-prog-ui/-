@@ -9,8 +9,11 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+import pandas as pd
+
 from app.config import DATA_DIR, DEFAULT_CSV_FILE, DEFAULT_SYMBOL
 from app.data.loader import load_or_generate
+from app.data.price_source import get_price_data
 from app.data.resampler import get_all_timeframes
 from app.indicators.atr import get_atr_status, get_atr_value, get_recent_high, get_recent_low
 from app.indicators.rsi import get_rsi_value
@@ -92,17 +95,21 @@ def run_analysis(
     symbol: str | None = None,
     csv_path: str | Path | None = None,
 ) -> AnalysisResult:
-    """メイン分析を実行して AnalysisResult を返す。"""
+    """メイン分析を実行して AnalysisResult を返す。
+
+    DATA_SOURCE=oanda の場合はOANDA APIを使用する。
+    失敗時は自動的にCSVにフォールバックする。
+    """
     symbol = symbol or DEFAULT_SYMBOL
     csv_path = csv_path or (DATA_DIR / DEFAULT_CSV_FILE)
 
-    df_1h, is_dummy = load_or_generate(csv_path)
+    timeframes, is_dummy = get_price_data(symbol, csv_path)
     if is_dummy:
         logger.warning("ダミーデータで分析中（CSVが見つかりません）")
 
-    timeframes = get_all_timeframes(df_1h)
-    df_daily = timeframes["daily"]
-    df_4h = timeframes["4h"]
+    df_1h = timeframes.get("1h", pd.DataFrame())
+    df_daily = timeframes.get("daily", pd.DataFrame())
+    df_4h = timeframes.get("4h", pd.DataFrame())
 
     economic_warning, event_name = is_near_economic_event()
 

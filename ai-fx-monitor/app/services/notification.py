@@ -1,20 +1,23 @@
 """通知アダプターモジュール
 
-LINE Notify を使ってBUY/SELL判定時にスマホへ通知する。
-将来はSlack・メールへの切り替えが可能な設計。
+LINE Messaging API を使ってBUY/SELL判定時にスマホへ通知する。
+将来はメールへの切り替えが可能な設計。
 
 設定（.env）:
-    LINE_NOTIFY_TOKEN=your_token_here
+    LINE_CHANNEL_TOKEN=your_channel_access_token
+    LINE_USER_ID=your_line_user_id
     NOTIFY_ON_BUY=true       # BUY判定時に通知（デフォルト: true）
     NOTIFY_ON_SELL=true      # SELL判定時に通知（デフォルト: true）
     NOTIFY_ON_SKIP=false     # SKIP判定時に通知（デフォルト: false）
-    NOTIFY_MIN_SCORE=5       # 通知する最低スコア絶対値（デフォルト: 0）
+    NOTIFY_MIN_SCORE=0       # 通知する最低スコア絶対値（デフォルト: 0）
 
-LINE Notify トークン取得方法:
-    1. https://notify-bot.line.me/ja/ にアクセス
-    2. ログイン → マイページ → トークンを発行する
-    3. トークン名と通知先グループを選択
-    4. 発行されたトークンを NOTIFY_ON_* に設定
+LINE Messaging API 設定手順:
+    1. https://developers.line.biz/console/ にアクセス
+    2. Provider作成 → 新しいチャンネル → Messaging API
+    3. チャンネルアクセストークン（長期）を発行 → LINE_CHANNEL_TOKEN に設定
+    4. Messaging API設定 → 応答メッセージをOFF、Webhookを任意に設定
+    5. 自分のLINEアカウントでそのLINE公式アカウントを友達追加
+    6. LINE DevelopersコンソールのBasic settingsでUser IDを確認 → LINE_USER_ID に設定
 """
 from __future__ import annotations
 
@@ -24,7 +27,7 @@ from abc import ABC, abstractmethod
 
 logger = logging.getLogger(__name__)
 
-LINE_NOTIFY_URL = "https://notify-api.line.me/api/notify"
+LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
 
 
 class NotificationError(Exception):
@@ -40,23 +43,32 @@ class NotificationAdapter(ABC):
         raise NotImplementedError
 
 
-class LineNotifyAdapter(NotificationAdapter):
-    """LINE Notify アダプター。"""
+class LineMessagingAdapter(NotificationAdapter):
+    """LINE Messaging API アダプター（プッシュメッセージ）。"""
 
-    def __init__(self, token: str):
-        if not token:
-            raise NotificationError("LINE_NOTIFY_TOKEN が設定されていません。")
-        self._token = token
+    def __init__(self, channel_token: str, user_id: str):
+        if not channel_token:
+            raise NotificationError("LINE_CHANNEL_TOKEN が設定されていません。")
+        if not user_id:
+            raise NotificationError("LINE_USER_ID が設定されていません。")
+        self._channel_token = channel_token
+        self._user_id = user_id
 
     @classmethod
-    def from_env(cls) -> "LineNotifyAdapter":
-        token = os.getenv("LINE_NOTIFY_TOKEN", "")
-        if not token:
+    def from_env(cls) -> "LineMessagingAdapter":
+        channel_token = os.getenv("LINE_CHANNEL_TOKEN", "")
+        user_id = os.getenv("LINE_USER_ID", "")
+        if not channel_token:
             raise NotificationError(
-                "LINE_NOTIFY_TOKEN が .env に設定されていません。"
-                "https://notify-bot.line.me でトークンを取得してください。"
+                "LINE_CHANNEL_TOKEN が .env に設定されていません。\n"
+                "https://developers.line.biz/console/ でチャンネルアクセストークンを取得してください。"
             )
-        return cls(token)
+        if not user_id:
+            raise NotificationError(
+                "LINE_USER_ID が .env に設定されていません。\n"
+                "LINE DevelopersコンソールのBasic settingsでUser IDを確認してください。"
+            )
+        return cls(channel_token, user_id)
 
     def send(self, message: str) -> bool:
         try:
@@ -64,18 +76,22 @@ class LineNotifyAdapter(NotificationAdapter):
         except ImportError:
             raise NotificationError("'requests' パッケージが必要です: pip install requests")
 
+        payload = {
+            "to": self._user_id,
+            "messages": [{"type": "text", "text": message}],
+        }
+        headers = {
+            "Authorization": f"Bearer {self._channel_token}",
+            "Content-Type": "application/json",
+        }
+
         try:
-            resp = requests.post(
-                LINE_NOTIFY_URL,
-                headers={"Authorization": f"Bearer {self._token}"},
-                data={"message": message},
-                timeout=10,
-            )
+            resp = requests.post(LINE_PUSH_URL, json=payload, headers=headers, timeout=10)
             if resp.status_code == 200:
                 logger.info("LINE通知送信成功")
                 return True
             else:
-                logger.warning("LINE通知失敗: status=%d body=%s", resp.status_code, resp.text[:100])
+                logger.warning("LINE通知失敗: status=%d body=%s", resp.status_code, resp.text[:200])
                 return False
         except Exception as exc:
             logger.error("LINE通知エラー: %s", exc)
@@ -91,11 +107,12 @@ class LogOnlyAdapter(NotificationAdapter):
 
 
 def get_notification_adapter() -> NotificationAdapter:
-    """設定に応じた通知アダプターを返す。トークン未設定時はLogOnlyAdapter。"""
-    token = os.getenv("LINE_NOTIFY_TOKEN", "")
-    if token:
-        return LineNotifyAdapter(token)
-    logger.debug("LINE_NOTIFY_TOKEN未設定 → 通知はログ出力のみ")
+    """設定に応じた通知アダプターを返す。未設定時はLogOnlyAdapter。"""
+    channel_token = os.getenv("LINE_CHANNEL_TOKEN", "")
+    user_id = os.getenv("LINE_USER_ID", "")
+    if channel_token and user_id:
+        return LineMessagingAdapter(channel_token, user_id)
+    logger.debug("LINE_CHANNEL_TOKEN/LINE_USER_ID未設定 → 通知はログ出力のみ")
     return LogOnlyAdapter()
 
 
@@ -138,7 +155,7 @@ def build_notification_message(
     is_dummy_data: bool = False,
 ) -> str:
     """LINE通知メッセージを組み立てる。"""
-    lines = [f"\n【AI FX市場監視】{symbol} {signal_label}"]
+    lines = [f"【AI FX市場監視】{symbol} {signal_label}"]
 
     if is_dummy_data:
         lines.append("⚠️ テストデータ使用中")
@@ -163,7 +180,6 @@ def build_notification_message(
             lines.append(f"RR: {risk_reward:.2f}")
 
     if ai_comment:
-        # コメントは先頭100文字まで
         lines.append(f"AI: {ai_comment[:100]}")
 
     lines.append("※ 最終判断は必ず人間が行ってください。注文は自動発生しません。")

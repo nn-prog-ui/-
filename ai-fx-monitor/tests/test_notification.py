@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from app.services.notification import (
-    LineNotifyAdapter,
+    LineMessagingAdapter,
     LogOnlyAdapter,
     NotificationError,
     build_notification_message,
@@ -99,23 +99,36 @@ class TestBuildNotificationMessage:
         assert "最終判断" in msg or "注文" in msg
 
 
-class TestLineNotifyAdapter:
+class TestLineMessagingAdapter:
     def test_empty_token_raises(self):
-        with pytest.raises(NotificationError, match="LINE_NOTIFY_TOKEN"):
-            LineNotifyAdapter("")
+        with pytest.raises(NotificationError, match="LINE_CHANNEL_TOKEN"):
+            LineMessagingAdapter("", "U123456")
+
+    def test_empty_user_id_raises(self):
+        with pytest.raises(NotificationError, match="LINE_USER_ID"):
+            LineMessagingAdapter("token123", "")
 
     def test_from_env_missing_token_raises(self, monkeypatch):
-        monkeypatch.setenv("LINE_NOTIFY_TOKEN", "")
-        with pytest.raises(NotificationError, match="LINE_NOTIFY_TOKEN"):
-            LineNotifyAdapter.from_env()
+        monkeypatch.setenv("LINE_CHANNEL_TOKEN", "")
+        monkeypatch.setenv("LINE_USER_ID", "U123456")
+        with pytest.raises(NotificationError, match="LINE_CHANNEL_TOKEN"):
+            LineMessagingAdapter.from_env()
 
-    def test_from_env_with_token(self, monkeypatch):
-        monkeypatch.setenv("LINE_NOTIFY_TOKEN", "dummy_token")
-        adapter = LineNotifyAdapter.from_env()
-        assert adapter._token == "dummy_token"
+    def test_from_env_missing_user_id_raises(self, monkeypatch):
+        monkeypatch.setenv("LINE_CHANNEL_TOKEN", "token123")
+        monkeypatch.setenv("LINE_USER_ID", "")
+        with pytest.raises(NotificationError, match="LINE_USER_ID"):
+            LineMessagingAdapter.from_env()
+
+    def test_from_env_with_values(self, monkeypatch):
+        monkeypatch.setenv("LINE_CHANNEL_TOKEN", "token123")
+        monkeypatch.setenv("LINE_USER_ID", "U123456")
+        adapter = LineMessagingAdapter.from_env()
+        assert adapter._channel_token == "token123"
+        assert adapter._user_id == "U123456"
 
     def test_send_success(self):
-        adapter = LineNotifyAdapter("dummy_token")
+        adapter = LineMessagingAdapter("token123", "U123456")
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch("requests.post", return_value=mock_resp):
@@ -123,7 +136,7 @@ class TestLineNotifyAdapter:
         assert result is True
 
     def test_send_failure_status(self):
-        adapter = LineNotifyAdapter("dummy_token")
+        adapter = LineMessagingAdapter("token123", "U123456")
         mock_resp = MagicMock()
         mock_resp.status_code = 401
         mock_resp.text = "Unauthorized"
@@ -132,20 +145,22 @@ class TestLineNotifyAdapter:
         assert result is False
 
     def test_send_exception_returns_false(self):
-        adapter = LineNotifyAdapter("dummy_token")
+        adapter = LineMessagingAdapter("token123", "U123456")
         with patch("requests.post", side_effect=Exception("Connection error")):
             result = adapter.send("テストメッセージ")
         assert result is False
 
-    def test_send_calls_correct_url(self):
-        adapter = LineNotifyAdapter("my_token")
+    def test_send_calls_push_api(self):
+        adapter = LineMessagingAdapter("my_token", "U999")
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         with patch("requests.post", return_value=mock_resp) as mock_post:
             adapter.send("hello")
         call_args = mock_post.call_args
-        assert "notify-api.line.me" in call_args[0][0]
+        assert "api.line.me" in call_args[0][0]
         assert "Bearer my_token" in call_args[1]["headers"]["Authorization"]
+        assert call_args[1]["json"]["to"] == "U999"
+        assert call_args[1]["json"]["messages"][0]["type"] == "text"
 
 
 class TestLogOnlyAdapter:
@@ -156,11 +171,19 @@ class TestLogOnlyAdapter:
 
 class TestGetNotificationAdapter:
     def test_no_token_returns_log_only(self, monkeypatch):
-        monkeypatch.setenv("LINE_NOTIFY_TOKEN", "")
+        monkeypatch.setenv("LINE_CHANNEL_TOKEN", "")
+        monkeypatch.setenv("LINE_USER_ID", "")
         adapter = get_notification_adapter()
         assert isinstance(adapter, LogOnlyAdapter)
 
-    def test_with_token_returns_line_adapter(self, monkeypatch):
-        monkeypatch.setenv("LINE_NOTIFY_TOKEN", "dummy")
+    def test_only_token_no_user_id_returns_log_only(self, monkeypatch):
+        monkeypatch.setenv("LINE_CHANNEL_TOKEN", "token123")
+        monkeypatch.setenv("LINE_USER_ID", "")
         adapter = get_notification_adapter()
-        assert isinstance(adapter, LineNotifyAdapter)
+        assert isinstance(adapter, LogOnlyAdapter)
+
+    def test_both_set_returns_line_adapter(self, monkeypatch):
+        monkeypatch.setenv("LINE_CHANNEL_TOKEN", "token123")
+        monkeypatch.setenv("LINE_USER_ID", "U123456")
+        adapter = get_notification_adapter()
+        assert isinstance(adapter, LineMessagingAdapter)

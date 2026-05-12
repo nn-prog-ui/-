@@ -1,0 +1,782 @@
+/* ============================================================
+   AI FX市場監視システム - スマホ対応レスポンシブCSS
+   ============================================================ */
+
+:root {
+  --bg-primary: #0f0f1a;
+  --bg-secondary: #1a1a2e;
+  --bg-card: #16213e;
+  --bg-card-hover: #1e2a4a;
+
+  --text-primary: #e8eaf6;
+  --text-secondary: #9fa8da;
+  --text-muted: #6272a4;
+
+  --color-buy: #00e676;
+  --color-buy-bg: #00e67620;
+  --color-buy-border: #00e67660;
+
+  --color-sell: #ff5252;
+  --color-sell-bg: #ff525220;
+  --color-sell-border: #ff525260;
+
+  --color-skip: #90a4ae;
+  --color-skip-bg: #90a4ae20;
+  --color-skip-border: #90a4ae60;
+
+  --color-warning: #ffd600;
+  --color-warning-bg: #ffd60020;
+  --color-error: #f44336;
+  --color-error-bg: #f4433620;
+
+  --color-entry: #40c4ff;
+  --color-stoploss: #ff5252;
+  --color-takeprofit: #69f0ae;
+  --color-rr-good: #69f0ae;
+  --color-rr-bad: #ffd600;
+
+  --border-radius: 12px;
+  --border-radius-sm: 6px;
+  --border-color: #263366;
+  --shadow: 0 4px 16px rgba(0,0,0,0.4);
+
+  --font-mono: 'Courier New', 'Menlo', monospace;
+  --transition: 0.2s ease;
+}
+
+/* Reset */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Hiragino Sans', sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ============================================================
+   ヘッダー
+   ============================================================ */
+.app-header {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 12px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.header-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.app-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.safety-badge {
+  font-size: 0.7rem;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-radius: 20px;
+  padding: 2px 8px;
+  white-space: nowrap;
+}
+
+.header-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 4px 12px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.85rem;
+  transition: var(--transition);
+}
+
+.nav-link:hover, .nav-link.active {
+  background: var(--bg-card);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   メインコンテンツ
+   ============================================================ */
+.main-content {
+  flex: 1;
+  max-width: 800px;
+  margin: 0 auto;
+  width: 100%;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* ============================================================
+   カード
+   ============================================================ */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius);
+  padding: 16px;
+  box-shadow: var(--shadow);
+}
+
+.card-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+/* ============================================================
+   価格ヘッダー
+   ============================================================ */
+.price-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.pair-info {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pair-name {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.timeframe-badge {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.price-display {
+  text-align: right;
+}
+
+.price-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.price-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--color-entry);
+}
+
+.analyzed-at {
+  width: 100%;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  text-align: right;
+}
+
+/* ============================================================
+   シグナルカード
+   ============================================================ */
+.signal-section {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px;
+}
+
+.signal-section.signal-buy {
+  border-color: var(--color-buy-border);
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--color-buy-bg) 100%);
+}
+
+.signal-section.signal-sell {
+  border-color: var(--color-sell-border);
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--color-sell-bg) 100%);
+}
+
+.signal-section.signal-skip {
+  border-color: var(--color-skip-border);
+  background: linear-gradient(135deg, var(--bg-card) 0%, var(--color-skip-bg) 100%);
+}
+
+.signal-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.signal-value {
+  font-size: 2rem;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+.signal-buy .signal-value { color: var(--color-buy); }
+.signal-sell .signal-value { color: var(--color-sell); }
+.signal-skip .signal-value { color: var(--color-skip); }
+
+.signal-score {
+  text-align: right;
+}
+
+.score-label {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.score-value {
+  font-size: 2rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+/* ============================================================
+   指標グリッド
+   ============================================================ */
+.indicators-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.indicator-item {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.ind-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.ind-value {
+  font-size: 1rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+/* トレンドカラー */
+.trend-上昇 { color: var(--color-buy); }
+.trend-下降 { color: var(--color-sell); }
+.trend-横ばい, .trend-判定不能 { color: var(--color-skip); }
+
+/* RSIカラー */
+.rsi-high { color: var(--color-sell); }
+.rsi-low { color: var(--color-buy); }
+.rsi-normal { color: var(--text-primary); }
+
+/* ATR警戒 */
+.atr-warning { color: var(--color-warning); }
+
+/* 指標警戒 */
+.warning-active { color: var(--color-warning); font-weight: 600; }
+
+/* ============================================================
+   トレードセットアップ
+   ============================================================ */
+.setup-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.setup-item {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: 12px;
+  text-align: center;
+}
+
+.setup-label {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.setup-value {
+  font-size: 1.2rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+}
+
+.setup-value.entry { color: var(--color-entry); }
+.setup-value.stoploss { color: var(--color-stoploss); }
+.setup-value.takeprofit { color: var(--color-takeprofit); }
+.rr-good { color: var(--color-rr-good); }
+.rr-bad { color: var(--color-rr-bad); }
+
+.no-setup-message {
+  color: var(--text-muted);
+  text-align: center;
+  padding: 16px;
+}
+
+/* ============================================================
+   AIコメント
+   ============================================================ */
+.ai-comment {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: 14px;
+  border-left: 3px solid var(--color-entry);
+}
+
+.ai-comment p {
+  line-height: 1.8;
+  color: var(--text-primary);
+}
+
+.ai-disclaimer {
+  display: block;
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+/* ============================================================
+   見送り理由
+   ============================================================ */
+.skip-reasons {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.skip-reasons li {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  border-left: 3px solid var(--color-skip-border);
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+}
+
+/* ============================================================
+   承認ボタン
+   ============================================================ */
+.approval-section { border-color: var(--border-color); }
+
+.approval-notice {
+  font-size: 0.82rem;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  border-radius: var(--border-radius-sm);
+  padding: 8px 12px;
+  margin-bottom: 14px;
+}
+
+.approval-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.notes-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.notes-field label {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.notes-field input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-primary);
+  padding: 8px 12px;
+  font-size: 0.9rem;
+  width: 100%;
+  transition: var(--transition);
+}
+
+.notes-field input:focus {
+  outline: none;
+  border-color: var(--color-entry);
+}
+
+.approval-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.btn {
+  padding: 14px 8px;
+  border-radius: var(--border-radius-sm);
+  border: 2px solid transparent;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: var(--transition);
+  letter-spacing: 0.02em;
+}
+
+.btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.btn-buy {
+  background: var(--color-buy-bg);
+  border-color: var(--color-buy-border);
+  color: var(--color-buy);
+}
+.btn-buy:not(:disabled):hover {
+  background: var(--color-buy);
+  color: #000;
+}
+
+.btn-sell {
+  background: var(--color-sell-bg);
+  border-color: var(--color-sell-border);
+  color: var(--color-sell);
+}
+.btn-sell:not(:disabled):hover {
+  background: var(--color-sell);
+  color: #fff;
+}
+
+.btn-skip {
+  background: var(--color-skip-bg);
+  border-color: var(--color-skip-border);
+  color: var(--color-skip);
+}
+.btn-skip:not(:disabled):hover {
+  background: var(--color-skip);
+  color: #fff;
+}
+
+.approval-blocked {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: var(--color-warning);
+}
+
+/* ============================================================
+   アラート
+   ============================================================ */
+.alert {
+  padding: 12px 16px;
+  border-radius: var(--border-radius-sm);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.alert code {
+  font-family: var(--font-mono);
+  background: rgba(255,255,255,0.1);
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 0.85em;
+}
+
+.alert-error {
+  background: var(--color-error-bg);
+  border: 1px solid var(--color-error);
+  color: #ff8a80;
+}
+
+.alert-warning {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  color: #ffe57f;
+}
+
+.alert-caution {
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  color: var(--color-warning);
+  font-weight: 600;
+}
+
+/* ============================================================
+   履歴リンク
+   ============================================================ */
+.history-link {
+  text-align: center;
+}
+
+.link-button {
+  display: inline-block;
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 8px 20px;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  transition: var(--transition);
+}
+
+.link-button:hover {
+  border-color: var(--color-entry);
+  color: var(--color-entry);
+}
+
+/* ============================================================
+   承認履歴ページ
+   ============================================================ */
+.history-note {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.history-card {
+  border-radius: var(--border-radius);
+}
+
+.history-card.signal-buy { border-left: 4px solid var(--color-buy-border); }
+.history-card.signal-sell { border-left: 4px solid var(--color-sell-border); }
+.history-card.signal-skip { border-left: 4px solid var(--color-skip-border); }
+
+.history-card-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.history-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.history-id {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.history-time {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+}
+
+.history-symbol {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.dummy-badge {
+  font-size: 0.65rem;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+.history-signals {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.signal-badge {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.signal-badge.signal-buy { background: var(--color-buy-bg); color: var(--color-buy); border: 1px solid var(--color-buy-border); }
+.signal-badge.signal-sell { background: var(--color-sell-bg); color: var(--color-sell); border: 1px solid var(--color-sell-border); }
+.signal-badge.signal-skip { background: var(--color-skip-bg); color: var(--color-skip); border: 1px solid var(--color-skip-border); }
+
+.action-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 4px;
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.action-badge.action-buy_approved { color: var(--color-buy); border-color: var(--color-buy-border); }
+.action-badge.action-sell_approved { color: var(--color-sell); border-color: var(--color-sell-border); }
+
+.history-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.history-item {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.history-item-wide {
+  grid-column: 1 / -1;
+}
+
+.h-label {
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.h-value {
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.history-comment, .history-notes {
+  background: var(--bg-secondary);
+  border-radius: var(--border-radius-sm);
+  padding: 10px 12px;
+  margin-top: 8px;
+}
+
+.history-comment p, .history-notes p {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  margin-top: 4px;
+  line-height: 1.6;
+}
+
+.empty-history {
+  text-align: center;
+  color: var(--text-muted);
+  padding: 20px;
+}
+
+/* ============================================================
+   ページネーション
+   ============================================================ */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.page-link {
+  color: var(--text-secondary);
+  text-decoration: none;
+  padding: 6px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition);
+}
+
+.page-link:hover {
+  border-color: var(--color-entry);
+  color: var(--color-entry);
+}
+
+.page-info {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* ============================================================
+   フッター
+   ============================================================ */
+.app-footer {
+  background: var(--bg-secondary);
+  border-top: 1px solid var(--border-color);
+  padding: 10px 16px;
+  text-align: center;
+}
+
+.app-footer p {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+/* ============================================================
+   レスポンシブ（スマホ対応）
+   ============================================================ */
+@media (max-width: 480px) {
+  .price-header { flex-direction: column; align-items: flex-start; }
+  .price-display { text-align: left; }
+  .analyzed-at { text-align: left; }
+  .setup-grid { grid-template-columns: 1fr 1fr; }
+  .approval-buttons { grid-template-columns: 1fr; }
+  .signal-section { flex-direction: column; gap: 8px; }
+  .score-value { font-size: 1.4rem; }
+  .signal-value { font-size: 1.6rem; }
+  .indicators-grid { grid-template-columns: 1fr 1fr; }
+  .history-grid { grid-template-columns: 1fr 1fr; }
+}
+
+@media (max-width: 360px) {
+  .main-content { padding: 10px; }
+  .pair-name { font-size: 1.2rem; }
+  .price-value { font-size: 1.5rem; }
+}
+
+/* ============================================================
+   アクセシビリティ
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+a:focus-visible, button:focus-visible, input:focus-visible {
+  outline: 2px solid var(--color-entry);
+  outline-offset: 2px;
+}

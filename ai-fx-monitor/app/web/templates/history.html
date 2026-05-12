@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 承認履歴</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定画面</a>
+      <a href="/history" class="nav-link active">承認履歴</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">承認履歴（全 {{ total }} 件）</h2>
+      <p class="history-note">
+        このページは過去の人間承認アクションの記録です。注文は一切発生していません。
+      </p>
+    </section>
+
+    {% if records %}
+    <div class="history-list">
+      {% for r in records %}
+      <article class="history-card card signal-{{ r.signal|lower if r.signal else 'skip' }}">
+        <header class="history-card-header">
+          <div class="history-meta">
+            <span class="history-id">#{{ r.id }}</span>
+            <span class="history-time">{{ r.created_at }}</span>
+            <span class="history-symbol">{{ r.symbol }}</span>
+            {% if r.is_dummy_data %}
+            <span class="dummy-badge">ダミー</span>
+            {% endif %}
+          </div>
+          <div class="history-signals">
+            <span class="signal-badge signal-{{ r.signal|lower if r.signal else 'skip' }}">
+              {{ r.signal_label }}
+            </span>
+            <span class="action-badge action-{{ r.human_action }}">
+              {{ r.action_label }}
+            </span>
+          </div>
+        </header>
+
+        <div class="history-body">
+          <div class="history-grid">
+            <div class="history-item">
+              <span class="h-label">価格</span>
+              <span class="h-value">{{ "%.3f"|format(r.current_price) if r.current_price else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">スコア</span>
+              <span class="h-value">
+                {% if r.score is not none %}
+                  {% if r.score > 0 %}+{% endif %}{{ r.score }}
+                {% else %}---{% endif %}
+              </span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">日足</span>
+              <span class="h-value">{{ r.daily_trend or "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">4時間足</span>
+              <span class="h-value">{{ r.h4_trend or "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">1時間足</span>
+              <span class="h-value">{{ r.h1_status or "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">RSI</span>
+              <span class="h-value">{{ "%.1f"|format(r.rsi) if r.rsi else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">エントリー</span>
+              <span class="h-value entry">{{ "%.3f"|format(r.entry_price) if r.entry_price else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">損切り</span>
+              <span class="h-value stoploss">{{ "%.3f"|format(r.stop_loss) if r.stop_loss else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">利確</span>
+              <span class="h-value takeprofit">{{ "%.3f"|format(r.take_profit) if r.take_profit else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">RR</span>
+              <span class="h-value {% if r.risk_reward and r.risk_reward >= 1.5 %}rr-good{% endif %}">
+                {{ "%.2f"|format(r.risk_reward) if r.risk_reward else "---" }}
+              </span>
+            </div>
+            {% if r.economic_event_warning %}
+            <div class="history-item history-item-wide">
+              <span class="h-label">指標警戒</span>
+              <span class="h-value warning-active">{{ r.economic_event_name or "警戒中" }}</span>
+            </div>
+            {% endif %}
+          </div>
+
+          {% if r.ai_comment %}
+          <div class="history-comment">
+            <span class="h-label">AIコメント</span>
+            <p>{{ r.ai_comment }}</p>
+          </div>
+          {% endif %}
+
+          {% if r.notes %}
+          <div class="history-notes">
+            <span class="h-label">メモ</span>
+            <p>{{ r.notes }}</p>
+          </div>
+          {% endif %}
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    <!-- ページネーション -->
+    {% if total_pages > 1 %}
+    <nav class="pagination">
+      {% if page > 1 %}
+      <a href="/history?page={{ page - 1 }}" class="page-link">← 前へ</a>
+      {% endif %}
+      <span class="page-info">{{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a href="/history?page={{ page + 1 }}" class="page-link">次へ →</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="card">
+      <p class="empty-history">まだ承認履歴がありません。</p>
+      <p><a href="/">判定画面に戻る</a></p>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - {{ result.symbol if result else 'USD/JPY' }}</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link active">判定画面</a>
+      <a href="/history" class="nav-link">承認履歴</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    {% if error %}
+    <div class="alert alert-error">
+      <strong>エラーが発生しました：</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if result %}
+
+    {% if result.is_dummy_data %}
+    <div class="alert alert-warning">
+      <strong>注意：</strong> CSVファイルが見つからないため、テスト用ダミーデータを使用しています。
+      実際の分析には <code>data/raw/USDJPY_1h.csv</code> を配置してください。
+    </div>
+    {% endif %}
+
+    <!-- 通貨ペア・価格ヘッダー -->
+    <section class="price-header card">
+      <div class="pair-info">
+        <h2 class="pair-name">{{ result.symbol }}</h2>
+        <span class="timeframe-badge">1時間足ベース</span>
+      </div>
+      <div class="price-display">
+        <span class="price-label">現在価格</span>
+        <span class="price-value">
+          {% if result.current_price %}
+            {{ "%.3f"|format(result.current_price) }}
+          {% else %}
+            ---
+          {% endif %}
+        </span>
+      </div>
+      <div class="analyzed-at">
+        分析時刻: {{ result.analyzed_at.strftime('%Y-%m-%d %H:%M') }} UTC
+      </div>
+    </section>
+
+    <!-- メイン判定 -->
+    <section class="signal-section card {{ result.signal_css_class }}">
+      <div class="signal-main">
+        <div class="signal-label">判定</div>
+        <div class="signal-value">{{ result.signal_label }}</div>
+      </div>
+      <div class="signal-score">
+        <span class="score-label">スコア</span>
+        <span class="score-value">
+          {% if result.score is not none %}
+            {% if result.score > 0 %}+{% endif %}{{ result.score }}
+          {% else %}
+            ---
+          {% endif %}
+        </span>
+      </div>
+    </section>
+
+    {% if result.economic_warning %}
+    <div class="alert alert-caution">
+      <strong>重要指標警戒中：</strong>
+      経済指標「{{ result.economic_event_name }}」の前後60分に該当します。ルール上は見送りです。
+    </div>
+    {% endif %}
+
+    <!-- トレンド分析 -->
+    <section class="card">
+      <h3 class="card-title">環境認識（トレンド分析）</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">日足トレンド</span>
+          <span class="ind-value trend-{{ result.daily_trend }}">{{ result.daily_trend }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">4時間足トレンド</span>
+          <span class="ind-value trend-{{ result.h4_trend }}">{{ result.h4_trend }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">1時間足の状態</span>
+          <span class="ind-value">{{ result.h1_status }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- テクニカル指標 -->
+    <section class="card">
+      <h3 class="card-title">テクニカル指標</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">RSI（14）</span>
+          <span class="ind-value {% if result.rsi %}{% if result.rsi >= 70 %}rsi-high{% elif result.rsi <= 30 %}rsi-low{% else %}rsi-normal{% endif %}{% endif %}">
+            {{ "%.1f"|format(result.rsi) if result.rsi is not none else "---" }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">ATR状態</span>
+          <span class="ind-value {% if result.atr_abnormal %}atr-warning{% endif %}">
+            {{ result.atr_status }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">直近高値（20本）</span>
+          <span class="ind-value">
+            {{ "%.3f"|format(result.recent_high) if result.recent_high is not none else "---" }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">直近安値（20本）</span>
+          <span class="ind-value">
+            {{ "%.3f"|format(result.recent_low) if result.recent_low is not none else "---" }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">重要指標警戒</span>
+          <span class="ind-value {% if result.economic_warning %}warning-active{% endif %}">
+            {% if result.economic_warning %}警戒中{% else %}なし{% endif %}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- エントリー候補 -->
+    <section class="card">
+      <h3 class="card-title">トレードセットアップ</h3>
+      {% if result.signal == 'SKIP' %}
+      <p class="no-setup-message">現在は見送り判定のため、エントリーセットアップは表示されません。</p>
+      {% else %}
+      <div class="setup-grid">
+        <div class="setup-item">
+          <span class="setup-label">エントリー候補</span>
+          <span class="setup-value entry">
+            {{ "%.3f"|format(result.entry_price) if result.entry_price is not none else "---" }}
+          </span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">損切り候補</span>
+          <span class="setup-value stoploss">
+            {{ "%.3f"|format(result.stop_loss) if result.stop_loss is not none else "---" }}
+          </span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">利確候補</span>
+          <span class="setup-value takeprofit">
+            {{ "%.3f"|format(result.take_profit) if result.take_profit is not none else "---" }}
+          </span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">リスクリワード</span>
+          <span class="setup-value {% if result.risk_reward and result.risk_reward >= 1.5 %}rr-good{% else %}rr-bad{% endif %}">
+            {{ "%.2f"|format(result.risk_reward) if result.risk_reward is not none else "---" }}
+          </span>
+        </div>
+      </div>
+      {% if result.setup and not result.setup.is_valid %}
+      <div class="alert alert-warning">
+        <strong>注意：</strong> {{ result.setup.invalid_reason }}
+      </div>
+      {% endif %}
+      {% endif %}
+    </section>
+
+    <!-- AIコメント -->
+    <section class="card">
+      <h3 class="card-title">AIコメント（補足説明）</h3>
+      <div class="ai-comment">
+        <p>{{ result.ai_comment }}</p>
+        <small class="ai-disclaimer">
+          ※ AIコメントは補足説明のみです。売買判定はルールエンジンが決定しており、AIは変更できません。
+          このシステムの判定は投資アドバイスではありません。
+        </small>
+      </div>
+    </section>
+
+    {% if result.skip_reasons %}
+    <section class="card">
+      <h3 class="card-title">見送り理由</h3>
+      <ul class="skip-reasons">
+        {% for reason in result.skip_reasons %}
+        <li>{{ reason }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <!-- 承認ボタン -->
+    <section class="card approval-section">
+      <h3 class="card-title">人間による最終判断</h3>
+      <p class="approval-notice">
+        <strong>重要：</strong> ボタンを押しても注文は発生しません。承認履歴がSQLiteに保存されるだけです。
+      </p>
+
+      <form method="POST" action="/approve" class="approval-form">
+        <div class="notes-field">
+          <label for="notes">メモ（任意）</label>
+          <input type="text" id="notes" name="notes" placeholder="判断理由などを記入..." maxlength="200">
+        </div>
+
+        <div class="approval-buttons">
+          <button
+            type="submit"
+            name="action"
+            value="buy_approved"
+            class="btn btn-buy"
+            {% if not result.can_approve_buy %}disabled title="{{ result.setup.invalid_reason if result.setup else '買い候補以外は承認不可' }}"{% endif %}
+          >
+            買い承認
+          </button>
+
+          <button
+            type="submit"
+            name="action"
+            value="sell_approved"
+            class="btn btn-sell"
+            {% if not result.can_approve_sell %}disabled title="{{ result.setup.invalid_reason if result.setup else '売り候補以外は承認不可' }}"{% endif %}
+          >
+            売り承認
+          </button>
+
+          <button
+            type="submit"
+            name="action"
+            value="skipped"
+            class="btn btn-skip"
+          >
+            見送り記録
+          </button>
+        </div>
+      </form>
+
+      {% if not result.can_approve_buy and result.signal == 'BUY' %}
+      <p class="approval-blocked">買い承認不可：{{ result.setup.invalid_reason if result.setup else 'セットアップ計算失敗' }}</p>
+      {% endif %}
+      {% if not result.can_approve_sell and result.signal == 'SELL' %}
+      <p class="approval-blocked">売り承認不可：{{ result.setup.invalid_reason if result.setup else 'セットアップ計算失敗' }}</p>
+      {% endif %}
+    </section>
+
+    <!-- 承認履歴リンク -->
+    <div class="history-link">
+      <a href="/history" class="link-button">過去の承認履歴を見る →</a>
+    </div>
+
+    {% else %}
+    <div class="alert alert-error">
+      <p>分析結果が取得できませんでした。</p>
+      <p><a href="/">再読み込み</a></p>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

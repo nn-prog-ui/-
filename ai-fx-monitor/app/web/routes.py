@@ -18,6 +18,7 @@ from app.database.repository import (
     save_approval,
 )
 from app.services.market_analyzer import AnalysisResult, run_analysis
+from app.services.notification import notify_analysis_result
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -34,6 +35,10 @@ async def index(request: Request):
     try:
         result = run_analysis()
         _last_result = result
+        try:
+            notify_analysis_result(result)
+        except Exception as exc:
+            logger.warning("通知エラー（分析は継続）: %s", exc)
     except Exception as exc:
         logger.error("分析エラー: %s", exc)
         return templates.TemplateResponse(

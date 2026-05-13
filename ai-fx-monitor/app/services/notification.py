@@ -1,33 +1,34 @@
 """通知アダプターモジュール
 
-LINE Messaging API を使ってBUY/SELL判定時にスマホへ通知する。
-将来はメールへの切り替えが可能な設計。
+Gmail（SMTP）を使ってBUY/SELL判定時にメールで通知する。
 
 設定（.env）:
-    LINE_CHANNEL_TOKEN=your_channel_access_token
-    LINE_USER_ID=your_line_user_id
-    NOTIFY_ON_BUY=true       # BUY判定時に通知（デフォルト: true）
-    NOTIFY_ON_SELL=true      # SELL判定時に通知（デフォルト: true）
-    NOTIFY_ON_SKIP=false     # SKIP判定時に通知（デフォルト: false）
-    NOTIFY_MIN_SCORE=0       # 通知する最低スコア絶対値（デフォルト: 0）
+    EMAIL_FROM=your_gmail@gmail.com      # 送信元Gmailアドレス
+    EMAIL_APP_PASSWORD=xxxx xxxx xxxx    # Gmailアプリパスワード（16文字）
+    EMAIL_TO=your_gmail@gmail.com        # 送信先（自分宛でOK）
+    NOTIFY_ON_BUY=true
+    NOTIFY_ON_SELL=true
+    NOTIFY_ON_SKIP=false
+    NOTIFY_MIN_SCORE=0
 
-LINE Messaging API 設定手順:
-    1. https://developers.line.biz/console/ にアクセス
-    2. Provider作成 → 新しいチャンネル → Messaging API
-    3. チャンネルアクセストークン（長期）を発行 → LINE_CHANNEL_TOKEN に設定
-    4. Messaging API設定 → 応答メッセージをOFF、Webhookを任意に設定
-    5. 自分のLINEアカウントでそのLINE公式アカウントを友達追加
-    6. LINE DevelopersコンソールのBasic settingsでUser IDを確認 → LINE_USER_ID に設定
+Gmailアプリパスワード取得手順:
+    1. Googleアカウント → セキュリティ → 2段階認証をONにする
+    2. セキュリティ → 「アプリパスワード」を検索
+    3. アプリ名を入力（例: FX通知）→ 作成
+    4. 表示された16文字をEMAIL_APP_PASSWORDに設定
 """
 from __future__ import annotations
 
 import logging
 import os
+import smtplib
 from abc import ABC, abstractmethod
+from email.mime.text import MIMEText
 
 logger = logging.getLogger(__name__)
 
-LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push"
+GMAIL_SMTP_HOST = "smtp.gmail.com"
+GMAIL_SMTP_PORT = 587
 
 
 class NotificationError(Exception):
@@ -35,71 +36,68 @@ class NotificationError(Exception):
 
 
 class NotificationAdapter(ABC):
-    """通知アダプターの基底クラス。"""
-
     @abstractmethod
     def send(self, message: str) -> bool:
-        """通知を送信する。成功時True、失敗時False。"""
         raise NotImplementedError
 
 
-class LineMessagingAdapter(NotificationAdapter):
-    """LINE Messaging API アダプター（プッシュメッセージ）。"""
+class GmailAdapter(NotificationAdapter):
+    """Gmail SMTPアダプター。"""
 
-    def __init__(self, channel_token: str, user_id: str):
-        if not channel_token:
-            raise NotificationError("LINE_CHANNEL_TOKEN が設定されていません。")
-        if not user_id:
-            raise NotificationError("LINE_USER_ID が設定されていません。")
-        self._channel_token = channel_token
-        self._user_id = user_id
+    def __init__(self, from_addr: str, app_password: str, to_addr: str):
+        if not from_addr:
+            raise NotificationError("EMAIL_FROM が設定されていません。")
+        if not app_password:
+            raise NotificationError("EMAIL_APP_PASSWORD が設定されていません。")
+        if not to_addr:
+            raise NotificationError("EMAIL_TO が設定されていません。")
+        self._from = from_addr
+        self._password = app_password
+        self._to = to_addr
 
     @classmethod
-    def from_env(cls) -> "LineMessagingAdapter":
-        channel_token = os.getenv("LINE_CHANNEL_TOKEN", "")
-        user_id = os.getenv("LINE_USER_ID", "")
-        if not channel_token:
-            raise NotificationError(
-                "LINE_CHANNEL_TOKEN が .env に設定されていません。\n"
-                "https://developers.line.biz/console/ でチャンネルアクセストークンを取得してください。"
-            )
-        if not user_id:
-            raise NotificationError(
-                "LINE_USER_ID が .env に設定されていません。\n"
-                "LINE DevelopersコンソールのBasic settingsでUser IDを確認してください。"
-            )
-        return cls(channel_token, user_id)
+    def from_env(cls) -> "GmailAdapter":
+        from_addr = os.getenv("EMAIL_FROM", "")
+        app_password = os.getenv("EMAIL_APP_PASSWORD", "")
+        to_addr = os.getenv("EMAIL_TO", "")
+        if not from_addr:
+            raise NotificationError("EMAIL_FROM が .env に設定されていません。")
+        if not app_password:
+            raise NotificationError("EMAIL_APP_PASSWORD が .env に設定されていません。")
+        if not to_addr:
+            raise NotificationError("EMAIL_TO が .env に設定されていません。")
+        return cls(from_addr, app_password, to_addr)
 
     def send(self, message: str) -> bool:
-        try:
-            import requests
-        except ImportError:
-            raise NotificationError("'requests' パッケージが必要です: pip install requests")
-
-        payload = {
-            "to": self._user_id,
-            "messages": [{"type": "text", "text": message}],
-        }
-        headers = {
-            "Authorization": f"Bearer {self._channel_token}",
-            "Content-Type": "application/json",
-        }
+        subject = self._make_subject(message)
+        msg = MIMEText(message, "plain", "utf-8")
+        msg["Subject"] = subject
+        msg["From"] = self._from
+        msg["To"] = self._to
 
         try:
-            resp = requests.post(LINE_PUSH_URL, json=payload, headers=headers, timeout=10)
-            if resp.status_code == 200:
-                logger.info("LINE通知送信成功")
-                return True
-            else:
-                logger.warning("LINE通知失敗: status=%d body=%s", resp.status_code, resp.text[:200])
-                return False
-        except Exception as exc:
-            logger.error("LINE通知エラー: %s", exc)
+            with smtplib.SMTP(GMAIL_SMTP_HOST, GMAIL_SMTP_PORT, timeout=15) as smtp:
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.login(self._from, self._password)
+                smtp.sendmail(self._from, self._to, msg.as_string())
+            logger.info("メール通知送信成功: %s → %s", self._from, self._to)
+            return True
+        except smtplib.SMTPAuthenticationError:
+            logger.error("Gmailログイン失敗: アプリパスワードを確認してください")
             return False
+        except Exception as exc:
+            logger.error("メール送信エラー: %s", exc)
+            return False
+
+    @staticmethod
+    def _make_subject(message: str) -> str:
+        first_line = message.strip().split("\n")[0]
+        return first_line[:50]
 
 
 class LogOnlyAdapter(NotificationAdapter):
-    """通知トークン未設定時のフォールバック（ログ出力のみ）。"""
+    """通知設定未設定時のフォールバック（ログ出力のみ）。"""
 
     def send(self, message: str) -> bool:
         logger.info("[通知（未送信）] %s", message)
@@ -108,20 +106,16 @@ class LogOnlyAdapter(NotificationAdapter):
 
 def get_notification_adapter() -> NotificationAdapter:
     """設定に応じた通知アダプターを返す。未設定時はLogOnlyAdapter。"""
-    channel_token = os.getenv("LINE_CHANNEL_TOKEN", "")
-    user_id = os.getenv("LINE_USER_ID", "")
-    if channel_token and user_id:
-        return LineMessagingAdapter(channel_token, user_id)
-    logger.debug("LINE_CHANNEL_TOKEN/LINE_USER_ID未設定 → 通知はログ出力のみ")
+    from_addr = os.getenv("EMAIL_FROM", "")
+    app_password = os.getenv("EMAIL_APP_PASSWORD", "")
+    to_addr = os.getenv("EMAIL_TO", "")
+    if from_addr and app_password and to_addr:
+        return GmailAdapter(from_addr, app_password, to_addr)
+    logger.debug("Email未設定 → 通知はログ出力のみ")
     return LogOnlyAdapter()
 
 
 def should_notify(signal: str, score: int | None) -> bool:
-    """通知条件を判定する。
-
-    NOTIFY_ON_BUY / NOTIFY_ON_SELL / NOTIFY_ON_SKIP と
-    NOTIFY_MIN_SCORE で制御する。
-    """
     notify_buy = os.getenv("NOTIFY_ON_BUY", "true").lower() == "true"
     notify_sell = os.getenv("NOTIFY_ON_SELL", "true").lower() == "true"
     notify_skip = os.getenv("NOTIFY_ON_SKIP", "false").lower() == "true"
@@ -133,10 +127,8 @@ def should_notify(signal: str, score: int | None) -> bool:
         return False
     if signal == "SKIP" and not notify_skip:
         return False
-
     if score is not None and abs(score) < min_score:
         return False
-
     return True
 
 
@@ -154,18 +146,15 @@ def build_notification_message(
     ai_comment: str = "",
     is_dummy_data: bool = False,
 ) -> str:
-    """LINE通知メッセージを組み立てる。"""
     lines = [f"【AI FX市場監視】{symbol} {signal_label}"]
 
     if is_dummy_data:
-        lines.append("⚠️ テストデータ使用中")
+        lines.append("※ テストデータ使用中")
 
     if current_price is not None:
         lines.append(f"現在価格: {current_price:.3f}")
-
     if score is not None:
         lines.append(f"スコア: {'+' if score > 0 else ''}{score}")
-
     if rsi is not None:
         lines.append(f"RSI: {rsi:.1f}")
 
@@ -183,19 +172,16 @@ def build_notification_message(
         lines.append(f"AI: {ai_comment[:100]}")
 
     lines.append("※ 最終判断は必ず人間が行ってください。注文は自動発生しません。")
-
     return "\n".join(lines)
 
 
 def notify_analysis_result(result: "AnalysisResult") -> bool:  # type: ignore[name-defined]
-    """分析結果を通知する。通知条件を満たさない場合は何もしない。"""
     from app.services.market_analyzer import AnalysisResult
 
     if not isinstance(result, AnalysisResult):
         return False
-
     if not should_notify(result.signal, result.score):
-        logger.debug("通知条件未満のため送信スキップ: signal=%s score=%s", result.signal, result.score)
+        logger.debug("通知条件未満のためスキップ: signal=%s score=%s", result.signal, result.score)
         return False
 
     message = build_notification_message(
@@ -212,6 +198,5 @@ def notify_analysis_result(result: "AnalysisResult") -> bool:  # type: ignore[na
         ai_comment=result.ai_comment,
         is_dummy_data=result.is_dummy_data,
     )
-
     adapter = get_notification_adapter()
     return adapter.send(message)

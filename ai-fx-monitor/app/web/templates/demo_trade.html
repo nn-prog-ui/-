@@ -111,7 +111,13 @@
     <p style="font-size:0.85rem;color:var(--text-muted)">
       ※ すべてOANDA practiceデモ口座への注文です。本番注文はこのシステムに存在しません。
     </p>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
     {% if orders %}
+    <div style="overflow-x:auto;">
     <table class="demo-order-table">
       <thead>
         <tr>
@@ -120,8 +126,11 @@
           <th>方向</th>
           <th>数量</th>
           <th>約定価格</th>
+          <th>決済価格</th>
+          <th>損益(pips)</th>
           <th>OANDA Trade ID</th>
           <th>ステータス</th>
+          <th>操作</th>
         </tr>
       </thead>
       <tbody>
@@ -132,12 +141,37 @@
           <td class="{% if o.direction == 'BUY' %}trend-上昇{% else %}trend-下降{% endif %}">{{ o.direction }}</td>
           <td>{{ o.units }}</td>
           <td>{{ "%.3f"|format(o.filled_price) if o.filled_price else "---" }}</td>
+          <td>{{ "%.3f"|format(o.exit_price) if o.exit_price else "---" }}</td>
+          <td class="{% if o.pnl_pips is not none and o.pnl_pips > 0 %}trend-上昇{% elif o.pnl_pips is not none and o.pnl_pips < 0 %}trend-下降{% endif %}">
+            {% if o.pnl_pips is not none %}
+              {% if o.pnl_pips > 0 %}+{% endif %}{{ "%.1f"|format(o.pnl_pips) }}
+            {% else %}---{% endif %}
+          </td>
           <td><span class="trade-id-display">{{ o.oanda_trade_id or "---" }}</span></td>
-          <td>{{ o.status }}</td>
+          <td>
+            <span style="font-size:0.8rem;{% if o.status == 'open' %}color:#f39c12;font-weight:700;{% else %}color:#27ae60;{% endif %}">
+              {{ o.status }}
+            </span>
+          </td>
+          <td>
+            {% if o.status == 'open' and o.oanda_trade_id %}
+            <form method="POST" action="/demo-close/{{ o.id }}" style="display:inline-flex;align-items:center;gap:4px;">
+              <input type="checkbox" name="confirm_close" value="yes" required
+                title="チェックして決済ボタンを押してください" style="width:14px;height:14px;cursor:pointer;">
+              <button type="submit"
+                style="font-size:0.75rem;padding:3px 8px;background:#e74c3c;color:#fff;border:none;cursor:pointer;border-radius:4px;">
+                決済
+              </button>
+            </form>
+            {% else %}
+            <span style="font-size:0.75rem;color:var(--text-muted)">---</span>
+            {% endif %}
+          </td>
         </tr>
         {% endfor %}
       </tbody>
     </table>
+    </div>
     {% else %}
     <p style="color:var(--text-muted)">デモ注文履歴はありません。</p>
     {% endif %}

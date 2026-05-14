@@ -148,6 +148,67 @@ class DemoOrderAdapter:
             message=f"デモ注文完了: {direction} {units}units @ {filled_price}",
         )
 
+    def close_trade(self, trade_id: str) -> DemoOrderResult:
+        """デモ口座の指定トレードをクローズ（成行決済）する。
+
+        Args:
+            trade_id: OANDA トレードID（文字列）
+
+        Returns:
+            DemoOrderResult（filled_price が決済価格）
+        """
+        try:
+            import requests
+        except ImportError:
+            raise DemoOrderError("'requests' パッケージが必要です")
+
+        url = f"{self._base_url}/v3/accounts/{self._account_id}/trades/{trade_id}/close"
+
+        try:
+            resp = requests.put(url, headers=self._headers, json={}, timeout=15)
+            resp.raise_for_status()
+        except Exception as exc:
+            logger.error("デモトレードクローズエラー: %s", exc)
+            raise DemoOrderError(f"クローズ失敗: {exc}") from exc
+
+        data = resp.json()
+        fill = data.get("orderFillTransaction", {})
+        price_str = fill.get("price")
+        exit_price = float(price_str) if price_str else None
+        related = data.get("relatedTransactionIDs") or []
+        order_id = related[0] if related else None
+
+        logger.info("デモトレードクローズ完了: trade_id=%s @ %s", trade_id, exit_price)
+        return DemoOrderResult(
+            success=True,
+            trade_id=trade_id,
+            order_id=order_id,
+            filled_price=exit_price,
+            units=0,
+            instrument="",
+            message=f"クローズ完了 @ {exit_price}",
+        )
+
+    def get_trade_detail(self, trade_id: str) -> dict | None:
+        """デモ口座の指定トレード詳細（現在P&L含む）を取得する。
+
+        Returns:
+            OANDA APIのトレード詳細dict、取得失敗時はNone
+        """
+        try:
+            import requests
+        except ImportError:
+            raise DemoOrderError("'requests' パッケージが必要です")
+
+        url = f"{self._base_url}/v3/accounts/{self._account_id}/trades/{trade_id}"
+        try:
+            resp = requests.get(url, headers=self._headers, timeout=15)
+            resp.raise_for_status()
+            return resp.json().get("trade")
+        except Exception as exc:
+            logger.error("トレード詳細取得エラー: %s", exc)
+            return None
+
     def get_open_trades(self, instrument: str | None = None) -> list[dict]:
         """デモ口座のオープントレード一覧を返す。"""
         try:

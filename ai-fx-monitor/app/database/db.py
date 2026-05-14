@@ -10,6 +10,7 @@ from app.database.models import (
     CREATE_APPROVAL_HISTORY_TABLE,
     CREATE_DEMO_ORDERS_TABLE,
     CREATE_PRICE_TRACKING_TABLE,
+    MIGRATE_ADD_DEMO_ORDER_PNL_COLUMNS,
     MIGRATE_ADD_OUTCOME_COLUMNS,
 )
 
@@ -27,7 +28,13 @@ def init_db(db_path: Path | None = None) -> None:
             try:
                 conn.execute(sql)
             except sqlite3.OperationalError:
-                pass  # 列が既に存在する場合は無視
+                pass
+        # Phase 13 migration: demo_ordersへの損益追跡列を追加
+        for sql in MIGRATE_ADD_DEMO_ORDER_PNL_COLUMNS:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
 
 

@@ -93,28 +93,27 @@ AI FX市場監視システム 開発ロードマップ
 
 ---
 
-## 次フェーズ（将来）
+## 完了フェーズ
 
-### Phase 8：リアルタイム価格取得
+### Phase 8：リアルタイム価格取得 ✅
 
-- [ ] OANDAデモ口座APIアダプター（完全分離設計）
-- [ ] 価格取得インターフェース定義
-- [ ] ポーリング間隔設定
-- [ ] WebSocket対応（将来）
+- [x] OANDAデモ口座APIアダプター（完全分離設計、app/data/oanda_adapter.py）
+- [x] 価格取得インターフェース定義（price_source.py: DATA_SOURCE切替）
+- [x] CSVフォールバック機能（OANDA障害時は自動CSVへ）
+- [x] テスト18件
 
-### Phase 9：通知機能
+### Phase 9：通知機能 ✅
 
-- [ ] LINE通知アダプター
-- [ ] Slack通知アダプター
-- [ ] メール通知アダプター
-- [ ] 通知条件設定（スコア閾値など）
+- [x] Gmail SMTP通知アダプター
+- [x] 通知条件設定（スコア閾値・BUY/SELL判定時のみ）
+- [x] ※LINE Notify は2025年3月終了のためGmail SMTPを採用
 
-### Phase 10：価格推移追跡
+### Phase 10：価格推移追跡 ✅
 
-- [ ] 承認後の価格追跡
-- [ ] 損益シミュレーション記録
-- [ ] 勝率・RR実績集計
-- [ ] 検証レポート画面
+- [x] 承認後の価格追跡（entry/SL/TP到達で自動クローズ）
+- [x] 損益（pips）記録
+- [x] 勝率・RR実績集計
+- [x] 成績ページ（/performance）
 
 ### Phase 11：精度向上（完了）
 
@@ -132,6 +131,16 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 承認履歴からデモ注文へのリンク（buy/sell承認のみ）
 - [x] テスト29件（安全制約・エラーハンドリング含む）
 - [x] ※本番注文は絶対に作らない（将来でも慎重に検討）
+
+### Phase 13：デモ注文の決済・損益追跡 ✅
+
+- [x] `DemoOrderAdapter.close_trade()` — OANDA practice APIでポジション決済
+- [x] `DemoOrderAdapter.get_trade_detail()` — トレード詳細・リアルタイムP&L取得
+- [x] `close_demo_order()` — 決済価格・損益pipsをDBに記録
+- [x] `POST /demo-close/{demo_id}` — 手動決済エンドポイント（確認チェックボックス付き）
+- [x] デモ注文一覧画面に決済価格・損益(pips)・決済ボタンを追加
+- [x] demo_orders テーブルへのマイグレーション（exit_price/pnl_pips/closed_at）
+- [x] テスト35件（全180テスト通過）
 
 ---
 

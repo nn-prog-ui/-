@@ -307,3 +307,84 @@ class TestIsDemoOrderAvailable:
         }
         with patch.dict("os.environ", env, clear=False):
             assert is_demo_order_available() is False
+
+
+# --------------------------------------------------------------------------- #
+# Phase 13: close_trade / get_trade_detail
+# --------------------------------------------------------------------------- #
+
+class TestCloseTrade:
+    def test_close_trade_success(self):
+        adapter = _make_adapter()
+        resp_data = {
+            "orderFillTransaction": {"price": "149.850"},
+            "relatedTransactionIDs": ["TX999"],
+        }
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = resp_data
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("requests.put", return_value=mock_resp) as mock_put:
+            result = adapter.close_trade("12345")
+
+        assert result.success is True
+        assert result.trade_id == "12345"
+        assert result.filled_price == pytest.approx(149.85)
+        assert result.order_id == "TX999"
+
+        url = mock_put.call_args[0][0]
+        assert "/trades/12345/close" in url
+
+    def test_close_trade_http_error_raises(self):
+        adapter = _make_adapter()
+        import requests as req_module
+
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = req_module.HTTPError("404")
+
+        with patch("requests.put", return_value=mock_resp):
+            with pytest.raises(DemoOrderError, match="クローズ失敗"):
+                adapter.close_trade("99999")
+
+    def test_close_trade_connection_error_raises(self):
+        adapter = _make_adapter()
+        import requests as req_module
+
+        with patch("requests.put", side_effect=req_module.ConnectionError("refused")):
+            with pytest.raises(DemoOrderError, match="クローズ失敗"):
+                adapter.close_trade("99999")
+
+    def test_close_trade_no_price_in_response(self):
+        adapter = _make_adapter()
+        resp_data = {"orderFillTransaction": {}, "relatedTransactionIDs": []}
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = resp_data
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("requests.put", return_value=mock_resp):
+            result = adapter.close_trade("11111")
+
+        assert result.filled_price is None
+
+
+class TestGetTradeDetail:
+    def test_returns_trade_dict(self):
+        adapter = _make_adapter()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"trade": {"id": "42", "currentUnits": "1000"}}
+        mock_resp.raise_for_status = MagicMock()
+
+        with patch("requests.get", return_value=mock_resp):
+            detail = adapter.get_trade_detail("42")
+
+        assert detail is not None
+        assert detail["id"] == "42"
+
+    def test_returns_none_on_error(self):
+        adapter = _make_adapter()
+        import requests as req_module
+
+        with patch("requests.get", side_effect=req_module.ConnectionError("refused")):
+            detail = adapter.get_trade_detail("42")
+
+        assert detail is None

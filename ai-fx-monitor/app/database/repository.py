@@ -326,3 +326,40 @@ def get_approval_by_id(record_id: int, db_path: Path | None = None) -> dict[str,
             "SELECT * FROM approval_history WHERE id = ?", (record_id,)
         ).fetchone()
     return dict(row) if row else None
+
+
+def get_demo_order_by_id(demo_id: int, db_path: Path | None = None) -> dict[str, Any] | None:
+    """デモ注文の1件をIDで取得する。"""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM demo_orders WHERE id = ?", (demo_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_open_demo_orders(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """statusが'open'のデモ注文一覧を返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM demo_orders WHERE status = 'open' ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def close_demo_order(
+    demo_id: int,
+    exit_price: float,
+    pnl_pips: float,
+    db_path: Path | None = None,
+) -> None:
+    """デモ注文をクローズして損益を記録する。"""
+    closed_at = datetime.utcnow().isoformat()
+    with get_db(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE demo_orders
+            SET status = 'closed', exit_price = ?, pnl_pips = ?, closed_at = ?
+            WHERE id = ?
+            """,
+            (exit_price, pnl_pips, closed_at, demo_id),
+        )

@@ -14,7 +14,9 @@ from app.database.repository import (
     HUMAN_ACTION_SELL,
     HUMAN_ACTION_SKIP,
     check_and_close_open_trades,
+    close_demo_order,
     get_approval_by_id,
+    get_demo_order_by_id,
     get_demo_orders,
     get_history,
     get_history_count,
@@ -377,3 +379,78 @@ async def demo_orders_list(request: Request):
             "error": None,
         },
     )
+
+
+# ============================================================
+# Phase 13: デモ注文の手動クローズ
+# ============================================================
+
+@router.post("/demo-close/{demo_id}", response_class=HTMLResponse)
+async def demo_close_trade(
+    request: Request,
+    demo_id: int,
+    confirm_close: str = Form(""),
+):
+    """デモ注文を手動でクローズし、損益を記録する。"""
+    order = get_demo_order_by_id(demo_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="デモ注文が見つかりません")
+
+    if order["status"] != "open":
+        return templates.TemplateResponse(
+            "demo_trade.html",
+            {
+                "request": request,
+                "step": "list",
+                "orders": get_demo_orders(limit=50),
+                "error": f"デモ注文 #{demo_id} はすでに決済済みです。",
+            },
+        )
+
+    if confirm_close != "yes":
+        return templates.TemplateResponse(
+            "demo_trade.html",
+            {
+                "request": request,
+                "step": "list",
+                "orders": get_demo_orders(limit=50),
+                "error": "決済確認にチェックを入れてください。",
+            },
+        )
+
+    if not order.get("oanda_trade_id"):
+        return templates.TemplateResponse(
+            "demo_trade.html",
+            {
+                "request": request,
+                "step": "list",
+                "orders": get_demo_orders(limit=50),
+                "error": "OANDA Trade IDがないため決済できません。",
+            },
+        )
+
+    try:
+        adapter = DemoOrderAdapter.from_env()
+        result = adapter.close_trade(order["oanda_trade_id"])
+    except DemoOrderError as exc:
+        return templates.TemplateResponse(
+            "demo_trade.html",
+            {
+                "request": request,
+                "step": "list",
+                "orders": get_demo_orders(limit=50),
+                "error": f"決済エラー: {exc}",
+            },
+        )
+
+    exit_price = result.filled_price or 0.0
+    filled_price = order.get("filled_price") or order.get("entry_price") or exit_price
+    symbol = order.get("symbol", "")
+    pip_size = 0.01 if "JPY" in symbol.upper() else 0.0001
+    raw_pnl = (exit_price - filled_price) / pip_size
+    pnl_pips = raw_pnl if order["direction"] == "BUY" else -raw_pnl
+
+    close_demo_order(demo_id, exit_price, round(pnl_pips, 1))
+    logger.info("デモ注文決済: demo_id=%d exit=%.3f pnl=%.1fpips", demo_id, exit_price, pnl_pips)
+
+    return RedirectResponse(url="/demo-orders", status_code=303)

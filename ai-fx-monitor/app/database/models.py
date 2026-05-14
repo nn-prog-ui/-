@@ -52,9 +52,19 @@ CREATE TABLE IF NOT EXISTS demo_orders (
     filled_price          REAL,
     status                TEXT DEFAULT 'open',
     notes                 TEXT,
+    exit_price            REAL,
+    pnl_pips              REAL,
+    closed_at             TEXT,
     FOREIGN KEY (approval_id) REFERENCES approval_history(id)
 );
 """
+
+# Phase 13: 既存demo_ordersへの損益追跡列マイグレーション
+MIGRATE_ADD_DEMO_ORDER_PNL_COLUMNS = [
+    "ALTER TABLE demo_orders ADD COLUMN exit_price REAL",
+    "ALTER TABLE demo_orders ADD COLUMN pnl_pips REAL",
+    "ALTER TABLE demo_orders ADD COLUMN closed_at TEXT",
+]
 
 # Phase 10: 既存DBへのマイグレーション（列が既に存在する場合はエラーを無視）
 MIGRATE_ADD_OUTCOME_COLUMNS = [

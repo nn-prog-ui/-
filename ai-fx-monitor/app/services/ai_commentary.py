@@ -50,14 +50,13 @@ def generate_commentary(
 ) -> str:
     """ルール判定結果からAIコメントを生成する。
 
-    ANTHROPIC_API_KEY が設定されていれば Claude API を使用する。
-    未設定またはAPI呼び出し失敗時はモック実装にフォールバックする。
+    優先順位: ANTHROPIC_API_KEY(Claude) > OPENAI_API_KEY(OpenAI) > モック
     signalの変更は行わず、補足説明のみを返すこと。
     """
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if api_key:
-        adapter = ClaudeCommentaryAdapter()
-        return adapter.generate(signal_result, setup)
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return ClaudeCommentaryAdapter().generate(signal_result, setup)
+    if os.environ.get("OPENAI_API_KEY"):
+        return OpenAICommentaryAdapter().generate(signal_result, setup)
     comment = _generate_mock_commentary(signal_result, setup)
     return _sanitize_commentary(comment)
 
@@ -178,6 +177,40 @@ class MockCommentaryAdapter(CommentaryAdapter):
     def generate(self, signal_result: SignalResult, setup: TradeSetup | None = None) -> str:
         comment = _generate_mock_commentary(signal_result, setup)
         return _sanitize_commentary(comment)
+
+
+class OpenAICommentaryAdapter(CommentaryAdapter):
+    """OpenAI APIを使ったコメント生成アダプター。
+
+    OPENAI_API_KEY 環境変数が必要。
+    モデルは OPENAI_MODEL 環境変数で変更可能（デフォルト: gpt-4o-mini）。
+    API呼び出し失敗時は MockCommentaryAdapter にフォールバックする。
+    """
+
+    def __init__(self) -> None:
+        import openai  # 遅延importでopenaiが未インストールでも他機能は動作する
+        self._client = openai.OpenAI()
+        self._model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
+
+    def generate(self, signal_result: SignalResult, setup: TradeSetup | None = None) -> str:
+        if not signal_result.data_sufficient:
+            return "データが不足しているため、判定を行えません。CSVファイルを確認してください。"
+
+        try:
+            user_prompt = _build_signal_prompt(signal_result, setup)
+            response = self._client.chat.completions.create(
+                model=self._model,
+                max_tokens=512,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+            )
+            comment = response.choices[0].message.content.strip()
+            return _sanitize_commentary(comment)
+        except Exception:
+            fallback = MockCommentaryAdapter()
+            return fallback.generate(signal_result, setup)
 
 
 class ClaudeCommentaryAdapter(CommentaryAdapter):

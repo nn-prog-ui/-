@@ -5,6 +5,7 @@ import pytest
 
 from app.services.ai_commentary import (
     MockCommentaryAdapter,
+    OpenAICommentaryAdapter,
     _build_signal_prompt,
     _sanitize_commentary,
     generate_commentary,
@@ -190,3 +191,100 @@ class TestGenerateCommentaryDispatch:
         system = call_kwargs["system"]
         assert isinstance(system, list)
         assert system[0]["cache_control"] == {"type": "ephemeral"}
+
+    def test_uses_openai_when_only_openai_key_set(self, monkeypatch):
+        monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-fake")
+
+        with patch("app.services.ai_commentary.OpenAICommentaryAdapter") as mock_cls:
+            mock_adapter = MagicMock()
+            mock_adapter.generate.return_value = "OpenAIからのコメントです。"
+            mock_cls.return_value = mock_adapter
+
+            result = make_signal_result()
+            comment = generate_commentary(result)
+
+        assert comment == "OpenAIからのコメントです。"
+        mock_adapter.generate.assert_called_once()
+
+    def test_claude_takes_priority_over_openai(self, monkeypatch):
+        monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-fake")
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-openai-fake")
+
+        with patch("app.services.ai_commentary.ClaudeCommentaryAdapter") as claude_cls, \
+             patch("app.services.ai_commentary.OpenAICommentaryAdapter") as openai_cls:
+            claude_adapter = MagicMock()
+            claude_adapter.generate.return_value = "Claudeからのコメントです。"
+            claude_cls.return_value = claude_adapter
+
+            result = make_signal_result()
+            comment = generate_commentary(result)
+
+        assert comment == "Claudeからのコメントです。"
+        openai_cls.assert_not_called()
+
+
+class TestOpenAICommentaryAdapter:
+    def test_buy_signal_returns_comment(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
+        mock_choice = MagicMock()
+        mock_choice.message.content = "日足・4時間足ともに上昇方向で買い候補条件が揃っています。"
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            adapter = OpenAICommentaryAdapter()
+            result = make_signal_result(signal="BUY")
+            comment = adapter.generate(result)
+
+        assert "上昇" in comment
+        call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        messages = call_kwargs["messages"]
+        assert messages[0]["role"] == "system"
+        assert messages[1]["role"] == "user"
+
+    def test_falls_back_to_mock_on_api_error(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.side_effect = Exception("API Error")
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            adapter = OpenAICommentaryAdapter()
+            result = make_signal_result()
+            comment = adapter.generate(result)
+
+        assert isinstance(comment, str)
+        assert len(comment) > 0
+
+    def test_data_insufficient_returns_early(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
+        mock_client = MagicMock()
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            adapter = OpenAICommentaryAdapter()
+            result = make_signal_result(data_sufficient=False)
+            comment = adapter.generate(result)
+
+        assert "データが不足" in comment
+        mock_client.chat.completions.create.assert_not_called()
+
+    def test_forbidden_words_sanitized(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-fake")
+        mock_choice = MagicMock()
+        mock_choice.message.content = "儲かる！今すぐ全力で買いましょう。"
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("openai.OpenAI", return_value=mock_client):
+            adapter = OpenAICommentaryAdapter()
+            result = make_signal_result(signal="BUY")
+            comment = adapter.generate(result)
+
+        assert "儲かる" not in comment
+        assert "今すぐ全力" not in comment

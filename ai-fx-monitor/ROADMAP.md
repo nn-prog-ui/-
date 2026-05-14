@@ -75,11 +75,14 @@ AI FX市場監視システム 開発ロードマップ
 
 ---
 
-## Phase 6：AIコメント（MVP完了・モック実装）
+## Phase 6：AIコメント（完了）
 
 - [x] モック実装（ルール結果をもとに文章生成）
-- [ ] OpenAI API連携アダプター
-- [ ] Claude API連携アダプター
+- [x] Claude API連携アダプター（ANTHROPIC_API_KEY + prompt caching）
+- [x] OpenAI API連携アダプター（OPENAI_API_KEY、gpt-4o-mini デフォルト）
+- [x] 優先順位：Claude > OpenAI > モック自動フォールバック
+- [x] 禁止表現サニタイズ（_FORBIDDEN_WORDS チェック）
+- [x] テスト23件
 
 ---
 

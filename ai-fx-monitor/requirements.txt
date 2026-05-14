@@ -11,3 +11,4 @@ httpx==0.25.2
 aiofiles==23.2.1
 anthropic>=0.40.0
 openai>=1.0.0
+apscheduler>=3.10.0

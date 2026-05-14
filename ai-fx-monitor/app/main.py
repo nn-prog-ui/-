@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.database.db import init_db
 from app.web.routes import router
+from app.services.scheduler import start_scheduler, stop_scheduler
 
 app = FastAPI(
     title="AI FX市場監視システム",
@@ -21,3 +22,9 @@ app.include_router(router)
 @app.on_event("startup")
 async def startup_event():
     init_db()
+    start_scheduler()
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    stop_scheduler()

@@ -135,6 +135,26 @@ AI FX市場監視システム 開発ロードマップ
 - [x] テスト29件（安全制約・エラーハンドリング含む）
 - [x] ※本番注文は絶対に作らない（将来でも慎重に検討）
 
+### Phase 16：定期スキャン（APScheduler）✅
+
+- [x] `app/services/scheduler.py` — BackgroundSchedulerで全ペアを定期分析
+- [x] `SCAN_ENABLED` / `SCAN_INTERVAL_MINUTES` 環境変数で制御
+- [x] `app/main.py` startup/shutdown イベントに統合
+- [x] 1ペアのエラーで他ペアが止まらない設計
+- [x] テスト13件（無効化・起動・冪等性・エラー継続）
+
+### Phase 17：バックテストCLI ✅
+
+- [x] `app/scripts/backtest.py` — 過去CSVで判定ルール精度を検証（注文なし）
+- [x] `python -m app.scripts.backtest --symbol USD/JPY --window 500`
+- [x] SL/TP到達シミュレーション・勝率・pips集計・全ペアサマリー
+- [x] テスト13件（pip計算・SL/TP判定・データ不足）
+
+### Phase 18：ドキュメント整備 ✅
+
+- [x] `README.md` — Phase 8〜17の全機能を追記（フォルダ構成・設定・使い方）
+- [x] `PROGRESS.md` — 全フェーズの実装記録・エラー記録を補完
+
 ### Phase 14：デモ注文成績統計 ✅
 
 - [x] `get_demo_performance_stats()` — 総注文数・勝ち/負け/勝率・合計pips・平均pipsを集計

@@ -56,6 +56,17 @@
       <div class="analyzed-at">
         分析時刻: {{ result.analyzed_at.strftime('%Y-%m-%d %H:%M') }} UTC
       </div>
+      <!-- 通貨ペア切替セレクター -->
+      {% if supported_symbols %}
+      <form method="GET" action="/" class="symbol-form">
+        <label for="symbol-select" class="symbol-label">通貨ペア:</label>
+        <select id="symbol-select" name="symbol" class="symbol-select" onchange="this.form.submit()">
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == result.symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+      </form>
+      {% endif %}
     </section>
 
     <!-- メイン判定 -->
@@ -137,6 +148,82 @@
           </span>
         </div>
       </div>
+    </section>
+
+    <!-- ボリンジャーバンド -->
+    <section class="card">
+      <h3 class="card-title">ボリンジャーバンド（BB20・±2σ）</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">BB上限（+2σ）</span>
+          <span class="ind-value">{{ "%.3f"|format(result.bb_upper) if result.bb_upper is not none else "---" }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">BB中央（SMA20）</span>
+          <span class="ind-value">{{ "%.3f"|format(result.bb_middle) if result.bb_middle is not none else "---" }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">BB下限（-2σ）</span>
+          <span class="ind-value">{{ "%.3f"|format(result.bb_lower) if result.bb_lower is not none else "---" }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">BB位置</span>
+          <span class="ind-value {% if result.bb_status == '下限接近' %}rsi-low{% elif result.bb_status == '上限接近' %}rsi-high{% else %}rsi-normal{% endif %}">
+            {{ result.bb_status }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- MACD -->
+    <section class="card">
+      <h3 class="card-title">MACD（12・26・9）</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">MACDライン</span>
+          <span class="ind-value">{{ "%.5f"|format(result.macd_value) if result.macd_value is not none else "---" }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">シグナルライン</span>
+          <span class="ind-value">{{ "%.5f"|format(result.macd_signal_value) if result.macd_signal_value is not none else "---" }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">ヒストグラム</span>
+          <span class="ind-value {% if result.macd_histogram is not none %}{% if result.macd_histogram > 0 %}trend-上昇{% elif result.macd_histogram < 0 %}trend-下降{% endif %}{% endif %}">
+            {{ "%.5f"|format(result.macd_histogram) if result.macd_histogram is not none else "---" }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">MACD状態</span>
+          <span class="ind-value {% if result.macd_status in ['ゴールデンクロス', '上昇モメンタム'] %}trend-上昇{% elif result.macd_status in ['デッドクロス', '下降モメンタム'] %}trend-下降{% endif %}">
+            {{ result.macd_status }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 通貨強弱 -->
+    <section class="card">
+      <h3 class="card-title">通貨強弱（日足モメンタム）</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">モメンタムスコア</span>
+          <span class="ind-value">
+            {% if result.currency_strength is not none %}
+              {% if result.currency_strength > 0 %}+{% endif %}{{ "%.2f"|format(result.currency_strength) }}%
+            {% else %}
+              ---
+            {% endif %}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">{{ result.symbol }}の強弱</span>
+          <span class="ind-value {% if result.currency_strength_status == '強い' %}trend-上昇{% elif result.currency_strength_status == '弱い' %}trend-下降{% endif %}">
+            {{ result.currency_strength_status }}
+          </span>
+        </div>
+      </div>
+      <small class="ai-disclaimer">※ 5・10・20日間の変化率平均（正値=ベース通貨強い、負値=クォート通貨強い）</small>
     </section>
 
     <!-- エントリー候補 -->

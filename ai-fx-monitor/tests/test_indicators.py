@@ -12,6 +12,9 @@ from app.indicators.atr import (
     get_recent_low,
     is_atr_abnormal,
 )
+from app.indicators.bollinger_bands import calculate_bollinger_bands, get_bb_values, get_bb_status
+from app.indicators.macd import calculate_macd, get_macd_values, get_macd_status
+from app.indicators.currency_strength import calculate_pair_momentum, get_strength_status
 
 
 def make_ohlc(n: int = 200, start_price: float = 150.0, trend: float = 0.0) -> pd.DataFrame:
@@ -173,3 +176,150 @@ class TestATR:
         df = make_ohlc(200)
         result = is_atr_abnormal(df)
         assert isinstance(result, bool)
+
+
+# ============================================================
+# ボリンジャーバンド
+# ============================================================
+
+class TestBollingerBands:
+    def test_bb_columns_added(self):
+        df = make_ohlc(200)
+        result = calculate_bollinger_bands(df)
+        assert "bb_upper" in result.columns
+        assert "bb_middle" in result.columns
+        assert "bb_lower" in result.columns
+
+    def test_bb_upper_gt_lower(self):
+        df = make_ohlc(200)
+        result = calculate_bollinger_bands(df)
+        valid = result.dropna(subset=["bb_upper", "bb_lower"])
+        assert (valid["bb_upper"] >= valid["bb_lower"]).all()
+
+    def test_bb_price_within_bands_mostly(self):
+        """価格はほぼバンド内に収まる（確率的に2σ内に約95%）。"""
+        df = make_ohlc(500)
+        result = calculate_bollinger_bands(df)
+        valid = result.dropna(subset=["bb_upper", "bb_lower"])
+        within = ((valid["close"] <= valid["bb_upper"]) & (valid["close"] >= valid["bb_lower"])).mean()
+        assert within > 0.8
+
+    def test_get_bb_values_returns_tuple(self):
+        df = make_ohlc(200)
+        upper, middle, lower = get_bb_values(df)
+        assert upper is not None
+        assert middle is not None
+        assert lower is not None
+        assert upper >= middle >= lower
+
+    def test_get_bb_values_insufficient(self):
+        df = make_ohlc(10)
+        upper, middle, lower = get_bb_values(df, period=20)
+        assert upper is None and middle is None and lower is None
+
+    def test_get_bb_status_returns_str(self):
+        df = make_ohlc(200)
+        status = get_bb_status(df)
+        assert status in ("上限接近", "下限接近", "中央付近", "判定不能")
+
+    def test_get_bb_status_insufficient(self):
+        df = make_ohlc(5)
+        assert get_bb_status(df) == "判定不能"
+
+    def test_bb_lower_near_returns_correct_status(self):
+        """価格がBB下限付近のデータを作成してステータスを確認する。"""
+        # 急落したデータを作成: 最後の値を大幅に下げる
+        df = make_ohlc(200, trend=0.0)
+        # BB下限を計算して、最後の close を下限より少し上に設定
+        calc = calculate_bollinger_bands(df)
+        lower = calc["bb_lower"].iloc[-1]
+        if not pd.isna(lower):
+            df.loc[df.index[-1], "close"] = lower * 1.001
+            status = get_bb_status(df)
+            assert status in ("下限接近", "中央付近")  # 範囲内ならどちらもOK
+
+
+# ============================================================
+# MACD
+# ============================================================
+
+class TestMACD:
+    def test_macd_columns_added(self):
+        df = make_ohlc(200)
+        result = calculate_macd(df)
+        assert "macd" in result.columns
+        assert "macd_signal" in result.columns
+        assert "macd_histogram" in result.columns
+
+    def test_histogram_equals_macd_minus_signal(self):
+        df = make_ohlc(200)
+        result = calculate_macd(df)
+        valid = result.dropna(subset=["macd", "macd_signal", "macd_histogram"])
+        diff = (valid["macd"] - valid["macd_signal"] - valid["macd_histogram"]).abs()
+        assert (diff < 1e-10).all()
+
+    def test_get_macd_values_returns_floats(self):
+        df = make_ohlc(200)
+        macd_val, signal_val, histogram = get_macd_values(df)
+        assert macd_val is not None
+        assert signal_val is not None
+        assert histogram is not None
+        assert abs(macd_val - signal_val - histogram) < 1e-6
+
+    def test_get_macd_values_insufficient(self):
+        df = make_ohlc(10)
+        macd_val, signal_val, histogram = get_macd_values(df)
+        assert macd_val is None and signal_val is None and histogram is None
+
+    def test_get_macd_status_returns_str(self):
+        df = make_ohlc(200)
+        status = get_macd_status(df)
+        assert status in ("ゴールデンクロス", "デッドクロス", "上昇モメンタム", "下降モメンタム", "判定不能")
+
+    def test_get_macd_status_insufficient(self):
+        df = make_ohlc(10)
+        assert get_macd_status(df) == "判定不能"
+
+    def test_macd_uptrend_positive(self):
+        """上昇トレンドではMACDラインが正（EMA短期 > EMA長期）。"""
+        df = make_ohlc(300, trend=0.05)
+        macd_val, _, _ = get_macd_values(df)
+        assert macd_val is not None and macd_val > 0
+
+    def test_macd_downtrend_negative(self):
+        """下降トレンドではMACDラインが負（EMA短期 < EMA長期）。"""
+        df = make_ohlc(300, trend=-0.05)
+        macd_val, _, _ = get_macd_values(df)
+        assert macd_val is not None and macd_val < 0
+
+
+# ============================================================
+# 通貨強弱
+# ============================================================
+
+class TestCurrencyStrength:
+    def test_momentum_uptrend_positive(self):
+        """上昇トレンドのデータはモメンタムスコアが正。"""
+        df = make_ohlc(100, trend=0.05)
+        score = calculate_pair_momentum(df)
+        assert score > 0
+
+    def test_momentum_downtrend_negative(self):
+        """下降トレンドのデータはモメンタムスコアが負。"""
+        df = make_ohlc(100, trend=-0.05)
+        score = calculate_pair_momentum(df)
+        assert score < 0
+
+    def test_momentum_insufficient_data(self):
+        df = make_ohlc(5)
+        score = calculate_pair_momentum(df)
+        assert score == 0.0
+
+    def test_strength_status_strong(self):
+        assert get_strength_status(1.0) == "強い"
+
+    def test_strength_status_weak(self):
+        assert get_strength_status(-1.0) == "弱い"
+
+    def test_strength_status_neutral(self):
+        assert get_strength_status(0.0) == "中立"

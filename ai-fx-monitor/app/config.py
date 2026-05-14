@@ -17,6 +17,15 @@ DB_PATH = BASE_DIR / os.getenv("DB_PATH", "data/fx_monitor.db")
 DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "USD/JPY")
 DEFAULT_CSV_FILE = os.getenv("DEFAULT_CSV_FILE", "USDJPY_1h.csv")
 
+# サポートする通貨ペアと対応 CSV ファイルのマッピング（Phase 11: 複数ペア対応）
+SYMBOL_CSV_MAP: dict[str, str] = {
+    "USD/JPY": "USDJPY_1h.csv",
+    "EUR/USD": "EURUSD_1h.csv",
+    "GBP/USD": "GBPUSD_1h.csv",
+    "EUR/JPY": "EURJPY_1h.csv",
+}
+SUPPORTED_SYMBOLS: list[str] = list(SYMBOL_CSV_MAP.keys())
+
 # データソース: "csv"（デフォルト）または "oanda"
 DATA_SOURCE = os.getenv("DATA_SOURCE", "csv").lower()
 

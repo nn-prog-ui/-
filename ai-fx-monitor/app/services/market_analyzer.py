@@ -5,17 +5,20 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
 
-from app.config import DATA_DIR, DEFAULT_CSV_FILE, DEFAULT_SYMBOL
+from app.config import DATA_DIR, DEFAULT_CSV_FILE, DEFAULT_SYMBOL, SYMBOL_CSV_MAP
 from app.data.loader import load_or_generate
 from app.data.price_source import get_price_data
 from app.data.resampler import get_all_timeframes
 from app.indicators.atr import get_atr_status, get_atr_value, get_recent_high, get_recent_low
+from app.indicators.bollinger_bands import get_bb_status, get_bb_values
+from app.indicators.currency_strength import calculate_pair_momentum, get_strength_status
+from app.indicators.macd import get_macd_status, get_macd_values
 from app.indicators.rsi import get_rsi_value
 from app.services.ai_commentary import MockCommentaryAdapter
 from app.services.economic_calendar import is_near_economic_event
@@ -47,6 +50,19 @@ class AnalysisResult:
     skip_reasons: list[str]
     data_sufficient: bool
     is_dummy_data: bool
+    # Phase 11: ボリンジャーバンド
+    bb_upper: float | None = None
+    bb_middle: float | None = None
+    bb_lower: float | None = None
+    bb_status: str = "判定不能"
+    # Phase 11: MACD
+    macd_value: float | None = None
+    macd_signal_value: float | None = None
+    macd_histogram: float | None = None
+    macd_status: str = "判定不能"
+    # Phase 11: 通貨強弱（単一ペアモメンタムスコア）
+    currency_strength: float | None = None
+    currency_strength_status: str = "判定不能"
 
     @property
     def signal_label(self) -> str:
@@ -99,9 +115,13 @@ def run_analysis(
 
     DATA_SOURCE=oanda の場合はOANDA APIを使用する。
     失敗時は自動的にCSVにフォールバックする。
+    symbol が SYMBOL_CSV_MAP に含まれる場合、対応する CSV を自動選択する。
     """
     symbol = symbol or DEFAULT_SYMBOL
-    csv_path = csv_path or (DATA_DIR / DEFAULT_CSV_FILE)
+
+    if csv_path is None:
+        csv_filename = SYMBOL_CSV_MAP.get(symbol, DEFAULT_CSV_FILE)
+        csv_path = DATA_DIR / csv_filename
 
     timeframes, is_dummy = get_price_data(symbol, csv_path)
     if is_dummy:
@@ -137,6 +157,21 @@ def run_analysis(
     if signal_result.score is not None:
         score_val = signal_result.score.score
 
+    # Phase 11: ボリンジャーバンド（1時間足）
+    bb_upper, bb_middle, bb_lower = get_bb_values(df_1h)
+    bb_status = get_bb_status(df_1h)
+
+    # Phase 11: MACD（1時間足）
+    macd_val, macd_sig, macd_hist = get_macd_values(df_1h)
+    macd_status = get_macd_status(df_1h)
+
+    # Phase 11: 通貨強弱（日足モメンタム）
+    strength_score: float | None = None
+    strength_status = "判定不能"
+    if not df_daily.empty:
+        strength_score = calculate_pair_momentum(df_daily)
+        strength_status = get_strength_status(strength_score)
+
     return AnalysisResult(
         symbol=symbol,
         analyzed_at=datetime.utcnow(),
@@ -158,4 +193,14 @@ def run_analysis(
         skip_reasons=signal_result.skip_reasons,
         data_sufficient=signal_result.data_sufficient,
         is_dummy_data=is_dummy,
+        bb_upper=bb_upper,
+        bb_middle=bb_middle,
+        bb_lower=bb_lower,
+        bb_status=bb_status,
+        macd_value=macd_val,
+        macd_signal_value=macd_sig,
+        macd_histogram=macd_hist,
+        macd_status=macd_status,
+        currency_strength=strength_score,
+        currency_strength_status=strength_status,
     )

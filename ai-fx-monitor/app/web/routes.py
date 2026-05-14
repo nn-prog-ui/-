@@ -20,6 +20,7 @@ from app.database.repository import (
     get_performance_stats,
     save_approval,
 )
+from app.config import DEFAULT_SYMBOL, SUPPORTED_SYMBOLS
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
 
@@ -33,10 +34,12 @@ _last_result: AnalysisResult | None = None
 
 
 @router.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
     global _last_result
+    if symbol not in SUPPORTED_SYMBOLS:
+        symbol = DEFAULT_SYMBOL
     try:
-        result = run_analysis()
+        result = run_analysis(symbol=symbol)
         _last_result = result
         try:
             notify_analysis_result(result)
@@ -51,12 +54,22 @@ async def index(request: Request):
         logger.error("分析エラー: %s", exc)
         return templates.TemplateResponse(
             "index.html",
-            {"request": request, "error": str(exc), "result": None},
+            {
+                "request": request,
+                "error": str(exc),
+                "result": None,
+                "supported_symbols": SUPPORTED_SYMBOLS,
+            },
         )
 
     return templates.TemplateResponse(
         "index.html",
-        {"request": request, "result": result, "error": None},
+        {
+            "request": request,
+            "result": result,
+            "error": None,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
     )
 
 

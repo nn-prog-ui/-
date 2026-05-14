@@ -363,3 +363,67 @@ def close_demo_order(
             """,
             (exit_price, pnl_pips, closed_at, demo_id),
         )
+
+
+def get_demo_performance_stats(db_path: Path | None = None) -> dict:
+    """デモ注文の成績統計を返す。
+
+    Returns:
+        {
+            total_orders: int,       # 全デモ注文数
+            open_count: int,         # オープン中
+            closed_count: int,       # 決済済み
+            win_count: int,          # pnl_pips > 0
+            loss_count: int,         # pnl_pips <= 0
+            win_rate: float | None,  # 勝率(%)
+            total_pips: float,       # 合計損益(pips)
+            avg_pips: float | None,  # 平均損益(pips/取引)
+        }
+    """
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total_orders,
+                SUM(CASE WHEN status = 'open'   THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN status = 'closed' THEN 1 ELSE 0 END) AS closed_count,
+                SUM(CASE WHEN status = 'closed' AND pnl_pips >  0 THEN 1 ELSE 0 END) AS win_count,
+                SUM(CASE WHEN status = 'closed' AND pnl_pips <= 0 THEN 1 ELSE 0 END) AS loss_count,
+                SUM(CASE WHEN pnl_pips IS NOT NULL THEN pnl_pips ELSE 0 END) AS total_pips,
+                AVG(CASE WHEN status = 'closed' THEN pnl_pips ELSE NULL END) AS avg_pips
+            FROM demo_orders
+            """
+        ).fetchone()
+
+    if row is None:
+        return {
+            "total_orders": 0,
+            "open_count": 0,
+            "closed_count": 0,
+            "win_count": 0,
+            "loss_count": 0,
+            "win_rate": None,
+            "total_pips": 0.0,
+            "avg_pips": None,
+        }
+
+    total_orders = row["total_orders"] or 0
+    open_count   = row["open_count"]   or 0
+    closed_count = row["closed_count"] or 0
+    win_count    = row["win_count"]    or 0
+    loss_count   = row["loss_count"]   or 0
+    total_pips   = row["total_pips"]   or 0.0
+    avg_pips     = row["avg_pips"]
+
+    win_rate = (win_count / closed_count * 100) if closed_count > 0 else None
+
+    return {
+        "total_orders": total_orders,
+        "open_count":   open_count,
+        "closed_count": closed_count,
+        "win_count":    win_count,
+        "loss_count":   loss_count,
+        "win_rate":     win_rate,
+        "total_pips":   total_pips,
+        "avg_pips":     avg_pips,
+    }

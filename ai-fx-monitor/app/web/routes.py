@@ -18,6 +18,7 @@ from app.database.repository import (
     get_approval_by_id,
     get_demo_order_by_id,
     get_demo_orders,
+    get_demo_performance_stats,
     get_history,
     get_history_count,
     get_open_trades,
@@ -154,6 +155,7 @@ async def history(request: Request, page: int = 1, per_page: int = 20):
 async def performance(request: Request):
     """パフォーマンス統計ページ。"""
     stats = get_performance_stats()
+    demo_stats = get_demo_performance_stats()
     open_trades = get_open_trades()
 
     # open_tradesにラベルを付与（historyルートと同様）
@@ -176,6 +178,7 @@ async def performance(request: Request):
         {
             "request": request,
             "stats": stats,
+            "demo_stats": demo_stats,
             "open_trades": open_trades,
         },
     )
@@ -370,12 +373,14 @@ async def demo_trade_execute(
 async def demo_orders_list(request: Request):
     """デモ注文履歴一覧ページ。"""
     orders = get_demo_orders(limit=50)
+    demo_stats = get_demo_performance_stats()
     return templates.TemplateResponse(
         "demo_trade.html",
         {
             "request": request,
             "step": "list",
             "orders": orders,
+            "demo_stats": demo_stats,
             "error": None,
         },
     )

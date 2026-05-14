@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>デモ注文 — AI FX市場監視</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <style>
+    .demo-badge {
+      display: inline-block;
+      background: #e74c3c;
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      margin-left: 8px;
+    }
+    .step-indicator {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .step-dot {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: var(--bg-secondary);
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 700;
+    }
+    .step-dot.active { background: var(--color-buy); color: #fff; }
+    .step-dot.done { background: #27ae60; color: #fff; }
+    .confirm-box {
+      background: rgba(231, 76, 60, 0.1);
+      border: 1px solid #e74c3c;
+      border-radius: 8px;
+      padding: 16px;
+      margin: 16px 0;
+    }
+    .confirm-box label {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+    .confirm-box input[type="checkbox"] {
+      margin-top: 2px;
+      width: 18px;
+      height: 18px;
+      flex-shrink: 0;
+    }
+    .order-result-box {
+      background: rgba(39, 174, 96, 0.1);
+      border: 1px solid #27ae60;
+      border-radius: 8px;
+      padding: 20px;
+      text-align: center;
+    }
+    .order-result-box .result-title {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: #27ae60;
+      margin-bottom: 12px;
+    }
+    .trade-id-display {
+      font-family: monospace;
+      background: var(--bg-secondary);
+      padding: 6px 14px;
+      border-radius: 4px;
+      font-size: 1rem;
+    }
+    .unavailable-notice {
+      background: rgba(255, 200, 0, 0.1);
+      border: 1px solid #f39c12;
+      border-radius: 8px;
+      padding: 14px;
+      margin: 12px 0;
+    }
+    .demo-order-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .demo-order-table th { background: var(--bg-secondary); padding: 8px 12px; text-align: left; }
+    .demo-order-table td { padding: 8px 12px; border-bottom: 1px solid var(--bg-secondary); }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム <span class="demo-badge">DEMO ONLY</span></h1>
+      <span class="safety-badge">デモ口座専用 / 本番注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定画面</a>
+      <a href="/history" class="nav-link">承認履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/demo-orders" class="nav-link active">デモ注文</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+  {% if step == "list" %}
+  <!-- デモ注文履歴一覧 -->
+  <section class="card">
+    <h2 class="card-title">デモ注文履歴</h2>
+    <p style="font-size:0.85rem;color:var(--text-muted)">
+      ※ すべてOANDA practiceデモ口座への注文です。本番注文はこのシステムに存在しません。
+    </p>
+    {% if orders %}
+    <table class="demo-order-table">
+      <thead>
+        <tr>
+          <th>日時</th>
+          <th>ペア</th>
+          <th>方向</th>
+          <th>数量</th>
+          <th>約定価格</th>
+          <th>OANDA Trade ID</th>
+          <th>ステータス</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for o in orders %}
+        <tr>
+          <td>{{ o.created_at[:16] }}</td>
+          <td>{{ o.symbol }}</td>
+          <td class="{% if o.direction == 'BUY' %}trend-上昇{% else %}trend-下降{% endif %}">{{ o.direction }}</td>
+          <td>{{ o.units }}</td>
+          <td>{{ "%.3f"|format(o.filled_price) if o.filled_price else "---" }}</td>
+          <td><span class="trade-id-display">{{ o.oanda_trade_id or "---" }}</span></td>
+          <td>{{ o.status }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p style="color:var(--text-muted)">デモ注文履歴はありません。</p>
+    {% endif %}
+  </section>
+
+  {% elif step == 3 %}
+  <!-- Step 3: 注文完了 -->
+  <section class="card">
+    <div class="step-indicator">
+      <div class="step-dot done">1</div>
+      <div class="step-dot done">2</div>
+      <div class="step-dot active">3</div>
+    </div>
+    <div class="order-result-box">
+      <div class="result-title">✓ デモ注文が完了しました</div>
+      <p>OANDA practiceデモ口座に注文が送信されました。</p>
+      <p>OANDA Trade ID: <span class="trade-id-display">{{ order_result.trade_id or "N/A" }}</span></p>
+      {% if order_result.filled_price %}
+      <p>約定価格: <strong>{{ "%.3f"|format(order_result.filled_price) }}</strong></p>
+      {% endif %}
+      <p style="margin-top:12px;font-size:0.82rem;color:var(--text-muted)">
+        ※ これはデモ口座への注文です。実際の資金は使われていません。<br>
+        OANDAのデモ口座ページでご確認ください。
+      </p>
+    </div>
+    <div style="margin-top:20px;display:flex;gap:12px;">
+      <a href="/demo-orders" class="btn btn-skip">デモ注文履歴</a>
+      <a href="/history" class="btn btn-skip">承認履歴へ戻る</a>
+    </div>
+  </section>
+
+  {% elif step == 2 %}
+  <!-- Step 2: 最終確認 -->
+  <section class="card">
+    <div class="step-indicator">
+      <div class="step-dot done">1</div>
+      <div class="step-dot active">2</div>
+      <div class="step-dot">3</div>
+    </div>
+    <h2 class="card-title">最終確認 — デモ注文</h2>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="alert alert-warning">
+      <strong>【重要】 これはOANDA practiceデモ口座への注文です。</strong><br>
+      本番資金は一切使われません。それでも注文内容を必ず確認してください。
+    </div>
+
+    <div class="setup-grid" style="margin:16px 0;">
+      <div class="setup-item">
+        <span class="setup-label">通貨ペア</span>
+        <span class="setup-value">{{ record.symbol }}</span>
+      </div>
+      <div class="setup-item">
+        <span class="setup-label">方向</span>
+        <span class="setup-value {% if record.human_action == 'buy_approved' %}trend-上昇{% else %}trend-下降{% endif %}">
+          {% if record.human_action == 'buy_approved' %}BUY（買い）{% else %}SELL（売り）{% endif %}
+        </span>
+      </div>
+      <div class="setup-item">
+        <span class="setup-label">数量</span>
+        <span class="setup-value">{{ units }} units</span>
+      </div>
+      <div class="setup-item">
+        <span class="setup-label">損切り</span>
+        <span class="setup-value stoploss">{{ "%.3f"|format(record.stop_loss) if record.stop_loss else "---" }}</span>
+      </div>
+      <div class="setup-item">
+        <span class="setup-label">利確</span>
+        <span class="setup-value takeprofit">{{ "%.3f"|format(record.take_profit) if record.take_profit else "---" }}</span>
+      </div>
+    </div>
+
+    <form method="POST" action="/demo-trade/{{ record.id }}">
+      <input type="hidden" name="step" value="2">
+      <input type="hidden" name="units" value="{{ units }}">
+      <div class="confirm-box">
+        <label>
+          <input type="checkbox" name="confirm2" value="yes" required>
+          <span>
+            上記の内容でOANDA <strong>practiceデモ口座</strong>に注文を送信することを確認しました。
+            本番注文ではありません。
+          </span>
+        </label>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:12px;">
+        <a href="/demo-trade/{{ record.id }}" class="btn btn-skip">キャンセル</a>
+        <button type="submit" class="btn btn-buy">デモ注文を送信する</button>
+      </div>
+    </form>
+  </section>
+
+  {% else %}
+  <!-- Step 1: 確認画面 -->
+  <section class="card">
+    <div class="step-indicator">
+      <div class="step-dot active">1</div>
+      <div class="step-dot">2</div>
+      <div class="step-dot">3</div>
+    </div>
+    <h2 class="card-title">デモ注文の確認</h2>
+
+    {% if error %}
+    <div class="alert alert-error">{{ error }}</div>
+    {% endif %}
+
+    <div class="alert alert-warning">
+      <strong>これはOANDA practiceデモ口座への注文機能です。</strong><br>
+      本番注文は発生しません。実際の資金は使われません。<br>
+      ご利用には <code>.env</code> に <code>DATA_SOURCE=oanda</code>、<code>OANDA_API_KEY</code>、<code>OANDA_ENVIRONMENT=practice</code> の設定が必要です。
+    </div>
+
+    {% if not demo_available %}
+    <div class="unavailable-notice">
+      <strong>⚠ デモ注文は現在利用できません。</strong><br>
+      <code>DATA_SOURCE=oanda</code>、<code>OANDA_API_KEY</code>、<code>OANDA_ACCOUNT_ID</code> を
+      <code>.env</code> に設定してください。
+    </div>
+    {% endif %}
+
+    <section class="card" style="margin:16px 0;">
+      <h3 class="card-title">承認済み取引の詳細</h3>
+      <div class="setup-grid">
+        <div class="setup-item">
+          <span class="setup-label">通貨ペア</span>
+          <span class="setup-value">{{ record.symbol }}</span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">方向</span>
+          <span class="setup-value {% if record.human_action == 'buy_approved' %}trend-上昇{% else %}trend-下降{% endif %}">
+            {% if record.human_action == 'buy_approved' %}BUY（買い）{% else %}SELL（売り）{% endif %}
+          </span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">エントリー候補</span>
+          <span class="setup-value entry">{{ "%.3f"|format(record.entry_price) if record.entry_price else "---" }}</span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">損切り候補</span>
+          <span class="setup-value stoploss">{{ "%.3f"|format(record.stop_loss) if record.stop_loss else "---" }}</span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">利確候補</span>
+          <span class="setup-value takeprofit">{{ "%.3f"|format(record.take_profit) if record.take_profit else "---" }}</span>
+        </div>
+        <div class="setup-item">
+          <span class="setup-label">R/R</span>
+          <span class="setup-value {% if record.risk_reward and record.risk_reward >= 1.5 %}rr-good{% else %}rr-bad{% endif %}">
+            {{ "%.2f"|format(record.risk_reward) if record.risk_reward else "---" }}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <form method="POST" action="/demo-trade/{{ record.id }}">
+      <input type="hidden" name="step" value="1">
+      <div class="notes-field" style="margin-bottom:12px;">
+        <label for="units">注文数量（units）</label>
+        <input type="number" id="units" name="units" value="1000" min="1" max="100000"
+               style="width:140px;background:var(--bg-secondary);color:var(--text-primary);border:1px solid #444;border-radius:6px;padding:6px 10px;">
+        <span style="font-size:0.8rem;color:var(--text-muted);margin-left:8px;">※ 1000 = 0.01ロット相当</span>
+      </div>
+      <div class="confirm-box">
+        <label>
+          <input type="checkbox" name="confirm1" value="yes" {% if not demo_available %}disabled{% endif %}>
+          <span>
+            この注文は <strong>OANDA practiceデモ口座</strong> に送信されるものであり、
+            本番資金や実際の取引ではないことを理解しています。
+            投資の最終判断は自己責任で行います。
+          </span>
+        </label>
+      </div>
+      <div style="display:flex;gap:12px;margin-top:12px;">
+        <a href="/history" class="btn btn-skip">キャンセル</a>
+        <button type="submit" class="btn btn-buy" {% if not demo_available %}disabled{% endif %}>
+          次へ（第2確認へ）
+        </button>
+      </div>
+    </form>
+  </section>
+  {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム | デモ注文機能 — OANDA practice環境専用 | 本番注文機能なし</p>
+  </footer>
+</body>
+</html>

@@ -14,12 +14,16 @@ from app.database.repository import (
     HUMAN_ACTION_SELL,
     HUMAN_ACTION_SKIP,
     check_and_close_open_trades,
+    get_approval_by_id,
+    get_demo_orders,
     get_history,
     get_history_count,
     get_open_trades,
     get_performance_stats,
     save_approval,
+    save_demo_order,
 )
+from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DEFAULT_SYMBOL, SUPPORTED_SYMBOLS
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -206,3 +210,170 @@ async def api_analysis():
         "ai_comment": result.ai_comment,
         "is_dummy_data": result.is_dummy_data,
     }
+
+
+# ============================================================
+# Phase 12: デモ注文フロー（承認ボタンとは完全に独立）
+# ============================================================
+
+@router.get("/demo-trade/{record_id}", response_class=HTMLResponse)
+async def demo_trade_confirm(request: Request, record_id: int):
+    """デモ注文 Step 1: 承認済み取引の詳細と警告を表示する。"""
+    record = get_approval_by_id(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="承認履歴が見つかりません")
+
+    if record["human_action"] not in {HUMAN_ACTION_BUY, HUMAN_ACTION_SELL}:
+        raise HTTPException(status_code=400, detail="買い/売り承認済みの取引のみデモ注文できます")
+
+    demo_available = is_demo_order_available()
+
+    return templates.TemplateResponse(
+        "demo_trade.html",
+        {
+            "request": request,
+            "record": record,
+            "step": 1,
+            "demo_available": demo_available,
+            "error": None,
+        },
+    )
+
+
+@router.post("/demo-trade/{record_id}", response_class=HTMLResponse)
+async def demo_trade_execute(
+    request: Request,
+    record_id: int,
+    step: int = Form(...),
+    confirm1: str = Form(""),
+    confirm2: str = Form(""),
+    units: int = Form(1000),
+    notes: str = Form(""),
+):
+    """デモ注文 Step 2 → 確認 / Step 3 → 実行。"""
+    record = get_approval_by_id(record_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="承認履歴が見つかりません")
+
+    if record["human_action"] not in {HUMAN_ACTION_BUY, HUMAN_ACTION_SELL}:
+        raise HTTPException(status_code=400, detail="買い/売り承認済みの取引のみデモ注文できます")
+
+    # Step 1 → Step 2: 第1確認チェックボックス
+    if step == 1:
+        if confirm1 != "yes":
+            return templates.TemplateResponse(
+                "demo_trade.html",
+                {
+                    "request": request,
+                    "record": record,
+                    "step": 1,
+                    "demo_available": is_demo_order_available(),
+                    "error": "確認チェックボックスにチェックを入れてください。",
+                },
+            )
+        return templates.TemplateResponse(
+            "demo_trade.html",
+            {
+                "request": request,
+                "record": record,
+                "step": 2,
+                "units": units,
+                "demo_available": is_demo_order_available(),
+                "error": None,
+            },
+        )
+
+    # Step 2 → 実行: 第2確認チェックボックス
+    if step == 2:
+        if confirm2 != "yes":
+            return templates.TemplateResponse(
+                "demo_trade.html",
+                {
+                    "request": request,
+                    "record": record,
+                    "step": 2,
+                    "units": units,
+                    "demo_available": is_demo_order_available(),
+                    "error": "最終確認チェックボックスにチェックを入れてください。",
+                },
+            )
+
+        if not is_demo_order_available():
+            return templates.TemplateResponse(
+                "demo_trade.html",
+                {
+                    "request": request,
+                    "record": record,
+                    "step": 2,
+                    "units": units,
+                    "demo_available": False,
+                    "error": "デモ注文が利用できません。DATA_SOURCE=oanda と OANDA_API_KEY を設定してください。",
+                },
+            )
+
+        direction = "BUY" if record["human_action"] == HUMAN_ACTION_BUY else "SELL"
+        try:
+            adapter = DemoOrderAdapter.from_env()
+            order_result = adapter.place_market_order(
+                symbol=record["symbol"],
+                direction=direction,
+                units=max(1, abs(units)),
+                stop_loss=record.get("stop_loss"),
+                take_profit=record.get("take_profit"),
+            )
+        except DemoOrderError as exc:
+            return templates.TemplateResponse(
+                "demo_trade.html",
+                {
+                    "request": request,
+                    "record": record,
+                    "step": 2,
+                    "units": units,
+                    "demo_available": True,
+                    "error": f"注文エラー: {exc}",
+                },
+            )
+
+        demo_id = save_demo_order(
+            approval_id=record_id,
+            symbol=record["symbol"],
+            direction=direction,
+            units=units,
+            entry_price=record.get("entry_price"),
+            stop_loss=record.get("stop_loss"),
+            take_profit=record.get("take_profit"),
+            oanda_trade_id=order_result.trade_id,
+            oanda_order_id=order_result.order_id,
+            filled_price=order_result.filled_price,
+            notes=notes,
+        )
+        logger.info("デモ注文保存: demo_id=%d trade_id=%s", demo_id, order_result.trade_id)
+
+        return templates.TemplateResponse(
+            "demo_trade.html",
+            {
+                "request": request,
+                "record": record,
+                "step": 3,
+                "order_result": order_result,
+                "demo_id": demo_id,
+                "error": None,
+            },
+        )
+
+    raise HTTPException(status_code=400, detail="無効なステップです")
+
+
+@router.get("/demo-orders", response_class=HTMLResponse)
+async def demo_orders_list(request: Request):
+    """デモ注文履歴一覧ページ。"""
+    orders = get_demo_orders(limit=50)
+    return templates.TemplateResponse(
+        "demo_trade.html",
+        {
+            "request": request,
+            "step": "list",
+            "orders": orders,
+            "error": None,
+        },
+    )

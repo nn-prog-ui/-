@@ -17,6 +17,7 @@
       <a href="/" class="nav-link">判定画面</a>
       <a href="/history" class="nav-link active">承認履歴</a>
       <a href="/performance" class="nav-link">成績</a>
+      <a href="/demo-orders" class="nav-link">デモ注文</a>
     </nav>
   </header>
 
@@ -119,6 +120,14 @@
           <div class="history-notes">
             <span class="h-label">メモ</span>
             <p>{{ r.notes }}</p>
+          </div>
+          {% endif %}
+
+          {% if r.human_action in ['buy_approved', 'sell_approved'] %}
+          <div style="margin-top:10px;">
+            <a href="/demo-trade/{{ r.id }}" class="btn btn-skip" style="font-size:0.82rem;padding:5px 12px;">
+              デモ注文
+            </a>
           </div>
           {% endif %}
         </div>

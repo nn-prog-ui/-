@@ -261,3 +261,68 @@ def check_and_close_open_trades(
             closed.append(trade)
 
     return closed
+
+
+# ============================================================
+# Phase 12: デモ注文 CRUD
+# ============================================================
+
+def save_demo_order(
+    approval_id: int,
+    symbol: str,
+    direction: str,
+    units: int,
+    entry_price: float | None,
+    stop_loss: float | None,
+    take_profit: float | None,
+    oanda_trade_id: str | None,
+    oanda_order_id: str | None,
+    filled_price: float | None,
+    notes: str = "",
+    db_path: Path | None = None,
+) -> int:
+    """デモ注文結果をSQLiteに記録して IDを返す。"""
+    with get_db(db_path) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO demo_orders (
+                created_at, approval_id, symbol, direction, units,
+                entry_price, stop_loss, take_profit,
+                oanda_trade_id, oanda_order_id, filled_price, status, notes
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+            """,
+            (
+                datetime.utcnow().isoformat(),
+                approval_id,
+                symbol,
+                direction,
+                units,
+                entry_price,
+                stop_loss,
+                take_profit,
+                oanda_trade_id,
+                oanda_order_id,
+                filled_price,
+                notes,
+            ),
+        )
+        return cursor.lastrowid
+
+
+def get_demo_orders(limit: int = 50, db_path: Path | None = None) -> list[dict[str, Any]]:
+    """デモ注文履歴を新しい順に返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM demo_orders ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_approval_by_id(record_id: int, db_path: Path | None = None) -> dict[str, Any] | None:
+    """承認履歴の1件をIDで取得する。"""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM approval_history WHERE id = ?", (record_id,)
+        ).fetchone()
+    return dict(row) if row else None

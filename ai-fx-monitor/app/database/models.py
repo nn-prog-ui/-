@@ -35,6 +35,27 @@ CREATE TABLE IF NOT EXISTS approval_history (
 );
 """
 
+# Phase 12: デモ注文履歴テーブル（approval_historyとは完全に独立）
+CREATE_DEMO_ORDERS_TABLE = """
+CREATE TABLE IF NOT EXISTS demo_orders (
+    id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at            TEXT NOT NULL,
+    approval_id           INTEGER NOT NULL,
+    symbol                TEXT NOT NULL,
+    direction             TEXT NOT NULL,
+    units                 INTEGER NOT NULL,
+    entry_price           REAL,
+    stop_loss             REAL,
+    take_profit           REAL,
+    oanda_trade_id        TEXT,
+    oanda_order_id        TEXT,
+    filled_price          REAL,
+    status                TEXT DEFAULT 'open',
+    notes                 TEXT,
+    FOREIGN KEY (approval_id) REFERENCES approval_history(id)
+);
+"""
+
 # Phase 10: 既存DBへのマイグレーション（列が既に存在する場合はエラーを無視）
 MIGRATE_ADD_OUTCOME_COLUMNS = [
     "ALTER TABLE approval_history ADD COLUMN outcome TEXT",

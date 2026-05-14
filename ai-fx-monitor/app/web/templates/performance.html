@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 成績・統計</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定画面</a>
+      <a href="/history" class="nav-link">承認履歴</a>
+      <a href="/performance" class="nav-link active">成績</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">取引成績（シミュレーション）</h2>
+      <p class="history-note">
+        このページは過去の承認取引のシミュレーション成績です。実際の注文・損益ではありません。
+      </p>
+    </section>
+
+    <!-- 統計カード -->
+    <div class="history-grid" style="margin-bottom: 1.5rem;">
+
+      <div class="card" style="text-align: center;">
+        <div class="h-label">総取引数（BUY/SELL承認）</div>
+        <div class="price-value" style="font-size: 2rem;">{{ stats.total_trades }}</div>
+      </div>
+
+      <div class="card" style="text-align: center;">
+        <div class="h-label">勝ち / 負け / オープン</div>
+        <div style="font-size: 1.4rem; margin-top: 0.5rem;">
+          <span style="color: #4ade80;">{{ stats.win_count }}勝</span>
+          <span style="color: #888;"> / </span>
+          <span style="color: #f87171;">{{ stats.loss_count }}敗</span>
+          <span style="color: #888;"> / </span>
+          <span style="color: #facc15;">{{ stats.open_count }}中</span>
+        </div>
+      </div>
+
+      <div class="card" style="text-align: center;">
+        <div class="h-label">勝率</div>
+        <div class="price-value" style="font-size: 2rem;
+          {% if stats.win_rate is not none and stats.win_rate >= 50 %}color: #4ade80;
+          {% elif stats.win_rate is not none %}color: #f87171;
+          {% endif %}">
+          {% if stats.win_rate is not none %}
+            {{ "%.1f"|format(stats.win_rate) }}%
+          {% else %}
+            ---
+          {% endif %}
+        </div>
+        {% if stats.closed_trades > 0 %}
+        <div class="h-label" style="margin-top: 0.25rem;">{{ stats.closed_trades }}件クローズ済み</div>
+        {% endif %}
+      </div>
+
+      <div class="card" style="text-align: center;">
+        <div class="h-label">合計損益（pips）</div>
+        <div class="price-value" style="font-size: 2rem;
+          {% if stats.total_pips > 0 %}color: #4ade80;
+          {% elif stats.total_pips < 0 %}color: #f87171;
+          {% endif %}">
+          {% if stats.total_pips > 0 %}+{% endif %}{{ "%.1f"|format(stats.total_pips) }}
+        </div>
+      </div>
+
+      <div class="card" style="text-align: center;">
+        <div class="h-label">平均損益（pips/取引）</div>
+        <div class="price-value" style="font-size: 2rem;
+          {% if stats.avg_pips is not none and stats.avg_pips > 0 %}color: #4ade80;
+          {% elif stats.avg_pips is not none and stats.avg_pips < 0 %}color: #f87171;
+          {% endif %}">
+          {% if stats.avg_pips is not none %}
+            {% if stats.avg_pips > 0 %}+{% endif %}{{ "%.1f"|format(stats.avg_pips) }}
+          {% else %}
+            ---
+          {% endif %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- オープン取引テーブル -->
+    <section class="card">
+      <h2 class="card-title">オープン中の取引（{{ open_trades|length }}件）</h2>
+
+      {% if open_trades %}
+      <div class="history-list">
+        {% for r in open_trades %}
+        <article class="history-card card signal-{{ r.signal|lower if r.signal else 'skip' }}">
+          <header class="history-card-header">
+            <div class="history-meta">
+              <span class="history-id">#{{ r.id }}</span>
+              <span class="history-time">{{ r.created_at }}</span>
+              <span class="history-symbol">{{ r.symbol }}</span>
+              {% if r.is_dummy_data %}
+              <span class="dummy-badge">ダミー</span>
+              {% endif %}
+            </div>
+            <div class="history-signals">
+              <span class="signal-badge signal-{{ r.signal|lower if r.signal else 'skip' }}">
+                {{ r.signal_label }}
+              </span>
+              <span class="action-badge action-{{ r.human_action }}">
+                {{ r.action_label }}
+              </span>
+              <span class="action-badge" style="background: #facc15; color: #1a1a2e;">オープン中</span>
+            </div>
+          </header>
+
+          <div class="history-body">
+            <div class="history-grid">
+              <div class="history-item">
+                <span class="h-label">エントリー</span>
+                <span class="h-value entry">{{ "%.3f"|format(r.entry_price) if r.entry_price else "---" }}</span>
+              </div>
+              <div class="history-item">
+                <span class="h-label">損切り</span>
+                <span class="h-value stoploss">{{ "%.3f"|format(r.stop_loss) if r.stop_loss else "---" }}</span>
+              </div>
+              <div class="history-item">
+                <span class="h-label">利確</span>
+                <span class="h-value takeprofit">{{ "%.3f"|format(r.take_profit) if r.take_profit else "---" }}</span>
+              </div>
+              <div class="history-item">
+                <span class="h-label">RR</span>
+                <span class="h-value {% if r.risk_reward and r.risk_reward >= 1.5 %}rr-good{% endif %}">
+                  {{ "%.2f"|format(r.risk_reward) if r.risk_reward else "---" }}
+                </span>
+              </div>
+              <div class="history-item">
+                <span class="h-label">スコア</span>
+                <span class="h-value">
+                  {% if r.score is not none %}
+                    {% if r.score > 0 %}+{% endif %}{{ r.score }}
+                  {% else %}---{% endif %}
+                </span>
+              </div>
+            </div>
+          </div>
+        </article>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="empty-history">現在オープン中の取引はありません。</p>
+      {% endif %}
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

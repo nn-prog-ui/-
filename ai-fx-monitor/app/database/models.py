@@ -27,9 +27,21 @@ CREATE TABLE IF NOT EXISTS approval_history (
     human_action          TEXT NOT NULL,
     notes                 TEXT,
     is_dummy_data         INTEGER DEFAULT 0,
-    skip_reasons          TEXT
+    skip_reasons          TEXT,
+    outcome               TEXT,
+    exit_price            REAL,
+    closed_at             TEXT,
+    pnl_pips              REAL
 );
 """
+
+# Phase 10: 既存DBへのマイグレーション（列が既に存在する場合はエラーを無視）
+MIGRATE_ADD_OUTCOME_COLUMNS = [
+    "ALTER TABLE approval_history ADD COLUMN outcome TEXT",
+    "ALTER TABLE approval_history ADD COLUMN exit_price REAL",
+    "ALTER TABLE approval_history ADD COLUMN closed_at TEXT",
+    "ALTER TABLE approval_history ADD COLUMN pnl_pips REAL",
+]
 
 # 将来の価格追跡テーブル（拡張用）
 CREATE_PRICE_TRACKING_TABLE = """

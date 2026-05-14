@@ -13,8 +13,11 @@ from app.database.repository import (
     HUMAN_ACTION_BUY,
     HUMAN_ACTION_SELL,
     HUMAN_ACTION_SKIP,
+    check_and_close_open_trades,
     get_history,
     get_history_count,
+    get_open_trades,
+    get_performance_stats,
     save_approval,
 )
 from app.services.market_analyzer import AnalysisResult, run_analysis
@@ -39,6 +42,11 @@ async def index(request: Request):
             notify_analysis_result(result)
         except Exception as exc:
             logger.warning("通知エラー（分析は継続）: %s", exc)
+        try:
+            if result.current_price:
+                check_and_close_open_trades(result.current_price, result.symbol)
+        except Exception as exc:
+            logger.warning("オープン取引チェックエラー（分析は継続）: %s", exc)
     except Exception as exc:
         logger.error("分析エラー: %s", exc)
         return templates.TemplateResponse(
@@ -119,6 +127,37 @@ async def history(request: Request, page: int = 1, per_page: int = 20):
             "page": page,
             "total_pages": total_pages,
             "total": total,
+        },
+    )
+
+
+@router.get("/performance", response_class=HTMLResponse)
+async def performance(request: Request):
+    """パフォーマンス統計ページ。"""
+    stats = get_performance_stats()
+    open_trades = get_open_trades()
+
+    # open_tradesにラベルを付与（historyルートと同様）
+    for r in open_trades:
+        try:
+            r["skip_reasons_list"] = json.loads(r.get("skip_reasons") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            r["skip_reasons_list"] = []
+        r["signal_label"] = {"BUY": "買い候補", "SELL": "売り候補", "SKIP": "見送り"}.get(
+            r.get("signal", ""), "不明"
+        )
+        r["action_label"] = {
+            "buy_approved": "買い承認",
+            "sell_approved": "売り承認",
+            "skipped": "見送り",
+        }.get(r.get("human_action", ""), "不明")
+
+    return templates.TemplateResponse(
+        "performance.html",
+        {
+            "request": request,
+            "stats": stats,
+            "open_trades": open_trades,
         },
     )
 

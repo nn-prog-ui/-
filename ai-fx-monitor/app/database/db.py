@@ -6,7 +6,11 @@ from contextlib import contextmanager
 from pathlib import Path
 
 from app.config import DB_PATH
-from app.database.models import CREATE_APPROVAL_HISTORY_TABLE, CREATE_PRICE_TRACKING_TABLE
+from app.database.models import (
+    CREATE_APPROVAL_HISTORY_TABLE,
+    CREATE_PRICE_TRACKING_TABLE,
+    MIGRATE_ADD_OUTCOME_COLUMNS,
+)
 
 
 def init_db(db_path: Path | None = None) -> None:
@@ -16,6 +20,12 @@ def init_db(db_path: Path | None = None) -> None:
     with sqlite3.connect(str(path)) as conn:
         conn.execute(CREATE_APPROVAL_HISTORY_TABLE)
         conn.execute(CREATE_PRICE_TRACKING_TABLE)
+        # Phase 10 migration: outcome列などを追加（既存列は無視）
+        for sql in MIGRATE_ADD_OUTCOME_COLUMNS:
+            try:
+                conn.execute(sql)
+            except sqlite3.OperationalError:
+                pass  # 列が既に存在する場合は無視
         conn.commit()
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime
+from pathlib import Path
 from typing import Any
 
 from app.database.db import get_db
@@ -19,6 +20,7 @@ def save_approval(
     result: AnalysisResult,
     human_action: str,
     notes: str = "",
+    db_path: Path | None = None,
 ) -> int:
     """分析結果と人間の承認アクションをSQLiteに保存する。
 
@@ -32,7 +34,7 @@ def save_approval(
 
     skip_reasons_json = json.dumps(result.skip_reasons, ensure_ascii=False)
 
-    with get_db() as conn:
+    with get_db(db_path) as conn:
         cursor = conn.execute(
             """
             INSERT INTO approval_history (
@@ -107,3 +109,155 @@ def get_by_id(record_id: int) -> dict[str, Any] | None:
             "SELECT * FROM approval_history WHERE id = ?", (record_id,)
         ).fetchone()
     return dict(row) if row else None
+
+
+def get_open_trades(db_path: Path | None = None) -> list[dict]:
+    """BUY/SELL承認済みでoutcomeがNULLの取引を返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NULL
+            ORDER BY created_at DESC
+            """
+        ).fetchall()
+    return [dict(row) for row in rows]
+
+
+def close_trade(
+    record_id: int,
+    outcome: str,
+    exit_price: float,
+    pnl_pips: float,
+    db_path: Path | None = None,
+) -> None:
+    """取引結果を記録する。outcome は 'win' or 'loss'"""
+    if outcome not in ("win", "loss"):
+        raise ValueError(f"無効なoutcome: {outcome}。有効値: 'win', 'loss'")
+    closed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db(db_path) as conn:
+        conn.execute(
+            """
+            UPDATE approval_history
+            SET outcome = ?, exit_price = ?, closed_at = ?, pnl_pips = ?
+            WHERE id = ?
+            """,
+            (outcome, exit_price, closed_at, pnl_pips, record_id),
+        )
+
+
+def get_performance_stats(db_path: Path | None = None) -> dict:
+    """勝率・損益統計を返す。
+
+    Returns:
+        {
+            total_trades: int,      # BUY/SELL承認の合計（open含む）
+            closed_trades: int,     # 勝ち+負け
+            win_count: int,
+            loss_count: int,
+            open_count: int,        # outcome IS NULL のBUY/SELL承認
+            win_rate: float | None, # win / closed * 100
+            total_pips: float,      # pnl_pipsの合計
+            avg_pips: float | None, # closed取引の平均pips
+        }
+    """
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            """
+            SELECT
+                COUNT(*) AS total_trades,
+                SUM(CASE WHEN outcome IS NOT NULL THEN 1 ELSE 0 END) AS closed_trades,
+                SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) AS win_count,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) AS loss_count,
+                SUM(CASE WHEN outcome IS NULL THEN 1 ELSE 0 END) AS open_count,
+                SUM(CASE WHEN pnl_pips IS NOT NULL THEN pnl_pips ELSE 0 END) AS total_pips,
+                AVG(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE NULL END) AS avg_pips
+            FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+            """
+        ).fetchone()
+
+    if row is None:
+        return {
+            "total_trades": 0,
+            "closed_trades": 0,
+            "win_count": 0,
+            "loss_count": 0,
+            "open_count": 0,
+            "win_rate": None,
+            "total_pips": 0.0,
+            "avg_pips": None,
+        }
+
+    total_trades = row["total_trades"] or 0
+    closed_trades = row["closed_trades"] or 0
+    win_count = row["win_count"] or 0
+    loss_count = row["loss_count"] or 0
+    open_count = row["open_count"] or 0
+    total_pips = row["total_pips"] or 0.0
+    avg_pips = row["avg_pips"]
+
+    win_rate = (win_count / closed_trades * 100) if closed_trades > 0 else None
+
+    return {
+        "total_trades": total_trades,
+        "closed_trades": closed_trades,
+        "win_count": win_count,
+        "loss_count": loss_count,
+        "open_count": open_count,
+        "win_rate": win_rate,
+        "total_pips": total_pips,
+        "avg_pips": avg_pips,
+    }
+
+
+def check_and_close_open_trades(
+    current_price: float,
+    symbol: str,
+    db_path: Path | None = None,
+) -> list[dict]:
+    """オープン中の取引をcurrent_priceとSL/TPで照合し、ヒットしたものを自動クローズ。
+
+    クローズした取引のリストを返す（通知用）。
+
+    pips計算: 'JPY'がsymbolに含まれる場合 pip_size=0.01、それ以外は0.0001
+    BUY: price >= take_profit → win; price <= stop_loss → loss
+    SELL: price <= take_profit → win; price >= stop_loss → loss
+    """
+    pip_size = 0.01 if "JPY" in symbol.upper() else 0.0001
+    open_trades = get_open_trades(db_path)
+    closed = []
+
+    for trade in open_trades:
+        entry_price = trade.get("entry_price")
+        stop_loss = trade.get("stop_loss")
+        take_profit = trade.get("take_profit")
+        human_action = trade.get("human_action", "")
+
+        if entry_price is None or stop_loss is None or take_profit is None:
+            continue
+
+        outcome = None
+        if human_action == HUMAN_ACTION_BUY:
+            if current_price >= take_profit:
+                outcome = "win"
+            elif current_price <= stop_loss:
+                outcome = "loss"
+        elif human_action == HUMAN_ACTION_SELL:
+            if current_price <= take_profit:
+                outcome = "win"
+            elif current_price >= stop_loss:
+                outcome = "loss"
+
+        if outcome is not None:
+            pnl_pips = (current_price - entry_price) / pip_size
+            if human_action == HUMAN_ACTION_SELL:
+                pnl_pips = -pnl_pips
+            close_trade(trade["id"], outcome, current_price, pnl_pips, db_path)
+            trade["outcome"] = outcome
+            trade["exit_price"] = current_price
+            trade["pnl_pips"] = pnl_pips
+            closed.append(trade)
+
+    return closed

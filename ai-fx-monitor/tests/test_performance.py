@@ -7,10 +7,13 @@ import pytest
 from app.database.db import init_db
 from app.database.repository import (
     check_and_close_open_trades,
+    close_demo_order,
     close_trade,
+    get_demo_performance_stats,
     get_open_trades,
     get_performance_stats,
     save_approval,
+    save_demo_order,
 )
 from app.services.market_analyzer import AnalysisResult
 from app.strategy.risk import TradeSetup
@@ -173,3 +176,111 @@ class TestPerformanceStats:
         stats = get_performance_stats(db)
         assert stats["open_count"] == 2
         assert stats["win_rate"] is None
+
+
+# --------------------------------------------------------------------------- #
+# get_demo_performance_stats
+# --------------------------------------------------------------------------- #
+
+def _save_demo(db, approval_id=1, symbol="USD/JPY", direction="BUY", units=1000,
+               entry=150.0, sl=None, tp=None) -> int:
+    return save_demo_order(
+        approval_id=approval_id,
+        symbol=symbol,
+        direction=direction,
+        units=units,
+        entry_price=entry,
+        stop_loss=sl,
+        take_profit=tp,
+        oanda_trade_id="T001",
+        oanda_order_id="O001",
+        filled_price=entry,
+        db_path=db,
+    )
+
+
+class TestGetDemoPerformanceStatsEmpty:
+    def test_empty_db_returns_zeros(self, db):
+        stats = get_demo_performance_stats(db)
+        assert stats["total_orders"] == 0
+        assert stats["open_count"] == 0
+        assert stats["closed_count"] == 0
+        assert stats["win_count"] == 0
+        assert stats["loss_count"] == 0
+        assert stats["win_rate"] is None
+        assert stats["total_pips"] == 0.0
+        assert stats["avg_pips"] is None
+
+    def test_returns_all_keys(self, db):
+        stats = get_demo_performance_stats(db)
+        for key in ("total_orders", "open_count", "closed_count", "win_count",
+                    "loss_count", "win_rate", "total_pips", "avg_pips"):
+            assert key in stats
+
+
+class TestGetDemoPerformanceStatsOpen:
+    def test_open_order_counted(self, db):
+        _save_demo(db)
+        stats = get_demo_performance_stats(db)
+        assert stats["total_orders"] == 1
+        assert stats["open_count"] == 1
+        assert stats["closed_count"] == 0
+        assert stats["win_count"] == 0
+        assert stats["win_rate"] is None
+
+    def test_multiple_open_orders(self, db):
+        _save_demo(db)
+        _save_demo(db)
+        stats = get_demo_performance_stats(db)
+        assert stats["total_orders"] == 2
+        assert stats["open_count"] == 2
+
+
+class TestGetDemoPerformanceStatsClosed:
+    def test_win_counted(self, db):
+        demo_id = _save_demo(db)
+        close_demo_order(demo_id, exit_price=151.0, pnl_pips=100.0, db_path=db)
+        stats = get_demo_performance_stats(db)
+        assert stats["closed_count"] == 1
+        assert stats["win_count"] == 1
+        assert stats["loss_count"] == 0
+        assert abs(stats["win_rate"] - 100.0) < 0.01
+        assert abs(stats["total_pips"] - 100.0) < 0.01
+        assert abs(stats["avg_pips"] - 100.0) < 0.01
+
+    def test_loss_counted(self, db):
+        demo_id = _save_demo(db)
+        close_demo_order(demo_id, exit_price=149.5, pnl_pips=-50.0, db_path=db)
+        stats = get_demo_performance_stats(db)
+        assert stats["win_count"] == 0
+        assert stats["loss_count"] == 1
+        assert abs(stats["win_rate"] - 0.0) < 0.01
+        assert abs(stats["total_pips"] - (-50.0)) < 0.01
+
+    def test_win_rate_fifty_percent(self, db):
+        d1 = _save_demo(db)
+        d2 = _save_demo(db)
+        close_demo_order(d1, exit_price=151.0, pnl_pips=100.0, db_path=db)
+        close_demo_order(d2, exit_price=149.5, pnl_pips=-50.0, db_path=db)
+        stats = get_demo_performance_stats(db)
+        assert stats["win_count"] == 1
+        assert stats["loss_count"] == 1
+        assert abs(stats["win_rate"] - 50.0) < 0.01
+        assert abs(stats["total_pips"] - 50.0) < 0.01
+
+    def test_avg_pips_calculation(self, db):
+        d1 = _save_demo(db)
+        d2 = _save_demo(db)
+        close_demo_order(d1, exit_price=151.0, pnl_pips=100.0, db_path=db)
+        close_demo_order(d2, exit_price=151.5, pnl_pips=60.0, db_path=db)
+        stats = get_demo_performance_stats(db)
+        assert abs(stats["avg_pips"] - 80.0) < 0.01
+
+    def test_open_plus_closed_total(self, db):
+        d1 = _save_demo(db)
+        _save_demo(db)  # stays open
+        close_demo_order(d1, exit_price=151.0, pnl_pips=100.0, db_path=db)
+        stats = get_demo_performance_stats(db)
+        assert stats["total_orders"] == 2
+        assert stats["open_count"] == 1
+        assert stats["closed_count"] == 1

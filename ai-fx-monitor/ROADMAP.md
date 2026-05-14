@@ -132,6 +132,14 @@ AI FX市場監視システム 開発ロードマップ
 - [x] テスト29件（安全制約・エラーハンドリング含む）
 - [x] ※本番注文は絶対に作らない（将来でも慎重に検討）
 
+### Phase 14：デモ注文成績統計 ✅
+
+- [x] `get_demo_performance_stats()` — 総注文数・勝ち/負け/勝率・合計pips・平均pipsを集計
+- [x] `/performance` — デモ注文成績カード（5指標）を追加
+- [x] `/demo-orders` — 一覧画面の上部にサマリーバーを追加
+- [x] テスト9件追加（空DB・オープン・クローズ・勝率・平均pips計算）
+- [x] 全189テスト通過
+
 ### Phase 13：デモ注文の決済・損益追跡 ✅
 
 - [x] `DemoOrderAdapter.close_trade()` — OANDA practice APIでポジション決済

@@ -1,7 +1,7 @@
 """AIコメント生成モジュール
 
-現在はモック実装（ルール結果から自動文章生成）。
-将来はOpenAI API / Claude APIへの切り替えが可能な設計。
+ANTHROPIC_API_KEY が設定されている場合は Claude API を使用し、
+未設定の場合はモック実装（ルール結果から自動文章生成）にフォールバックする。
 
 重要制約：
 - AIコメントは売買判定を変更してはいけない
@@ -9,6 +9,8 @@
 - 禁止表現（「必ず」「絶対」「全力」等）は使わない
 """
 from __future__ import annotations
+
+import os
 
 from app.strategy.rules import SignalResult
 from app.strategy.risk import TradeSetup
@@ -20,26 +22,51 @@ _FORBIDDEN_WORDS = [
     "儲かる", "勝率100%", "放置で稼げる",
 ]
 
+# Claude API用システムプロンプト（安全制約を含む）
+# cache_control を付与するが、Haiku 4.5 の最小キャッシュサイズは 4096 トークンのため
+# 短いシステムプロンプトではキャッシュは動作しない。将来的に拡張した場合に有効になる。
+_SYSTEM_PROMPT = """あなたはFX市場分析ツールの補足コメント生成アシスタントです。
+
+## 役割
+ルールベースの売買判定システムが出力した分析結果に対して、100〜200文字程度の補足コメントを日本語で生成します。
+
+## 絶対に守るルール
+1. 与えられた売買判定（BUY/SELL/SKIP）を変更してはいけません
+2. 補足説明のみを行い、判定を上書きする表現は使わないでください
+3. 最終判断は必ず人間が行うことを前提とした表現にしてください
+4. 以下の表現は絶対に使わないでください：
+   - 「絶対に勝てる」「必ず上がる」「必ず下がる」
+   - 「今すぐ全力」「損切り不要」
+   - 「ナンピン推奨」「マーチンゲール推奨」
+   - 「儲かる」「勝率100%」「放置で稼げる」
+
+## 出力形式
+コメントのみを返してください。前置き・説明・改行は不要です。"""
+
 
 def generate_commentary(
     signal_result: SignalResult,
     setup: TradeSetup | None = None,
 ) -> str:
-    """ルール判定結果からAIコメントを生成する（モック実装）。
+    """ルール判定結果からAIコメントを生成する。
 
-    将来はこの関数内部をOpenAI/Claude API呼び出しに切り替える。
-    ただし、signalの変更は行わず、補足説明のみを返すこと。
+    ANTHROPIC_API_KEY が設定されていれば Claude API を使用する。
+    未設定またはAPI呼び出し失敗時はモック実装にフォールバックする。
+    signalの変更は行わず、補足説明のみを返すこと。
     """
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if api_key:
+        adapter = ClaudeCommentaryAdapter()
+        return adapter.generate(signal_result, setup)
     comment = _generate_mock_commentary(signal_result, setup)
-    comment = _sanitize_commentary(comment)
-    return comment
+    return _sanitize_commentary(comment)
 
 
 def _generate_mock_commentary(
     result: SignalResult,
     setup: TradeSetup | None,
 ) -> str:
-    """ルール結果から文章コメントを生成する。"""
+    """ルール結果から文章コメントを生成する（モック実装）。"""
     parts: list[str] = []
 
     # データ不足時
@@ -99,6 +126,35 @@ def _generate_mock_commentary(
     return "".join(parts)
 
 
+def _build_signal_prompt(result: SignalResult, setup: TradeSetup | None) -> str:
+    """Claude API向けのユーザープロンプトを構築する。"""
+    lines = [
+        f"【判定】{result.signal}",
+        f"【日足トレンド】{result.daily_trend}",
+        f"【4時間足トレンド】{result.h4_trend}",
+        f"【1時間足状態】{result.h1_status}",
+    ]
+    if result.rsi is not None:
+        lines.append(f"【RSI】{result.rsi:.1f}")
+    lines.append(f"【ATR異常】{'あり' if result.atr_abnormal else 'なし'}")
+    if not result.data_sufficient:
+        lines.append("【データ状態】不足")
+    if result.skip_reasons:
+        lines.append(f"【見送り理由】{' / '.join(result.skip_reasons)}")
+    if setup and setup.is_valid:
+        if setup.entry_price:
+            lines.append(f"【エントリー価格】{setup.entry_price:.3f}")
+        if setup.stop_loss:
+            lines.append(f"【損切り価格】{setup.stop_loss:.3f}")
+        if setup.take_profit:
+            lines.append(f"【利確価格】{setup.take_profit:.3f}")
+        if setup.risk_reward:
+            lines.append(f"【リスクリワード】{setup.risk_reward:.2f}")
+
+    lines.append("\n上記の市場状況について補足コメントを生成してください。")
+    return "\n".join(lines)
+
+
 def _sanitize_commentary(comment: str) -> str:
     """禁止表現が含まれていないかチェックし、含まれていれば削除する。"""
     for word in _FORBIDDEN_WORDS:
@@ -107,14 +163,60 @@ def _sanitize_commentary(comment: str) -> str:
     return comment
 
 
-# 将来のAPI切り替え用インターフェース
+# AIコメント生成アダプター
+
 class CommentaryAdapter:
-    """AIコメント生成アダプターの基底クラス。将来のAPI実装はこれを継承する。"""
+    """AIコメント生成アダプターの基底クラス。"""
 
     def generate(self, signal_result: SignalResult, setup: TradeSetup | None = None) -> str:
         raise NotImplementedError
 
 
 class MockCommentaryAdapter(CommentaryAdapter):
+    """モック実装アダプター（API不要）。"""
+
     def generate(self, signal_result: SignalResult, setup: TradeSetup | None = None) -> str:
-        return generate_commentary(signal_result, setup)
+        comment = _generate_mock_commentary(signal_result, setup)
+        return _sanitize_commentary(comment)
+
+
+class ClaudeCommentaryAdapter(CommentaryAdapter):
+    """Anthropic Claude APIを使ったコメント生成アダプター。
+
+    ANTHROPIC_API_KEY 環境変数が必要。
+    モデルは CLAUDE_MODEL 環境変数で変更可能（デフォルト: claude-haiku-4-5）。
+    API呼び出し失敗時は MockCommentaryAdapter にフォールバックする。
+    """
+
+    def __init__(self) -> None:
+        import anthropic  # 遅延importでanthropicが未インストールでも他機能は動作する
+        self._client = anthropic.Anthropic()
+        self._model = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5")
+
+    def generate(self, signal_result: SignalResult, setup: TradeSetup | None = None) -> str:
+        if not signal_result.data_sufficient:
+            return "データが不足しているため、判定を行えません。CSVファイルを確認してください。"
+
+        try:
+            user_prompt = _build_signal_prompt(signal_result, setup)
+            response = self._client.messages.create(
+                model=self._model,
+                max_tokens=512,
+                system=[
+                    {
+                        "type": "text",
+                        "text": _SYSTEM_PROMPT,
+                        # プロンプトキャッシュを有効化（システムプロンプトは毎回同じため）
+                        # Haiku 4.5 の最小キャッシュサイズ(4096 tokens)には満たないが
+                        # システムプロンプト拡張時に自動的に有効になる
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+            comment = response.content[0].text.strip()
+            return _sanitize_commentary(comment)
+        except Exception:
+            # API呼び出し失敗時はモックにフォールバック
+            fallback = MockCommentaryAdapter()
+            return fallback.generate(signal_result, setup)

@@ -105,3 +105,55 @@ class TestAnalyzeSignalResult:
         df_1h = make_trending_ohlc(1000, -0.05, freq="1h")
         result = analyze_signal(df_daily, df_4h, df_1h)
         assert result.signal != SIGNAL_BUY
+
+
+class TestPhase19Conditions:
+    """Phase 19: 判定根拠（条件チェック）テスト"""
+
+    def test_conditions_populated_when_data_sufficient(self):
+        """データが十分な場合、buy_conditions と sell_conditions が返る。"""
+        df_daily = make_trending_ohlc(200, 0.01, freq="1D")
+        df_4h = make_trending_ohlc(400, 0.01, freq="4h")
+        df_1h = make_trending_ohlc(1000, 0.01, freq="1h")
+        result = analyze_signal(df_daily, df_4h, df_1h)
+        assert len(result.buy_conditions) == 7
+        assert len(result.sell_conditions) == 7
+
+    def test_conditions_empty_when_data_insufficient(self):
+        """データ不足の場合、条件リストは空。"""
+        result = analyze_signal(
+            df_daily=pd.DataFrame(),
+            df_4h=pd.DataFrame(),
+            df_1h=pd.DataFrame(),
+        )
+        assert result.buy_conditions == []
+        assert result.sell_conditions == []
+
+    def test_condition_has_name_passed_detail(self):
+        """各ConditionResult が name/passed/detail を持つ。"""
+        df_daily = make_trending_ohlc(200, 0.01, freq="1D")
+        df_4h = make_trending_ohlc(400, 0.01, freq="4h")
+        df_1h = make_trending_ohlc(1000, 0.01, freq="1h")
+        result = analyze_signal(df_daily, df_4h, df_1h)
+        for cond in result.buy_conditions:
+            assert isinstance(cond.name, str) and cond.name
+            assert cond.passed in (True, False)  # bool-compatible (may be numpy.bool_)
+            assert isinstance(cond.detail, str)
+
+    def test_buy_signal_all_buy_conditions_pass(self):
+        """BUY シグナルが出たとき、buy_conditions はすべて passed=True。"""
+        df_daily = make_trending_ohlc(200, 0.01, freq="1D")
+        df_4h = make_trending_ohlc(400, 0.01, freq="4h")
+        df_1h = make_trending_ohlc(1000, 0.01, freq="1h")
+        result = analyze_signal(df_daily, df_4h, df_1h)
+        if result.signal == SIGNAL_BUY:
+            assert all(c.passed for c in result.buy_conditions)
+
+    def test_sell_signal_all_sell_conditions_pass(self):
+        """SELL シグナルが出たとき、sell_conditions はすべて passed=True。"""
+        df_daily = make_trending_ohlc(200, -0.05, freq="1D")
+        df_4h = make_trending_ohlc(400, -0.05, freq="4h")
+        df_1h = make_trending_ohlc(1000, -0.05, freq="1h")
+        result = analyze_signal(df_daily, df_4h, df_1h)
+        if result.signal == SIGNAL_SELL:
+            assert all(c.passed for c in result.sell_conditions)

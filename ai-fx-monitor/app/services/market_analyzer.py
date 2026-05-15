@@ -24,6 +24,7 @@ from app.services.ai_commentary import MockCommentaryAdapter
 from app.services.economic_calendar import is_near_economic_event
 from app.strategy.risk import TradeSetup, calculate_buy_setup, calculate_sell_setup
 from app.strategy.rules import SIGNAL_BUY, SIGNAL_SELL, SIGNAL_SKIP, SignalResult, analyze_signal
+from app.strategy.scoring import ConditionResult
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,11 @@ class AnalysisResult:
     # Phase 11: 通貨強弱（単一ペアモメンタムスコア）
     currency_strength: float | None = None
     currency_strength_status: str = "判定不能"
+    # Phase 19: 判定根拠（条件ごとの結果）
+    buy_conditions: list[ConditionResult] = field(default_factory=list)
+    sell_conditions: list[ConditionResult] = field(default_factory=list)
+    # Phase 20: 過去トレードからの学習データ
+    historical_stats: dict = field(default_factory=dict)
 
     @property
     def signal_label(self) -> str:
@@ -150,8 +156,19 @@ def run_analysis(
     elif signal_result.signal == SIGNAL_SELL:
         setup = calculate_sell_setup(df_1h, df_daily)
 
+    # Phase 20: 過去トレードからの学習データを取得
+    try:
+        from app.database.repository import get_signal_pattern_stats
+        historical_stats = get_signal_pattern_stats(
+            signal=signal_result.signal,
+            daily_trend=signal_result.daily_trend,
+            h4_trend=signal_result.h4_trend,
+        )
+    except Exception:
+        historical_stats = {}
+
     commentary_adapter = MockCommentaryAdapter()
-    ai_comment = commentary_adapter.generate(signal_result, setup)
+    ai_comment = commentary_adapter.generate(signal_result, setup, historical_stats)
 
     score_val: int | None = None
     if signal_result.score is not None:
@@ -203,4 +220,7 @@ def run_analysis(
         macd_status=macd_status,
         currency_strength=strength_score,
         currency_strength_status=strength_status,
+        buy_conditions=signal_result.buy_conditions,
+        sell_conditions=signal_result.sell_conditions,
+        historical_stats=historical_stats,
     )

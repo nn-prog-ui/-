@@ -212,6 +212,86 @@ def get_performance_stats(db_path: Path | None = None) -> dict:
     }
 
 
+def get_signal_pattern_stats(
+    signal: str | None = None,
+    daily_trend: str | None = None,
+    h4_trend: str | None = None,
+    db_path: Path | None = None,
+) -> dict:
+    """過去のトレードから勝率パターンを返す（Phase 20：過去トレードからの学習）。
+
+    Returns:
+        {
+            overall_win_rate: float | None,  # 全体勝率（signal種別）
+            overall_closed: int,
+            pattern_win_rate: float | None,  # 同じdaily+h4トレンドパターンの勝率
+            pattern_closed: int,
+            recent_outcomes: list[str],      # 同パターンの最新5件のoutcome
+        }
+    """
+    action = (
+        HUMAN_ACTION_BUY if signal == "BUY"
+        else HUMAN_ACTION_SELL if signal == "SELL"
+        else None
+    )
+
+    with get_db(db_path) as conn:
+        if action:
+            overall_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS closed,
+                    SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) AS wins
+                FROM approval_history
+                WHERE human_action = ? AND outcome IS NOT NULL
+                """,
+                (action,),
+            ).fetchone()
+        else:
+            overall_row = None
+
+        if action and daily_trend and h4_trend:
+            pattern_row = conn.execute(
+                """
+                SELECT
+                    COUNT(*) AS closed,
+                    SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) AS wins
+                FROM approval_history
+                WHERE human_action = ? AND daily_trend = ? AND h4_trend = ?
+                  AND outcome IS NOT NULL
+                """,
+                (action, daily_trend, h4_trend),
+            ).fetchone()
+            recent_rows = conn.execute(
+                """
+                SELECT outcome FROM approval_history
+                WHERE human_action = ? AND daily_trend = ? AND h4_trend = ?
+                  AND outcome IS NOT NULL
+                ORDER BY created_at DESC LIMIT 5
+                """,
+                (action, daily_trend, h4_trend),
+            ).fetchall()
+        else:
+            pattern_row = None
+            recent_rows = []
+
+    overall_closed = (overall_row["closed"] or 0) if overall_row else 0
+    overall_wins = (overall_row["wins"] or 0) if overall_row else 0
+    overall_win_rate = (overall_wins / overall_closed * 100) if overall_closed > 0 else None
+
+    pattern_closed = (pattern_row["closed"] or 0) if pattern_row else 0
+    pattern_wins = (pattern_row["wins"] or 0) if pattern_row else 0
+    pattern_win_rate = (pattern_wins / pattern_closed * 100) if pattern_closed > 0 else None
+
+    return {
+        "overall_win_rate": overall_win_rate,
+        "overall_closed": overall_closed,
+        "pattern_win_rate": pattern_win_rate,
+        "pattern_closed": pattern_closed,
+        "recent_outcomes": [row["outcome"] for row in recent_rows],
+    }
+
+
 def check_and_close_open_trades(
     current_price: float,
     symbol: str,

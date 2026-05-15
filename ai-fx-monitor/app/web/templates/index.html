@@ -94,6 +94,28 @@
     </div>
     {% endif %}
 
+    <!-- 判定根拠（Phase 19） -->
+    {% set conditions = result.buy_conditions if result.signal == 'BUY' else result.sell_conditions if result.signal == 'SELL' else (result.buy_conditions or result.sell_conditions) %}
+    {% if conditions %}
+    <section class="card">
+      <h3 class="card-title">
+        判定根拠（条件チェック）
+        {% if result.signal == 'BUY' %}<span style="color:#4ade80;">— 買い条件</span>
+        {% elif result.signal == 'SELL' %}<span style="color:#f87171;">— 売り条件</span>
+        {% else %}<span style="color:#888;">— 参考（未充足）</span>{% endif %}
+      </h3>
+      <div class="conditions-list">
+        {% for cond in conditions %}
+        <div class="condition-item {% if cond.passed %}condition-pass{% else %}condition-fail{% endif %}">
+          <span class="condition-icon">{% if cond.passed %}✅{% else %}❌{% endif %}</span>
+          <span class="condition-name">{{ cond.name }}</span>
+          <span class="condition-detail">{{ cond.detail }}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <!-- トレンド分析 -->
     <section class="card">
       <h3 class="card-title">環境認識（トレンド分析）</h3>
@@ -265,6 +287,55 @@
       {% endif %}
       {% endif %}
     </section>
+
+    <!-- 過去トレード学習データ（Phase 20） -->
+    {% set hs = result.historical_stats %}
+    {% if hs and result.signal in ('BUY', 'SELL') and (hs.overall_closed or hs.pattern_closed) %}
+    <section class="card">
+      <h3 class="card-title">過去トレードからの学習</h3>
+      <div class="history-grid" style="margin-bottom:0;">
+        {% if hs.overall_closed and hs.overall_closed > 0 %}
+        <div style="text-align:center;">
+          <div class="h-label">{{ '買い' if result.signal == 'BUY' else '売り' }}全体勝率</div>
+          <div class="price-value" style="font-size:1.6rem;
+            {% if hs.overall_win_rate is not none and hs.overall_win_rate >= 50 %}color:#4ade80;
+            {% elif hs.overall_win_rate is not none %}color:#f87171;{% endif %}">
+            {% if hs.overall_win_rate is not none %}{{ "%.0f"|format(hs.overall_win_rate) }}%
+            {% else %}---{% endif %}
+          </div>
+          <div class="h-label">{{ hs.overall_closed }}件クローズ済み</div>
+        </div>
+        {% endif %}
+        {% if hs.pattern_closed and hs.pattern_closed > 0 %}
+        <div style="text-align:center;">
+          <div class="h-label">同パターン勝率<br><small>日足{{ result.daily_trend }}・4H{{ result.h4_trend }}</small></div>
+          <div class="price-value" style="font-size:1.6rem;
+            {% if hs.pattern_win_rate is not none and hs.pattern_win_rate >= 50 %}color:#4ade80;
+            {% elif hs.pattern_win_rate is not none %}color:#f87171;{% endif %}">
+            {% if hs.pattern_win_rate is not none %}{{ "%.0f"|format(hs.pattern_win_rate) }}%
+            {% else %}---{% endif %}
+          </div>
+          <div class="h-label">{{ hs.pattern_closed }}件</div>
+        </div>
+        {% endif %}
+        {% if hs.recent_outcomes and hs.recent_outcomes|length > 0 %}
+        <div style="text-align:center;">
+          <div class="h-label">同パターン直近結果</div>
+          <div style="margin-top:0.4rem;">
+            {% for outcome in hs.recent_outcomes %}
+              <span style="{% if outcome == 'win' %}color:#4ade80;{% else %}color:#f87171;{% endif %}font-weight:bold;margin-right:4px;">
+                {% if outcome == 'win' %}○{% else %}✕{% endif %}
+              </span>
+            {% endfor %}
+          </div>
+        </div>
+        {% endif %}
+      </div>
+      <small class="ai-disclaimer" style="display:block;margin-top:0.75rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+    </section>
+    {% endif %}
 
     <!-- AIコメント -->
     <section class="card">

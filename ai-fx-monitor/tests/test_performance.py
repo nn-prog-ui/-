@@ -12,6 +12,7 @@ from app.database.repository import (
     get_demo_performance_stats,
     get_open_trades,
     get_performance_stats,
+    get_signal_pattern_stats,
     save_approval,
     save_demo_order,
 )
@@ -284,3 +285,60 @@ class TestGetDemoPerformanceStatsClosed:
         assert stats["total_orders"] == 2
         assert stats["open_count"] == 1
         assert stats["closed_count"] == 1
+
+
+class TestGetSignalPatternStats:
+    """Phase 20: 過去トレードからの学習データ取得テスト"""
+
+    def test_empty_db_returns_zero_counts(self, db):
+        stats = get_signal_pattern_stats("BUY", "上昇", "上昇", db)
+        assert stats["overall_closed"] == 0
+        assert stats["pattern_closed"] == 0
+        assert stats["overall_win_rate"] is None
+        assert stats["pattern_win_rate"] is None
+        assert stats["recent_outcomes"] == []
+
+    def test_returns_all_keys(self, db):
+        stats = get_signal_pattern_stats(db_path=db)
+        for key in ("overall_win_rate", "overall_closed", "pattern_win_rate",
+                    "pattern_closed", "recent_outcomes"):
+            assert key in stats
+
+    def test_overall_win_rate_calculated(self, db):
+        # Save 2 BUY trades: 1 win, 1 loss
+        r1 = _make_result(signal="BUY")
+        r2 = _make_result(signal="BUY")
+        id1 = save_approval(r1, "buy_approved", db_path=db)
+        id2 = save_approval(r2, "buy_approved", db_path=db)
+        close_trade(id1, "win", 151.0, 50.0, db)
+        close_trade(id2, "loss", 149.5, -50.0, db)
+        stats = get_signal_pattern_stats("BUY", db_path=db)
+        assert stats["overall_closed"] == 2
+        assert abs(stats["overall_win_rate"] - 50.0) < 0.01
+
+    def test_pattern_win_rate_filters_by_trend(self, db):
+        # 2 BUY wins with 上昇/上昇
+        r_up = _make_result(signal="BUY", daily_trend="上昇", h4_trend="上昇")
+        id1 = save_approval(r_up, "buy_approved", db_path=db)
+        id2 = save_approval(r_up, "buy_approved", db_path=db)
+        close_trade(id1, "win", 151.0, 50.0, db)
+        close_trade(id2, "win", 151.0, 50.0, db)
+        # 1 BUY loss with different pattern
+        r_down = _make_result(signal="BUY", daily_trend="下降", h4_trend="上昇")
+        id3 = save_approval(r_down, "buy_approved", db_path=db)
+        close_trade(id3, "loss", 149.5, -50.0, db)
+        stats = get_signal_pattern_stats("BUY", "上昇", "上昇", db)
+        assert stats["pattern_closed"] == 2
+        assert abs(stats["pattern_win_rate"] - 100.0) < 0.01
+        assert stats["overall_closed"] == 3
+
+    def test_recent_outcomes_returns_list(self, db):
+        r = _make_result(signal="SELL", daily_trend="下降", h4_trend="下降")
+        for _ in range(3):
+            rid = save_approval(r, "sell_approved", db_path=db)
+            close_trade(rid, "win", 149.0, 50.0, db)
+        rid = save_approval(r, "sell_approved", db_path=db)
+        close_trade(rid, "loss", 150.5, -50.0, db)
+        stats = get_signal_pattern_stats("SELL", "下降", "下降", db)
+        assert len(stats["recent_outcomes"]) == 4
+        assert set(stats["recent_outcomes"]) == {"win", "loss"}

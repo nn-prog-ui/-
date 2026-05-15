@@ -5,7 +5,7 @@ AIやその他のサービスはこのルール判定を変更できない。
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pandas as pd
 
@@ -39,6 +39,9 @@ class SignalResult:
     recent_low: float | None
     skip_reasons: list[str]
     data_sufficient: bool
+    # Phase 19: 判定根拠（条件ごとの結果）
+    buy_conditions: list[ConditionResult] = field(default_factory=list)
+    sell_conditions: list[ConditionResult] = field(default_factory=list)
 
 
 def analyze_signal(
@@ -154,6 +157,8 @@ def analyze_signal(
         recent_low=recent_low,
         skip_reasons=skip_reasons,
         data_sufficient=True,
+        buy_conditions=buy_conditions,
+        sell_conditions=sell_conditions,
     )
 
 

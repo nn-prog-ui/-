@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 設定</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/settings" class="nav-link active">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">アプリ設定</h2>
+      <p class="history-note">
+        変更はデータベースに保存されます。再起動不要です。APIキーなどの機密設定は .env ファイルで管理してください。
+      </p>
+    </section>
+
+    {% if saved %}
+    <div class="alert alert-caution" style="border-color:#4ade80;background:rgba(74,222,128,0.08);">
+      <strong>✅ 設定を保存しました。</strong>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/settings" class="settings-form">
+
+      <!-- 定期スキャン設定 -->
+      <section class="card">
+        <h3 class="card-title">定期スキャン設定</h3>
+        <div class="settings-grid">
+
+          <div class="settings-item">
+            <label class="settings-label">スキャン有効</label>
+            <div class="settings-toggle-row">
+              <label class="toggle-switch">
+                <input type="checkbox" name="scan_enabled" value="true"
+                  {% if settings.scan_enabled == 'true' %}checked{% endif %}>
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="settings-hint">無効にするとバックグラウンドスキャンが停止します（要再起動）</span>
+            </div>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label" for="scan-interval">スキャン間隔（分）</label>
+            <input type="number" id="scan-interval" name="scan_interval_minutes"
+              value="{{ settings.scan_interval_minutes }}" min="1" max="1440" class="settings-input">
+            <small class="settings-hint">次回スキャンから反映されます（要再起動で確実に反映）</small>
+          </div>
+
+        </div>
+      </section>
+
+      <!-- 通知設定 -->
+      <section class="card">
+        <h3 class="card-title">通知設定</h3>
+        <p class="history-note">
+          Gmail SMTP 通知を使用します。EMAIL_FROM / EMAIL_APP_PASSWORD / EMAIL_TO は .env で設定してください。
+        </p>
+        <div class="settings-grid">
+
+          <div class="settings-item">
+            <label class="settings-label">BUY判定時に通知</label>
+            <label class="toggle-switch">
+              <input type="checkbox" name="notify_on_buy" value="true"
+                {% if settings.notify_on_buy == 'true' %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">SELL判定時に通知</label>
+            <label class="toggle-switch">
+              <input type="checkbox" name="notify_on_sell" value="true"
+                {% if settings.notify_on_sell == 'true' %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">見送り時にも通知</label>
+            <label class="toggle-switch">
+              <input type="checkbox" name="notify_on_skip" value="true"
+                {% if settings.notify_on_skip == 'true' %}checked{% endif %}>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label" for="min-score">最低スコア（0=全件）</label>
+            <input type="number" id="min-score" name="notify_min_score"
+              value="{{ settings.notify_min_score }}" min="0" max="7" class="settings-input">
+            <small class="settings-hint">このスコア以上の判定のみ通知します</small>
+          </div>
+
+        </div>
+      </section>
+
+      <div style="margin-top: 1rem;">
+        <button type="submit" class="btn btn-buy" style="min-width:140px;">設定を保存</button>
+        <a href="/" class="btn btn-skip" style="margin-left:0.5rem;">キャンセル</a>
+      </div>
+
+    </form>
+
+    <!-- 読み取り専用: 環境変数 -->
+    <section class="card" style="margin-top:2rem;">
+      <h3 class="card-title">環境変数（読み取り専用）</h3>
+      <p class="history-note">.env ファイルで管理される設定です。変更するには .env を編集してアプリを再起動してください。</p>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">TRADING_MODE</span>
+          <span class="ind-value" style="color:#4ade80;">demo_only（固定）</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">DATA_SOURCE</span>
+          <span class="ind-value">{{ data_source }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">OANDA_ENVIRONMENT</span>
+          <span class="ind-value">{{ oanda_env }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">ANTHROPIC_API_KEY</span>
+          <span class="ind-value">{{ '✅ 設定済み' if anthropic_key else '未設定（モック使用）' }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">OANDA_API_KEY</span>
+          <span class="ind-value">{{ '✅ 設定済み' if oanda_key else '未設定' }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">EMAIL_FROM</span>
+          <span class="ind-value">{{ '✅ 設定済み' if email_set else '未設定' }}</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

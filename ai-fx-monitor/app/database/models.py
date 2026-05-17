@@ -59,6 +59,15 @@ CREATE TABLE IF NOT EXISTS demo_orders (
 );
 """
 
+# Phase 22: アプリ設定テーブル（Web画面から変更可能な設定）
+CREATE_APP_SETTINGS_TABLE = """
+CREATE TABLE IF NOT EXISTS app_settings (
+    key        TEXT PRIMARY KEY,
+    value      TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
 # Phase 13: 既存demo_ordersへの損益追跡列マイグレーション
 MIGRATE_ADD_DEMO_ORDER_PNL_COLUMNS = [
     "ALTER TABLE demo_orders ADD COLUMN exit_price REAL",

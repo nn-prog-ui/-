@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - ダッシュボード</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link active">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">全通貨ペア ダッシュボード</h2>
+      <p class="history-note">
+        すべてのサポート通貨ペアの現在判定を一覧表示します。判定は表示時点のものです。
+      </p>
+    </section>
+
+    <!-- シグナル概要バー -->
+    {% set buy_count  = analyses | selectattr('signal', 'equalto', 'BUY')  | list | length %}
+    {% set sell_count = analyses | selectattr('signal', 'equalto', 'SELL') | list | length %}
+    {% set skip_count = analyses | selectattr('signal', 'equalto', 'SKIP') | list | length %}
+
+    <div class="history-grid" style="margin-bottom: 1.5rem;">
+      <div class="card" style="text-align:center;">
+        <div class="h-label">買い候補</div>
+        <div class="price-value" style="font-size:2.5rem; color:#4ade80;">{{ buy_count }}</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div class="h-label">売り候補</div>
+        <div class="price-value" style="font-size:2.5rem; color:#f87171;">{{ sell_count }}</div>
+      </div>
+      <div class="card" style="text-align:center;">
+        <div class="h-label">見送り</div>
+        <div class="price-value" style="font-size:2.5rem; color:#888;">{{ skip_count }}</div>
+      </div>
+    </div>
+
+    <!-- 通貨ペアカード一覧 -->
+    {% if analyses %}
+    <div class="dashboard-grid">
+      {% for r in analyses %}
+      <article class="card dashboard-card {{ r.signal_css_class }}">
+
+        <div class="dashboard-header">
+          <span class="pair-name" style="font-size:1.2rem; font-weight:700;">{{ r.symbol }}</span>
+          <span class="signal-badge signal-{{ r.signal|lower }}">{{ r.signal_label }}</span>
+        </div>
+
+        <div class="dashboard-price">
+          {% if r.current_price %}
+            {{ "%.3f"|format(r.current_price) }}
+          {% else %}
+            ---
+          {% endif %}
+          {% if r.is_dummy_data %}
+          <span class="dummy-badge" style="font-size:0.72rem;">ダミー</span>
+          {% endif %}
+        </div>
+
+        <div class="indicators-grid" style="margin-top:0.75rem;">
+          <div class="indicator-item">
+            <span class="ind-label">日足</span>
+            <span class="ind-value trend-{{ r.daily_trend }}">{{ r.daily_trend }}</span>
+          </div>
+          <div class="indicator-item">
+            <span class="ind-label">4H</span>
+            <span class="ind-value trend-{{ r.h4_trend }}">{{ r.h4_trend }}</span>
+          </div>
+          <div class="indicator-item">
+            <span class="ind-label">RSI</span>
+            <span class="ind-value {% if r.rsi %}{% if r.rsi >= 70 %}rsi-high{% elif r.rsi <= 30 %}rsi-low{% else %}rsi-normal{% endif %}{% endif %}">
+              {{ "%.1f"|format(r.rsi) if r.rsi is not none else "---" }}
+            </span>
+          </div>
+          <div class="indicator-item">
+            <span class="ind-label">スコア</span>
+            <span class="ind-value">
+              {% if r.score is not none %}{% if r.score > 0 %}+{% endif %}{{ r.score }}{% else %}---{% endif %}
+            </span>
+          </div>
+        </div>
+
+        {% if r.signal != 'SKIP' and r.setup and r.setup.is_valid %}
+        <div class="indicators-grid" style="margin-top:0.5rem; border-top:1px solid var(--border-color); padding-top:0.5rem;">
+          <div class="indicator-item">
+            <span class="ind-label">エントリー</span>
+            <span class="h-value entry">{{ "%.3f"|format(r.entry_price) if r.entry_price else "---" }}</span>
+          </div>
+          <div class="indicator-item">
+            <span class="ind-label">RR</span>
+            <span class="h-value {% if r.risk_reward and r.risk_reward >= 1.5 %}rr-good{% endif %}">
+              {{ "%.2f"|format(r.risk_reward) if r.risk_reward else "---" }}
+            </span>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if r.economic_warning %}
+        <div style="margin-top:0.5rem; font-size:0.8rem; color:#f39c12;">
+          ⚠️ 重要指標警戒中
+        </div>
+        {% endif %}
+
+        <div style="margin-top:0.75rem;">
+          <a href="/?symbol={{ r.symbol | urlencode }}" class="btn btn-skip"
+            style="font-size:0.8rem; padding:5px 12px; width:100%; text-align:center; display:block;">
+            詳細を見る →
+          </a>
+        </div>
+
+      </article>
+      {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+      <p class="empty-history">通貨ペアの分析結果を取得できませんでした。</p>
+    </div>
+    {% endif %}
+
+    <p style="text-align:center; color:var(--text-secondary); font-size:0.8rem; margin-top:1rem;">
+      ページを再読み込みすると最新データに更新されます
+    </p>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

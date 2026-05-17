@@ -507,3 +507,233 @@ def get_demo_performance_stats(db_path: Path | None = None) -> dict:
         "total_pips":   total_pips,
         "avg_pips":     avg_pips,
     }
+
+
+# ============================================================
+# Phase 22: アプリ設定 CRUD
+# ============================================================
+
+# デフォルト設定値（.envが未設定のときのフォールバック）
+_SETTINGS_DEFAULTS: dict[str, str] = {
+    "scan_enabled": "true",
+    "scan_interval_minutes": "60",
+    "notify_on_buy": "true",
+    "notify_on_sell": "true",
+    "notify_on_skip": "false",
+    "notify_min_score": "0",
+}
+
+
+def get_setting(key: str, db_path: Path | None = None) -> str | None:
+    """設定値を返す。DBになければデフォルト値を返す。"""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key = ?", (key,)
+        ).fetchone()
+    if row:
+        return row["value"]
+    return _SETTINGS_DEFAULTS.get(key)
+
+
+def set_setting(key: str, value: str, db_path: Path | None = None) -> None:
+    """設定値を保存する（upsert）。"""
+    updated_at = datetime.utcnow().isoformat()
+    with get_db(db_path) as conn:
+        conn.execute(
+            """
+            INSERT INTO app_settings (key, value, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+            """,
+            (key, value, updated_at),
+        )
+
+
+def get_all_settings(db_path: Path | None = None) -> dict[str, str]:
+    """全設定をデフォルト込みで返す。DBの値がデフォルトを上書きする。"""
+    result = dict(_SETTINGS_DEFAULTS)
+    with get_db(db_path) as conn:
+        rows = conn.execute("SELECT key, value FROM app_settings").fetchall()
+    for row in rows:
+        result[row["key"]] = row["value"]
+    return result
+
+
+def save_settings(settings: dict[str, str], db_path: Path | None = None) -> None:
+    """複数設定を一括保存する。"""
+    for key, value in settings.items():
+        if key in _SETTINGS_DEFAULTS:
+            set_setting(key, value, db_path)
+
+
+# ============================================================
+# Phase 24: 判定精度レポート用クエリ
+# ============================================================
+
+def get_performance_report(db_path: Path | None = None) -> dict:
+    """判定精度レポートデータを返す。
+
+    Returns:
+        {
+            by_signal: list[dict],          # BUY/SELL別統計
+            by_trend: list[dict],           # 日足×4H別統計
+            by_score: list[dict],           # スコア別統計
+            by_rsi_range: list[dict],       # RSIレンジ別統計
+            monthly: list[dict],            # 月次統計
+            total_closed: int,
+        }
+    """
+    with get_db(db_path) as conn:
+        # BUY/SELL別
+        by_signal_rows = conn.execute("""
+            SELECT
+                signal,
+                COUNT(*) AS total,
+                SUM(CASE WHEN outcome = 'win'  THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) AS losses,
+                AVG(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE NULL END) AS avg_pips,
+                SUM(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE 0 END) AS total_pips
+            FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NOT NULL
+            GROUP BY signal
+        """).fetchall()
+
+        # 日足×4H トレンド別
+        by_trend_rows = conn.execute("""
+            SELECT
+                daily_trend, h4_trend,
+                COUNT(*) AS total,
+                SUM(CASE WHEN outcome = 'win'  THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) AS losses,
+                AVG(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE NULL END) AS avg_pips
+            FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NOT NULL
+            GROUP BY daily_trend, h4_trend
+            ORDER BY total DESC
+        """).fetchall()
+
+        # スコア別（0〜7の範囲でバケット）
+        by_score_rows = conn.execute("""
+            SELECT
+                ABS(score) AS abs_score,
+                COUNT(*) AS total,
+                SUM(CASE WHEN outcome = 'win'  THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) AS losses
+            FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NOT NULL AND score IS NOT NULL
+            GROUP BY abs_score
+            ORDER BY abs_score
+        """).fetchall()
+
+        # RSIレンジ別（10刻み）
+        by_rsi_rows = conn.execute("""
+            SELECT
+                CAST(rsi / 10 AS INTEGER) * 10 AS rsi_bucket,
+                COUNT(*) AS total,
+                SUM(CASE WHEN outcome = 'win'  THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) AS losses
+            FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NOT NULL AND rsi IS NOT NULL
+            GROUP BY rsi_bucket
+            ORDER BY rsi_bucket
+        """).fetchall()
+
+        # 月次統計
+        monthly_rows = conn.execute("""
+            SELECT
+                SUBSTR(created_at, 1, 7) AS month,
+                COUNT(*) AS total,
+                SUM(CASE WHEN outcome = 'win'  THEN 1 ELSE 0 END) AS wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END) AS losses,
+                SUM(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE 0 END) AS total_pips
+            FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NOT NULL
+            GROUP BY month
+            ORDER BY month DESC
+            LIMIT 12
+        """).fetchall()
+
+        total_row = conn.execute("""
+            SELECT COUNT(*) AS cnt FROM approval_history
+            WHERE human_action IN ('buy_approved', 'sell_approved')
+              AND outcome IS NOT NULL
+        """).fetchone()
+
+    def _win_rate(wins: int, total: int) -> float | None:
+        return (wins / total * 100) if total > 0 else None
+
+    by_signal = [
+        {
+            "signal": r["signal"],
+            "label": "買い" if r["signal"] == "BUY" else "売り",
+            "total": r["total"],
+            "wins": r["wins"] or 0,
+            "losses": r["losses"] or 0,
+            "win_rate": _win_rate(r["wins"] or 0, r["total"]),
+            "avg_pips": r["avg_pips"],
+            "total_pips": r["total_pips"] or 0.0,
+        }
+        for r in by_signal_rows
+    ]
+
+    by_trend = [
+        {
+            "daily_trend": r["daily_trend"] or "---",
+            "h4_trend": r["h4_trend"] or "---",
+            "total": r["total"],
+            "wins": r["wins"] or 0,
+            "losses": r["losses"] or 0,
+            "win_rate": _win_rate(r["wins"] or 0, r["total"]),
+            "avg_pips": r["avg_pips"],
+        }
+        for r in by_trend_rows
+    ]
+
+    by_score = [
+        {
+            "score": r["abs_score"],
+            "total": r["total"],
+            "wins": r["wins"] or 0,
+            "losses": r["losses"] or 0,
+            "win_rate": _win_rate(r["wins"] or 0, r["total"]),
+        }
+        for r in by_score_rows
+    ]
+
+    by_rsi_range = [
+        {
+            "rsi_range": f"{r['rsi_bucket']}〜{r['rsi_bucket'] + 9}",
+            "total": r["total"],
+            "wins": r["wins"] or 0,
+            "losses": r["losses"] or 0,
+            "win_rate": _win_rate(r["wins"] or 0, r["total"]),
+        }
+        for r in by_rsi_rows
+        if r["rsi_bucket"] is not None
+    ]
+
+    monthly = [
+        {
+            "month": r["month"],
+            "total": r["total"],
+            "wins": r["wins"] or 0,
+            "losses": r["losses"] or 0,
+            "win_rate": _win_rate(r["wins"] or 0, r["total"]),
+            "total_pips": r["total_pips"] or 0.0,
+        }
+        for r in monthly_rows
+    ]
+
+    return {
+        "by_signal": by_signal,
+        "by_trend": by_trend,
+        "by_score": by_score,
+        "by_rsi_range": by_rsi_range,
+        "monthly": monthly,
+        "total_closed": total_row["cnt"] if total_row else 0,
+    }

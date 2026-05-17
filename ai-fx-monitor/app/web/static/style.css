@@ -848,3 +848,183 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   outline: 2px solid var(--color-entry);
   outline-offset: 2px;
 }
+
+/* ============================================================
+   Phase 21-24: 共通テーブル・ダッシュボード・設定・レポート
+   ============================================================ */
+
+/* レポートテーブル */
+.report-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.report-table th {
+  background: var(--bg-secondary);
+  color: var(--text-secondary);
+  font-weight: 600;
+  padding: 8px 10px;
+  text-align: left;
+  border-bottom: 1px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.report-table td {
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border-color);
+  vertical-align: middle;
+}
+
+.report-table tr:last-child td { border-bottom: none; }
+
+.report-table tr.outcome-win { background: rgba(74,222,128,0.04); }
+.report-table tr.outcome-loss { background: rgba(248,113,113,0.04); }
+
+/* 勝率バー */
+.win-rate-bar {
+  width: 100px;
+  height: 8px;
+  background: var(--bg-secondary);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.win-rate-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.fill-win { background: #4ade80; }
+.fill-loss { background: #f87171; }
+
+/* ダッシュボードグリッド */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.dashboard-card {
+  border-left: 4px solid var(--border-color);
+}
+
+.dashboard-card.signal-buy { border-left-color: var(--color-buy-border); }
+.dashboard-card.signal-sell { border-left-color: var(--color-sell-border); }
+.dashboard-card.signal-skip { border-left-color: var(--color-skip-border); }
+
+.dashboard-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.dashboard-price {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 0.5px;
+}
+
+/* 設定フォーム */
+.settings-form { }
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.settings-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.settings-label {
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.settings-input {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-primary);
+  padding: 8px 10px;
+  font-size: 0.9rem;
+  width: 100%;
+  max-width: 180px;
+}
+
+.settings-input:focus {
+  outline: none;
+  border-color: var(--color-entry);
+}
+
+.settings-hint {
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.settings-toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* トグルスイッチ */
+.toggle-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.toggle-switch input { opacity: 0; width: 0; height: 0; }
+
+.toggle-slider {
+  position: absolute;
+  inset: 0;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.toggle-slider::before {
+  content: "";
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  left: 2px;
+  top: 2px;
+  background: var(--text-secondary);
+  border-radius: 50%;
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-switch input:checked + .toggle-slider {
+  background: rgba(74,222,128,0.2);
+  border-color: #4ade80;
+}
+
+.toggle-switch input:checked + .toggle-slider::before {
+  transform: translateX(20px);
+  background: #4ade80;
+}
+
+/* レスポンシブ調整 */
+@media (max-width: 640px) {
+  .dashboard-grid { grid-template-columns: 1fr; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .report-table { font-size: 0.78rem; }
+  .report-table th, .report-table td { padding: 5px 6px; }
+  .win-rate-bar { width: 60px; }
+}

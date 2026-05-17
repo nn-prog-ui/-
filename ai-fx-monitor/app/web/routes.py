@@ -15,6 +15,7 @@ from app.database.repository import (
     HUMAN_ACTION_SKIP,
     check_and_close_open_trades,
     close_demo_order,
+    get_all_settings,
     get_approval_by_id,
     get_demo_order_by_id,
     get_demo_orders,
@@ -22,12 +23,15 @@ from app.database.repository import (
     get_history,
     get_history_count,
     get_open_trades,
+    get_performance_report,
     get_performance_stats,
     save_approval,
     save_demo_order,
+    save_settings,
 )
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DEFAULT_SYMBOL, SUPPORTED_SYMBOLS
+from app.scripts.backtest import run_backtest
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
 
@@ -459,3 +463,131 @@ async def demo_close_trade(
     logger.info("デモ注文決済: demo_id=%d exit=%.3f pnl=%.1fpips", demo_id, exit_price, pnl_pips)
 
     return RedirectResponse(url="/demo-orders", status_code=303)
+
+
+# ============================================================
+# Phase 21: バックテスト可視化
+# ============================================================
+
+@router.get("/backtest", response_class=HTMLResponse)
+async def backtest_page(
+    request: Request,
+    symbol: str = "",
+    window: int = 500,
+    step: int = 24,
+    future: int = 100,
+):
+    """バックテスト実行ページ。"""
+    result = None
+    error = None
+    ran = False
+
+    if symbol and symbol in SUPPORTED_SYMBOLS:
+        ran = True
+        try:
+            result = run_backtest(symbol=symbol, window=window, step=step, future_bars=future)
+        except Exception as exc:
+            logger.error("バックテストエラー: %s", exc)
+            error = str(exc)
+
+    return templates.TemplateResponse(
+        "backtest.html",
+        {
+            "request": request,
+            "result": result,
+            "error": error,
+            "ran": ran,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "params": {"symbol": symbol, "window": window, "step": step, "future": future},
+        },
+    )
+
+
+# ============================================================
+# Phase 22: 設定画面
+# ============================================================
+
+@router.get("/settings", response_class=HTMLResponse)
+async def settings_page(request: Request, saved: bool = False):
+    """設定画面。"""
+    import os
+    current = get_all_settings()
+    return templates.TemplateResponse(
+        "settings.html",
+        {
+            "request": request,
+            "settings": current,
+            "saved": saved,
+            "data_source": os.getenv("DATA_SOURCE", "csv"),
+            "oanda_env": os.getenv("OANDA_ENVIRONMENT", "practice"),
+            "anthropic_key": bool(os.getenv("ANTHROPIC_API_KEY")),
+            "oanda_key": bool(os.getenv("OANDA_API_KEY")),
+            "email_set": bool(os.getenv("EMAIL_FROM")),
+        },
+    )
+
+
+@router.post("/settings", response_class=HTMLResponse)
+async def settings_save(
+    request: Request,
+    scan_enabled: str = Form("false"),
+    scan_interval_minutes: str = Form("60"),
+    notify_on_buy: str = Form("false"),
+    notify_on_sell: str = Form("false"),
+    notify_on_skip: str = Form("false"),
+    notify_min_score: str = Form("0"),
+):
+    """設定を保存する。"""
+    try:
+        interval = int(scan_interval_minutes)
+        if interval < 1:
+            interval = 1
+        min_score = int(notify_min_score)
+    except ValueError:
+        interval = 60
+        min_score = 0
+
+    save_settings({
+        "scan_enabled": scan_enabled,
+        "scan_interval_minutes": str(interval),
+        "notify_on_buy": notify_on_buy,
+        "notify_on_sell": notify_on_sell,
+        "notify_on_skip": notify_on_skip,
+        "notify_min_score": str(min_score),
+    })
+    return RedirectResponse(url="/settings?saved=1", status_code=303)
+
+
+# ============================================================
+# Phase 23: 複数通貨ペアのダッシュボード
+# ============================================================
+
+@router.get("/dashboard", response_class=HTMLResponse)
+async def dashboard(request: Request):
+    """全通貨ペアの現在判定をまとめたダッシュボード。"""
+    analyses = []
+    for sym in SUPPORTED_SYMBOLS:
+        try:
+            r = run_analysis(symbol=sym)
+            analyses.append(r)
+        except Exception as exc:
+            logger.warning("ダッシュボード分析エラー [%s]: %s", sym, exc)
+
+    return templates.TemplateResponse(
+        "dashboard.html",
+        {"request": request, "analyses": analyses, "supported_symbols": SUPPORTED_SYMBOLS},
+    )
+
+
+# ============================================================
+# Phase 24: 判定精度レポート
+# ============================================================
+
+@router.get("/report", response_class=HTMLResponse)
+async def report(request: Request):
+    """判定精度レポートページ。"""
+    data = get_performance_report()
+    return templates.TemplateResponse(
+        "report.html",
+        {"request": request, "data": data},
+    )

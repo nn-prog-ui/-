@@ -9,12 +9,17 @@ from app.database.repository import (
     check_and_close_open_trades,
     close_demo_order,
     close_trade,
+    get_all_settings,
     get_demo_performance_stats,
     get_open_trades,
+    get_performance_report,
     get_performance_stats,
+    get_setting,
     get_signal_pattern_stats,
     save_approval,
     save_demo_order,
+    save_settings,
+    set_setting,
 )
 from app.services.market_analyzer import AnalysisResult
 from app.strategy.risk import TradeSetup
@@ -342,3 +347,72 @@ class TestGetSignalPatternStats:
         stats = get_signal_pattern_stats("SELL", "下降", "下降", db)
         assert len(stats["recent_outcomes"]) == 4
         assert set(stats["recent_outcomes"]) == {"win", "loss"}
+
+
+class TestSettingsCRUD:
+    """Phase 22: 設定 CRUD テスト"""
+
+    def test_get_setting_returns_default_when_not_set(self, db):
+        val = get_setting("scan_enabled", db)
+        assert val == "true"
+
+    def test_set_and_get_setting(self, db):
+        set_setting("scan_interval_minutes", "30", db)
+        assert get_setting("scan_interval_minutes", db) == "30"
+
+    def test_get_all_settings_returns_all_keys(self, db):
+        settings = get_all_settings(db)
+        for key in ("scan_enabled", "scan_interval_minutes", "notify_on_buy",
+                    "notify_on_sell", "notify_on_skip", "notify_min_score"):
+            assert key in settings
+
+    def test_save_settings_batch(self, db):
+        save_settings({"scan_enabled": "false", "notify_min_score": "5"}, db)
+        assert get_setting("scan_enabled", db) == "false"
+        assert get_setting("notify_min_score", db) == "5"
+
+    def test_set_setting_upsert(self, db):
+        set_setting("scan_enabled", "true", db)
+        set_setting("scan_enabled", "false", db)
+        assert get_setting("scan_enabled", db) == "false"
+
+    def test_unknown_key_returns_none(self, db):
+        val = get_setting("nonexistent_key", db)
+        assert val is None
+
+
+class TestPerformanceReport:
+    """Phase 24: 判定精度レポート テスト"""
+
+    def test_empty_db_returns_zero_totals(self, db):
+        data = get_performance_report(db)
+        assert data["total_closed"] == 0
+        assert data["by_signal"] == []
+        assert data["by_trend"] == []
+
+    def test_returns_all_keys(self, db):
+        data = get_performance_report(db)
+        for key in ("by_signal", "by_trend", "by_score", "by_rsi_range", "monthly", "total_closed"):
+            assert key in data
+
+    def test_by_signal_populated_after_closed_trades(self, db):
+        r = _make_result(signal="BUY", daily_trend="上昇", h4_trend="上昇", rsi=55.0)
+        for _ in range(3):
+            rid = save_approval(r, "buy_approved", db_path=db)
+            close_trade(rid, "win", 151.0, 50.0, db)
+        data = get_performance_report(db)
+        assert data["total_closed"] == 3
+        assert len(data["by_signal"]) == 1
+        buy_row = data["by_signal"][0]
+        assert buy_row["signal"] == "BUY"
+        assert buy_row["wins"] == 3
+        assert abs(buy_row["win_rate"] - 100.0) < 0.01
+
+    def test_by_trend_groups_correctly(self, db):
+        r_up = _make_result(signal="BUY", daily_trend="上昇", h4_trend="上昇", rsi=55.0)
+        r_dw = _make_result(signal="SELL", daily_trend="下降", h4_trend="下降", rsi=45.0)
+        for r in [r_up, r_dw]:
+            rid = save_approval(r, "buy_approved" if r.signal == "BUY" else "sell_approved", db_path=db)
+            close_trade(rid, "win", 151.0, 50.0, db)
+        data = get_performance_report(db)
+        assert len(data["by_trend"]) == 2

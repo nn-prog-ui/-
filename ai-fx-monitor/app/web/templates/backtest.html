@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - バックテスト</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link active">バックテスト</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">バックテスト（過去データ検証）</h2>
+      <p class="history-note">
+        過去のCSVデータで判定ルールの精度を検証します。実際の注文は一切発生しません。
+      </p>
+    </section>
+
+    <!-- パラメータフォーム -->
+    <section class="card">
+      <h3 class="card-title">パラメータ設定</h3>
+      <form method="GET" action="/backtest" class="settings-form">
+        <div class="settings-grid">
+
+          <div class="settings-item">
+            <label class="settings-label" for="bt-symbol">通貨ペア</label>
+            <select id="bt-symbol" name="symbol" class="symbol-select">
+              <option value="">-- 選択してください --</option>
+              {% for sym in supported_symbols %}
+              <option value="{{ sym }}" {% if params.symbol == sym %}selected{% endif %}>{{ sym }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label" for="bt-window">判定ウィンドウ（本数）</label>
+            <input type="number" id="bt-window" name="window" value="{{ params.window }}"
+              min="200" max="2000" class="settings-input">
+            <small class="settings-hint">判定に使う直近の1時間足本数（例: 500 ≒ 20日）</small>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label" for="bt-step">ステップ（本数）</label>
+            <input type="number" id="bt-step" name="step" value="{{ params.step }}"
+              min="1" max="168" class="settings-input">
+            <small class="settings-hint">何本おきに判定するか（例: 24 = 1日ごと）</small>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label" for="bt-future">フォワード本数</label>
+            <input type="number" id="bt-future" name="future" value="{{ params.future }}"
+              min="10" max="500" class="settings-input">
+            <small class="settings-hint">SL/TP到達チェックに使う未来バー数</small>
+          </div>
+
+        </div>
+        <div style="margin-top: 1rem;">
+          <button type="submit" class="btn btn-buy" style="min-width:140px;">実行</button>
+        </div>
+      </form>
+    </section>
+
+    {% if error %}
+    <div class="alert alert-error"><strong>エラー：</strong> {{ error }}</div>
+    {% endif %}
+
+    {% if ran and result %}
+
+    <!-- サマリーカード -->
+    <div class="history-grid" style="margin-bottom: 1.5rem;">
+
+      <div class="card" style="text-align:center;">
+        <div class="h-label">有効セットアップ数</div>
+        <div class="price-value" style="font-size:2rem;">{{ result.valid_setups }}</div>
+        <div class="h-label">判定{{ result.signals_generated }}回中</div>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <div class="h-label">勝ち / 負け / 未決済</div>
+        <div style="font-size:1.4rem; margin-top:0.5rem;">
+          <span style="color:#4ade80;">{{ result.wins }}勝</span>
+          <span style="color:#888;"> / </span>
+          <span style="color:#f87171;">{{ result.losses }}敗</span>
+          <span style="color:#888;"> / </span>
+          <span style="color:#facc15;">{{ result.open_count }}未</span>
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <div class="h-label">勝率</div>
+        <div class="price-value" style="font-size:2rem;
+          {% if result.win_rate is not none and result.win_rate >= 50 %}color:#4ade80;
+          {% elif result.win_rate is not none %}color:#f87171;{% endif %}">
+          {% if result.win_rate is not none %}{{ "%.1f"|format(result.win_rate) }}%
+          {% else %}---{% endif %}
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <div class="h-label">合計損益（pips）</div>
+        <div class="price-value" style="font-size:2rem;
+          {% if result.total_pips > 0 %}color:#4ade80;
+          {% elif result.total_pips < 0 %}color:#f87171;{% endif %}">
+          {% if result.total_pips > 0 %}+{% endif %}{{ "%.1f"|format(result.total_pips) }}
+        </div>
+      </div>
+
+      <div class="card" style="text-align:center;">
+        <div class="h-label">平均損益（pips/取引）</div>
+        <div class="price-value" style="font-size:2rem;
+          {% if result.avg_pips is not none and result.avg_pips > 0 %}color:#4ade80;
+          {% elif result.avg_pips is not none and result.avg_pips < 0 %}color:#f87171;{% endif %}">
+          {% if result.avg_pips is not none %}
+            {% if result.avg_pips > 0 %}+{% endif %}{{ "%.1f"|format(result.avg_pips) }}
+          {% else %}---{% endif %}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- シグナル内訳 -->
+    <section class="card">
+      <h3 class="card-title">シグナル内訳</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">総データ本数</span>
+          <span class="ind-value">{{ result.total_bars }} 本</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">BUYシグナル</span>
+          <span class="ind-value" style="color:#4ade80;">{{ result.buy_signals }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">SELLシグナル</span>
+          <span class="ind-value" style="color:#f87171;">{{ result.sell_signals }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">見送り</span>
+          <span class="ind-value" style="color:#888;">{{ result.skip_signals }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">最大勝ち</span>
+          <span class="ind-value" style="color:#4ade80;">
+            {% if result.max_win_pips %}+{{ "%.1f"|format(result.max_win_pips) }}pips{% else %}---{% endif %}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">最大負け</span>
+          <span class="ind-value" style="color:#f87171;">
+            {% if result.max_loss_pips %}{{ "%.1f"|format(result.max_loss_pips) }}pips{% else %}---{% endif %}
+          </span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 取引一覧 -->
+    {% if result.trades %}
+    <section class="card">
+      <h3 class="card-title">取引一覧（{{ result.trades|length }}件）</h3>
+      <div style="overflow-x:auto;">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>方向</th>
+              <th>エントリー</th>
+              <th>損切り</th>
+              <th>利確</th>
+              <th>RR</th>
+              <th>結果</th>
+              <th>損益(pips)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in result.trades %}
+            <tr class="{% if t.outcome == 'win' %}outcome-win{% elif t.outcome == 'loss' %}outcome-loss{% endif %}">
+              <td style="color:#888;">{{ loop.index }}</td>
+              <td>
+                <span class="signal-badge signal-{{ t.signal|lower }}">
+                  {{ 'BUY' if t.signal == 'BUY' else 'SELL' }}
+                </span>
+              </td>
+              <td>{{ "%.3f"|format(t.entry_price) }}</td>
+              <td class="h-value stoploss">{{ "%.3f"|format(t.stop_loss) }}</td>
+              <td class="h-value takeprofit">{{ "%.3f"|format(t.take_profit) }}</td>
+              <td class="{% if t.risk_reward >= 1.5 %}rr-good{% endif %}">{{ "%.2f"|format(t.risk_reward) }}</td>
+              <td>
+                {% if t.outcome == 'win' %}<span style="color:#4ade80;">勝ち</span>
+                {% elif t.outcome == 'loss' %}<span style="color:#f87171;">負け</span>
+                {% else %}<span style="color:#facc15;">未決済</span>{% endif %}
+              </td>
+              <td class="{% if t.pnl_pips > 0 %}trend-上昇{% elif t.pnl_pips < 0 %}trend-下降{% endif %}">
+                {% if t.outcome != 'open' %}
+                  {% if t.pnl_pips > 0 %}+{% endif %}{{ "%.1f"|format(t.pnl_pips) }}
+                {% else %}---{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <div class="alert alert-warning" style="margin-top:1rem;">
+      <strong>注意：</strong> バックテストは過去データのシミュレーションです。将来の成績を保証しません。
+      スプレッド・スリッページ・資金管理は考慮されていません。
+    </div>
+
+    {% elif ran %}
+    <div class="card">
+      <p class="empty-history">バックテストを実行できませんでした。通貨ペアを選択し直してください。</p>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

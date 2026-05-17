@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 判定精度レポート</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/report" class="nav-link active">レポート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">判定精度レポート</h2>
+      <p class="history-note">
+        過去のクローズ済み取引（{{ data.total_closed }}件）をもとに、判定パターン別の成績を分析します。
+        データが少ない場合は参考値として扱ってください。
+      </p>
+    </section>
+
+    {% if data.total_closed == 0 %}
+    <div class="card">
+      <p class="empty-history">
+        クローズ済みの取引がまだありません。取引を承認し、成績画面で結果を記録してからご利用ください。
+      </p>
+    </div>
+
+    {% else %}
+
+    <!-- BUY/SELL別 -->
+    {% if data.by_signal %}
+    <section class="card">
+      <h3 class="card-title">BUY / SELL 別成績</h3>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>方向</th>
+            <th>取引数</th>
+            <th>勝ち</th>
+            <th>負け</th>
+            <th>勝率</th>
+            <th>合計損益(pips)</th>
+            <th>平均損益(pips)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.by_signal %}
+          <tr>
+            <td>
+              <span class="signal-badge signal-{{ row.signal|lower }}">{{ row.label }}</span>
+            </td>
+            <td>{{ row.total }}</td>
+            <td style="color:#4ade80;">{{ row.wins }}</td>
+            <td style="color:#f87171;">{{ row.losses }}</td>
+            <td class="{% if row.win_rate is not none and row.win_rate >= 50 %}trend-上昇{% elif row.win_rate is not none %}trend-下降{% endif %}">
+              {% if row.win_rate is not none %}{{ "%.1f"|format(row.win_rate) }}%{% else %}---{% endif %}
+            </td>
+            <td class="{% if row.total_pips > 0 %}trend-上昇{% elif row.total_pips < 0 %}trend-下降{% endif %}">
+              {% if row.total_pips > 0 %}+{% endif %}{{ "%.1f"|format(row.total_pips) }}
+            </td>
+            <td class="{% if row.avg_pips is not none and row.avg_pips > 0 %}trend-上昇{% elif row.avg_pips is not none and row.avg_pips < 0 %}trend-下降{% endif %}">
+              {% if row.avg_pips is not none %}
+                {% if row.avg_pips > 0 %}+{% endif %}{{ "%.1f"|format(row.avg_pips) }}
+              {% else %}---{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    <!-- トレンド組み合わせ別 -->
+    {% if data.by_trend %}
+    <section class="card">
+      <h3 class="card-title">日足 × 4時間足 トレンド別成績</h3>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>日足</th>
+            <th>4時間足</th>
+            <th>取引数</th>
+            <th>勝ち</th>
+            <th>負け</th>
+            <th>勝率</th>
+            <th>平均損益(pips)</th>
+            <th>勝率バー</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.by_trend %}
+          <tr>
+            <td class="trend-{{ row.daily_trend }}">{{ row.daily_trend }}</td>
+            <td class="trend-{{ row.h4_trend }}">{{ row.h4_trend }}</td>
+            <td>{{ row.total }}</td>
+            <td style="color:#4ade80;">{{ row.wins }}</td>
+            <td style="color:#f87171;">{{ row.losses }}</td>
+            <td class="{% if row.win_rate is not none and row.win_rate >= 50 %}trend-上昇{% elif row.win_rate is not none %}trend-下降{% endif %}">
+              {% if row.win_rate is not none %}{{ "%.1f"|format(row.win_rate) }}%{% else %}---{% endif %}
+            </td>
+            <td class="{% if row.avg_pips is not none and row.avg_pips > 0 %}trend-上昇{% elif row.avg_pips is not none and row.avg_pips < 0 %}trend-下降{% endif %}">
+              {% if row.avg_pips is not none %}
+                {% if row.avg_pips > 0 %}+{% endif %}{{ "%.1f"|format(row.avg_pips) }}
+              {% else %}---{% endif %}
+            </td>
+            <td>
+              {% if row.win_rate is not none %}
+              <div class="win-rate-bar">
+                <div class="win-rate-fill {% if row.win_rate >= 50 %}fill-win{% else %}fill-loss{% endif %}"
+                  style="width: {{ [row.win_rate, 100]|min }}%"></div>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    <!-- スコア別 -->
+    {% if data.by_score %}
+    <section class="card">
+      <h3 class="card-title">スコア別成績</h3>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>スコア</th>
+            <th>取引数</th>
+            <th>勝ち</th>
+            <th>負け</th>
+            <th>勝率</th>
+            <th>勝率バー</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.by_score %}
+          <tr>
+            <td><strong>{{ row.score }}</strong></td>
+            <td>{{ row.total }}</td>
+            <td style="color:#4ade80;">{{ row.wins }}</td>
+            <td style="color:#f87171;">{{ row.losses }}</td>
+            <td class="{% if row.win_rate is not none and row.win_rate >= 50 %}trend-上昇{% elif row.win_rate is not none %}trend-下降{% endif %}">
+              {% if row.win_rate is not none %}{{ "%.1f"|format(row.win_rate) }}%{% else %}---{% endif %}
+            </td>
+            <td>
+              {% if row.win_rate is not none %}
+              <div class="win-rate-bar">
+                <div class="win-rate-fill {% if row.win_rate >= 50 %}fill-win{% else %}fill-loss{% endif %}"
+                  style="width: {{ [row.win_rate, 100]|min }}%"></div>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    <!-- RSIレンジ別 -->
+    {% if data.by_rsi_range %}
+    <section class="card">
+      <h3 class="card-title">RSIレンジ別成績</h3>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>RSIレンジ</th>
+            <th>取引数</th>
+            <th>勝ち</th>
+            <th>負け</th>
+            <th>勝率</th>
+            <th>勝率バー</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.by_rsi_range %}
+          <tr>
+            <td>{{ row.rsi_range }}</td>
+            <td>{{ row.total }}</td>
+            <td style="color:#4ade80;">{{ row.wins }}</td>
+            <td style="color:#f87171;">{{ row.losses }}</td>
+            <td class="{% if row.win_rate is not none and row.win_rate >= 50 %}trend-上昇{% elif row.win_rate is not none %}trend-下降{% endif %}">
+              {% if row.win_rate is not none %}{{ "%.1f"|format(row.win_rate) }}%{% else %}---{% endif %}
+            </td>
+            <td>
+              {% if row.win_rate is not none %}
+              <div class="win-rate-bar">
+                <div class="win-rate-fill {% if row.win_rate >= 50 %}fill-win{% else %}fill-loss{% endif %}"
+                  style="width: {{ [row.win_rate, 100]|min }}%"></div>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    <!-- 月次成績 -->
+    {% if data.monthly %}
+    <section class="card">
+      <h3 class="card-title">月次成績（直近12ヶ月）</h3>
+      <table class="report-table">
+        <thead>
+          <tr>
+            <th>月</th>
+            <th>取引数</th>
+            <th>勝ち</th>
+            <th>負け</th>
+            <th>勝率</th>
+            <th>合計損益(pips)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in data.monthly %}
+          <tr>
+            <td>{{ row.month }}</td>
+            <td>{{ row.total }}</td>
+            <td style="color:#4ade80;">{{ row.wins }}</td>
+            <td style="color:#f87171;">{{ row.losses }}</td>
+            <td class="{% if row.win_rate is not none and row.win_rate >= 50 %}trend-上昇{% elif row.win_rate is not none %}trend-下降{% endif %}">
+              {% if row.win_rate is not none %}{{ "%.1f"|format(row.win_rate) }}%{% else %}---{% endif %}
+            </td>
+            <td class="{% if row.total_pips > 0 %}trend-上昇{% elif row.total_pips < 0 %}trend-下降{% endif %}">
+              {% if row.total_pips > 0 %}+{% endif %}{{ "%.1f"|format(row.total_pips) }}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+    {% endif %}
+
+    {% endif %}
+
+    <small class="ai-disclaimer" style="display:block; text-align:center; margin-top:1rem;">
+      ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+    </small>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

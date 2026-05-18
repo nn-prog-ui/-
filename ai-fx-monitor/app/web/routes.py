@@ -35,6 +35,7 @@ from app.database.repository import (
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DATA_DIR, DEFAULT_SYMBOL, SUPPORTED_SYMBOLS, SYMBOL_CSV_MAP
 from app.data.loader import load_or_generate
+from app.data.resampler import to_4h, to_daily
 from app.indicators.bollinger_bands import calculate_bollinger_bands
 from app.indicators.moving_average import calculate_ma
 from app.scripts.backtest import run_backtest
@@ -646,16 +647,36 @@ async def api_chart_data(symbol: str = "", limit: int = 60):
 # Phase 28: ローソク足チャートデータAPI
 # ============================================================
 
+_VALID_TF = {"1h", "4h", "1d"}
+
+
 @router.get("/api/candles")
-async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60):
-    """1時間足OHLCデータ＋MA20・MA50・BB をJSONで返す（Phase 30: チャート描画用）。"""
+async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60, tf: str = "1h"):
+    """OHLCデータ＋MA20・MA50・BB をJSONで返す（Phase 31: 複数時間足対応）。
+
+    tf: "1h"（デフォルト）| "4h" | "1d"
+    """
     if symbol not in SUPPORTED_SYMBOLS:
         symbol = DEFAULT_SYMBOL
+    if tf not in _VALID_TF:
+        tf = "1h"
+
     csv_name = SYMBOL_CSV_MAP.get(symbol, "USDJPY_1h.csv")
     csv_path = DATA_DIR / csv_name
-    df, _ = load_or_generate(csv_path, symbol=symbol)
+    df_1h, _ = load_or_generate(csv_path, symbol=symbol)
+    if df_1h.empty:
+        return {"candles": [], "symbol": symbol, "tf": tf, "count": 0}
+
+    # 時間足変換（1h はそのまま）
+    if tf == "4h":
+        df = to_4h(df_1h)
+    elif tf == "1d":
+        df = to_daily(df_1h)
+    else:
+        df = df_1h
+
     if df.empty:
-        return {"candles": [], "symbol": symbol, "count": 0}
+        return {"candles": [], "symbol": symbol, "tf": tf, "count": 0}
 
     # インジケーターはフル系列で計算してから最後の limit 本を切り出す
     ma20_series = calculate_ma(df["close"], 20)
@@ -690,7 +711,7 @@ async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60):
             "bb_upper": _val(bb_df["bb_upper"].iloc[i]),
             "bb_lower": _val(bb_df["bb_lower"].iloc[i]),
         })
-    return {"candles": candles, "symbol": symbol, "count": len(candles)}
+    return {"candles": candles, "symbol": symbol, "tf": tf, "count": len(candles)}
 
 
 # ============================================================

@@ -93,6 +93,45 @@ class TestCandlesApiBasic:
         assert data["count"] == 0
 
 
+class TestCandlesApiTimeframes:
+    """Phase 31: 複数時間足（tf パラメータ）のテスト"""
+
+    def test_default_tf_is_1h(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=80), False)):
+            data = client.get("/api/candles?symbol=USD/JPY").json()
+        assert data["tf"] == "1h"
+
+    def test_4h_tf_returns_fewer_candles(self, client):
+        """4時間足は1時間足をリサンプルするため本数が少なくなる。"""
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=200), False)):
+            d1h = client.get("/api/candles?symbol=USD/JPY&tf=1h&limit=200").json()
+            d4h = client.get("/api/candles?symbol=USD/JPY&tf=4h&limit=200").json()
+        assert d4h["count"] < d1h["count"]
+
+    def test_1d_tf_returns_fewer_candles_than_4h(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=500), False)):
+            d4h = client.get("/api/candles?symbol=USD/JPY&tf=4h&limit=500").json()
+            d1d = client.get("/api/candles?symbol=USD/JPY&tf=1d&limit=500").json()
+        assert d1d["count"] < d4h["count"]
+
+    def test_invalid_tf_falls_back_to_1h(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=80), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&tf=bogus").json()
+        assert data["tf"] == "1h"
+
+    def test_tf_reflected_in_response(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=200), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&tf=4h&limit=30").json()
+        assert data["tf"] == "4h"
+
+    def test_1d_candle_has_ohlc_fields(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=500), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&tf=1d&limit=30").json()
+        if data["candles"]:
+            c = data["candles"][0]
+            assert all(k in c for k in ("t", "o", "h", "l", "c"))
+
+
 class TestCandlesApiIndicators:
     """Phase 30: MA20・MA50・BB フィールドのテスト"""
 

@@ -73,12 +73,20 @@
       {% endif %}
     </section>
 
-    <!-- Phase 28: ローソク足チャート -->
+    <!-- Phase 28/31: ローソク足チャート（複数時間足タブ） -->
     <section class="card" id="candle-chart-section" style="margin-top:1rem;">
-      <h3 class="card-title" style="margin-bottom:0.5rem;">
-        ローソク足チャート（1時間足）
-        <span id="candle-symbol-label" style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem;"></span>
-      </h3>
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.5rem;">
+        <h3 class="card-title" style="margin:0;">
+          ローソク足チャート
+          <span id="candle-symbol-label" style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem;"></span>
+        </h3>
+        <!-- 時間足タブ -->
+        <div id="tf-tabs" style="display:flex;gap:4px;">
+          <button data-tf="1h"  class="tf-btn tf-active" style="padding:2px 10px;font-size:0.8rem;border-radius:4px;border:1px solid #4ade80;background:#4ade8022;color:#4ade80;cursor:pointer;">1時間</button>
+          <button data-tf="4h"  class="tf-btn"            style="padding:2px 10px;font-size:0.8rem;border-radius:4px;border:1px solid #444;background:transparent;color:#aaa;cursor:pointer;">4時間</button>
+          <button data-tf="1d"  class="tf-btn"            style="padding:2px 10px;font-size:0.8rem;border-radius:4px;border:1px solid #444;background:transparent;color:#aaa;cursor:pointer;">日足</button>
+        </div>
+      </div>
       <div style="width:100%;overflow-x:auto;">
         <svg id="candle-svg" width="760" height="260"
              style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;">
@@ -451,7 +459,7 @@
     <p id="refresh-status" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></p>
   </footer>
 
-  <!-- Phase 28/30: ローソク足チャート描画（MA20・MA50・BB重ねプロット） -->
+  <!-- Phase 28/30/31: ローソク足チャート描画（複数時間足タブ・MA20・MA50・BB） -->
   <script>
   (function() {
     var symbol = (new URLSearchParams(location.search).get('symbol')) || 'USD/JPY';
@@ -460,8 +468,10 @@
     var takeProfit  = {{ result.take_profit  if result and result.take_profit  is not none else 'null' }};
     var currentPrice = {{ result.current_price if result and result.current_price is not none else 'null' }};
     var signal = '{{ result.signal if result else "" }}';
+    var activeTf = '1h';
 
-    function drawCandles(candles) {
+    function drawCandles(candles, tf) {
+      tf = tf || '1h';
       var svg = document.getElementById('candle-svg');
       if (!svg) return;
       var W = 760, H = 260;
@@ -554,11 +564,12 @@
         parts.push('<rect x="' + (x - candleW/2) + '" y="' + yTop + '" width="' + candleW + '" height="' + bodyH + '" fill="' + color + '" rx="1"/>');
       }
 
-      // X-axis labels
+      // X-axis labels（日足は日付のみ、それ以外は日付+時刻）
       var labelEvery = Math.max(1, Math.floor(n / 6));
       for (var li = 0; li < n; li += labelEvery) {
         var lx = toX(li);
-        var lbl = candles[li].t.slice(5, 13).replace('T', ' ');
+        var t = candles[li].t;
+        var lbl = tf === '1d' ? t.slice(5, 10) : t.slice(5, 13).replace('T', ' ');
         parts.push('<text x="' + lx + '" y="' + (H - 4) + '" text-anchor="middle" fill="#555" font-size="9">' + lbl + '</text>');
       }
 
@@ -596,19 +607,44 @@
       svg.innerHTML = parts.join('');
     }
 
-    fetch('/api/candles?symbol=' + encodeURIComponent(symbol) + '&limit=60')
-      .then(function(r){ return r.json(); })
-      .then(function(d){
-        var lbl = document.getElementById('candle-symbol-label');
-        if (lbl) lbl.textContent = d.symbol + '  ' + d.count + '本';
-        drawCandles(d.candles);
-        var st = document.getElementById('candle-status');
-        if (st) st.textContent = '最新: ' + (d.candles.length ? d.candles[d.candles.length-1].t : '');
-      })
-      .catch(function(){
-        var svg = document.getElementById('candle-svg');
-        if (svg) svg.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#888" font-size="13">チャートデータの読み込みに失敗しました</text>';
+    function loadChart(tf) {
+      activeTf = tf;
+      var limit = tf === '1d' ? 120 : tf === '4h' ? 90 : 60;
+      var svg = document.getElementById('candle-svg');
+      if (svg) svg.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#666" font-size="13">読み込み中...</text>';
+      fetch('/api/candles?symbol=' + encodeURIComponent(symbol) + '&limit=' + limit + '&tf=' + tf)
+        .then(function(r){ return r.json(); })
+        .then(function(d){
+          var lbl = document.getElementById('candle-symbol-label');
+          var tfLabel = tf === '1d' ? '日足' : tf === '4h' ? '4時間足' : '1時間足';
+          if (lbl) lbl.textContent = d.symbol + '  ' + tfLabel + '  ' + d.count + '本';
+          drawCandles(d.candles, tf);
+          var st = document.getElementById('candle-status');
+          if (st) st.textContent = '最新: ' + (d.candles.length ? d.candles[d.candles.length-1].t : '');
+        })
+        .catch(function(){
+          var s = document.getElementById('candle-svg');
+          if (s) s.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#888" font-size="13">チャートデータの読み込みに失敗しました</text>';
+        });
+    }
+
+    // タブボタンのクリックイベント
+    document.getElementById('tf-tabs').addEventListener('click', function(e) {
+      var btn = e.target.closest('.tf-btn');
+      if (!btn) return;
+      var tf = btn.getAttribute('data-tf');
+      // アクティブスタイル切替
+      document.querySelectorAll('.tf-btn').forEach(function(b) {
+        var isActive = b.getAttribute('data-tf') === tf;
+        b.style.border = isActive ? '1px solid #4ade80' : '1px solid #444';
+        b.style.background = isActive ? '#4ade8022' : 'transparent';
+        b.style.color = isActive ? '#4ade80' : '#aaa';
       });
+      loadChart(tf);
+    });
+
+    // 初回ロード
+    loadChart('1h');
   })();
   </script>
 

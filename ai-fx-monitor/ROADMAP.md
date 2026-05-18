@@ -276,6 +276,26 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 42：ウォークフォワード分析 ✅
+
+- [x] `app/scripts/walk_forward.py` — WF分析エンジン
+  - `WFWindow` dataclass（IS/OOS バー範囲・取引数・勝率・pips・過学習スコア・ロバストネス比）
+  - `WalkForwardResult` dataclass（全ウィンドウ集計・OOS合算・総合評価）
+  - `_run_slice()` — バー範囲指定でバックテストを実行して集計
+  - `_fill_window_stats()` — 勝率・平均pips・過学習スコア・ロバストネス比を計算
+  - `run_walk_forward()` — n_windows個に分割してIS/OOS検証を実行
+  - `_assess()` — 過学習リスク・ロバストネス・OOS勝率を日本語で評価
+- [x] `app/web/routes.py` — `GET /api/walk-forward` エンドポイント追加
+  - 通貨ペア・ウィンドウ数・IS比率・バー数・ステップ・未来バー数をパラメータ受付
+  - 全ウィンドウ詳細 + 集計値 + 総合評価を JSON で返す
+- [x] `app/web/templates/backtest.html` — WF分析セクションを追加
+  - パラメータフォーム（6項目）
+  - 総合評価カード（過学習スコア・ロバストネス比を色分け表示）
+  - OOS合算カード4枚（総取引数・合算勝率・合算pips・平均pips）
+  - ウィンドウ別IS/OOS比較テーブル（色分け：低/中/高リスク）
+  - 非同期フェッチ（`/api/walk-forward`）＋動的レンダリング
+- [x] `tests/test_walk_forward.py` — テスト34件（全612テスト通過）
+
 ### Phase 41：Web Push通知 ✅
 
 - [x] `app/database/models.py` — `push_subscriptions` テーブル追加（endpoint UNIQUE）

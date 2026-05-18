@@ -118,6 +118,24 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 42：ウォークフォワード分析（2026-05-18）
+
+- `app/scripts/walk_forward.py`：新規作成
+  - `WFWindow` / `WalkForwardResult` dataclass
+  - `_run_slice()` — バー範囲でバックテスト実行・集計
+  - `_fill_window_stats()` — 勝率・pips・過学習スコア・ロバストネス比を計算
+  - `run_walk_forward()` — データをn_windows個に分割してIS/OOS検証
+  - `_assess()` — 過学習リスク・ロバストネス・OOS勝率を日本語評価
+- `app/web/routes.py`：`GET /api/walk-forward` エンドポイント追加（WF分析結果をJSON返却）
+- `app/web/templates/backtest.html`：WF分析セクション追加（パラメータフォーム・結果テーブル・集計カード）
+- `tests/test_walk_forward.py`：テスト34件新規作成（全612テスト通過）
+
+#### 注意点・修正
+- `SUPPORTED_SYMBOLS` のシンボルは `EUR/USD` 形式（スラッシュあり）→テストのシンボルを修正
+- `_assess()` は `avg_overfitting_score` または `avg_oos_win_rate` がないと早期リターンするため、ロバストネスのみ検証する場合は `avg_overfitting_score` も同時に設定
+
+---
+
 ### Phase 41：Web Push通知（2026-05-18）
 
 - `app/database/models.py`：`CREATE_PUSH_SUBSCRIPTIONS_TABLE` 追加

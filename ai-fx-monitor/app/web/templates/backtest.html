@@ -262,6 +262,117 @@
 
   </main>
 
+  <!-- Phase 42: ウォークフォワード分析 -->
+  <main class="main-content" style="border-top: 1px solid #333; padding-top: 1.5rem; margin-top: 1.5rem;">
+
+    <section class="card">
+      <h2 class="card-title">ウォークフォワード分析（過学習チェック）</h2>
+      <p class="history-note">
+        全データを複数ウィンドウに分割し、インサンプル(IS)とアウトオブサンプル(OOS)の差異（過学習スコア）を計測します。注文は一切発生しません。
+      </p>
+    </section>
+
+    <section class="card">
+      <h3 class="card-title">パラメータ</h3>
+      <div class="settings-grid">
+
+        <div class="settings-item">
+          <label class="settings-label" for="wf-symbol">通貨ペア</label>
+          <select id="wf-symbol" class="symbol-select">
+            <option value="">-- 選択してください --</option>
+            {% for sym in supported_symbols %}
+            <option value="{{ sym }}">{{ sym }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="wf-windows">ウィンドウ数</label>
+          <input type="number" id="wf-windows" value="5" min="2" max="10" class="settings-input">
+          <small class="settings-hint">データを何分割するか（2〜10）</small>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="wf-is-ratio">IS比率</label>
+          <input type="number" id="wf-is-ratio" value="0.7" min="0.5" max="0.9" step="0.05" class="settings-input">
+          <small class="settings-hint">各ウィンドウのIS期間割合（0.5〜0.9）</small>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="wf-window-bars">ウィンドウバー数</label>
+          <input type="number" id="wf-window-bars" value="500" min="200" max="2000" class="settings-input">
+          <small class="settings-hint">各ウィンドウの総バー数（1時間足）</small>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="wf-step">判定ステップ</label>
+          <input type="number" id="wf-step" value="24" min="1" max="168" class="settings-input">
+          <small class="settings-hint">何本おきに判定（24 = 1日ごと）</small>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="wf-future">フォワード本数</label>
+          <input type="number" id="wf-future" value="100" min="10" max="500" class="settings-input">
+          <small class="settings-hint">SL/TP到達チェック用の未来バー数</small>
+        </div>
+
+      </div>
+      <div style="margin-top:1rem;">
+        <button id="wf-run-btn" class="btn btn-buy" style="min-width:160px;" onclick="runWalkForward()">
+          分析実行
+        </button>
+      </div>
+    </section>
+
+    <div id="wf-loading" style="display:none;" class="card">
+      <p style="color:#888; text-align:center;">分析中... しばらくお待ちください</p>
+    </div>
+
+    <div id="wf-error" style="display:none;" class="alert alert-error"></div>
+
+    <div id="wf-result" style="display:none;">
+
+      <!-- 総合評価 -->
+      <section class="card" id="wf-assessment-card">
+        <h3 class="card-title">総合評価</h3>
+        <div id="wf-assessment" style="font-size:1.05rem; line-height:1.7;"></div>
+        <div class="indicators-grid" style="margin-top:1rem;" id="wf-summary-grid"></div>
+      </section>
+
+      <!-- OOS 合算結果 -->
+      <div class="history-grid" style="margin-bottom:1.5rem;" id="wf-oos-cards"></div>
+
+      <!-- ウィンドウ詳細テーブル -->
+      <section class="card">
+        <h3 class="card-title">ウィンドウ別 IS / OOS 比較</h3>
+        <div style="overflow-x:auto;">
+          <table class="report-table" id="wf-windows-table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>IS取引</th>
+                <th>IS勝率</th>
+                <th>IS pips</th>
+                <th>OOS取引</th>
+                <th>OOS勝率</th>
+                <th>OOS pips</th>
+                <th>過学習スコア</th>
+                <th>ロバストネス比</th>
+              </tr>
+            </thead>
+            <tbody id="wf-windows-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="alert alert-warning" style="margin-top:1rem;">
+        <strong>注意：</strong> ウォークフォワード分析は過去データのシミュレーションです。将来の成績を保証しません。
+      </div>
+
+    </div>
+
+  </main>
+
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
   </footer>
@@ -271,6 +382,132 @@
         navigator.serviceWorker.register("/static/sw.js")
           .catch((err) => console.warn("SW registration failed:", err));
       });
+    }
+
+    async function runWalkForward() {
+      const symbol = document.getElementById("wf-symbol").value;
+      if (!symbol) { alert("通貨ペアを選択してください"); return; }
+
+      const params = new URLSearchParams({
+        symbol,
+        n_windows: document.getElementById("wf-windows").value,
+        is_ratio: document.getElementById("wf-is-ratio").value,
+        window_bars: document.getElementById("wf-window-bars").value,
+        step: document.getElementById("wf-step").value,
+        future_bars: document.getElementById("wf-future").value,
+      });
+
+      document.getElementById("wf-loading").style.display = "block";
+      document.getElementById("wf-result").style.display = "none";
+      document.getElementById("wf-error").style.display = "none";
+      document.getElementById("wf-run-btn").disabled = true;
+
+      try {
+        const res = await fetch(`/api/walk-forward?${params}`);
+        const data = await res.json();
+
+        if (!data.ok) {
+          document.getElementById("wf-error").textContent = "エラー: " + data.error;
+          document.getElementById("wf-error").style.display = "block";
+          return;
+        }
+
+        renderWFResult(data);
+        document.getElementById("wf-result").style.display = "block";
+      } catch (e) {
+        document.getElementById("wf-error").textContent = "通信エラー: " + e;
+        document.getElementById("wf-error").style.display = "block";
+      } finally {
+        document.getElementById("wf-loading").style.display = "none";
+        document.getElementById("wf-run-btn").disabled = false;
+      }
+    }
+
+    function fmt(v, decimals=1) {
+      if (v === null || v === undefined) return "---";
+      return Number(v).toFixed(decimals);
+    }
+
+    function renderWFResult(d) {
+      // 総合評価
+      document.getElementById("wf-assessment").textContent = d.assessment || "評価なし";
+
+      // サマリーグリッド
+      const grid = document.getElementById("wf-summary-grid");
+      grid.innerHTML = `
+        <div class="indicator-item">
+          <span class="ind-label">平均IS勝率</span>
+          <span class="ind-value">${fmt(d.avg_is_win_rate)}%</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">平均OOS勝率</span>
+          <span class="ind-value">${fmt(d.avg_oos_win_rate)}%</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">平均過学習スコア</span>
+          <span class="ind-value" style="color:${(d.avg_overfitting_score||0)<5?'#4ade80':(d.avg_overfitting_score||0)<15?'#facc15':'#f87171'};">${fmt(d.avg_overfitting_score)}%pt</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">平均ロバストネス比</span>
+          <span class="ind-value" style="color:${(d.avg_robustness_ratio||0)>=0.8?'#4ade80':(d.avg_robustness_ratio||0)>=0.5?'#facc15':'#f87171'};">${fmt(d.avg_robustness_ratio,2)}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">総データ本数</span>
+          <span class="ind-value">${d.total_data_bars}本</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">ウィンドウ数</span>
+          <span class="ind-value">${d.windows.length}</span>
+        </div>
+      `;
+
+      // OOS合算カード
+      const oosCards = document.getElementById("wf-oos-cards");
+      const oosWR = d.combined_oos_win_rate;
+      oosCards.innerHTML = `
+        <div class="card" style="text-align:center;">
+          <div class="h-label">OOS 総取引数</div>
+          <div class="price-value" style="font-size:2rem;">${d.total_oos_trades}</div>
+          <div class="h-label">${d.total_oos_wins}勝 / ${d.total_oos_losses}敗</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="h-label">OOS 合算勝率</div>
+          <div class="price-value" style="font-size:2rem;color:${oosWR===null?'#888':oosWR>=55?'#4ade80':oosWR>=50?'#facc15':'#f87171'};">
+            ${oosWR !== null ? oosWR.toFixed(1)+'%' : '---'}
+          </div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="h-label">OOS 合算損益</div>
+          <div class="price-value" style="font-size:2rem;color:${d.combined_oos_pips>0?'#4ade80':d.combined_oos_pips<0?'#f87171':'#888'};">
+            ${d.combined_oos_pips>0?'+':''}${fmt(d.combined_oos_pips)} pips
+          </div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="h-label">平均OOS損益/取引</div>
+          <div class="price-value" style="font-size:2rem;color:${(d.avg_oos_pips||0)>0?'#4ade80':(d.avg_oos_pips||0)<0?'#f87171':'#888'};">
+            ${(d.avg_oos_pips||0)>0?'+':''}${fmt(d.avg_oos_pips)} pips
+          </div>
+        </div>
+      `;
+
+      // ウィンドウ詳細
+      const tbody = document.getElementById("wf-windows-tbody");
+      tbody.innerHTML = d.windows.map(w => {
+        const ofScore = w.overfitting_score;
+        const ofColor = ofScore === null ? '#888' : ofScore < 5 ? '#4ade80' : ofScore < 15 ? '#facc15' : '#f87171';
+        const robColor = w.robustness_ratio === null ? '#888' : w.robustness_ratio >= 0.8 ? '#4ade80' : w.robustness_ratio >= 0.5 ? '#facc15' : '#f87171';
+        return `<tr>
+          <td style="color:#888;">${w.window_num}</td>
+          <td>${w.is_trades}</td>
+          <td>${w.is_win_rate !== null ? w.is_win_rate+'%' : '---'}</td>
+          <td class="${w.is_total_pips>0?'trend-上昇':w.is_total_pips<0?'trend-下降':''}">${w.is_total_pips>0?'+':''}${fmt(w.is_total_pips)}</td>
+          <td>${w.oos_trades}</td>
+          <td>${w.oos_win_rate !== null ? w.oos_win_rate+'%' : '---'}</td>
+          <td class="${w.oos_total_pips>0?'trend-上昇':w.oos_total_pips<0?'trend-下降':''}">${w.oos_total_pips>0?'+':''}${fmt(w.oos_total_pips)}</td>
+          <td style="color:${ofColor};">${ofScore !== null ? ofScore+'%pt' : '---'}</td>
+          <td style="color:${robColor};">${w.robustness_ratio !== null ? w.robustness_ratio : '---'}</td>
+        </tr>`;
+      }).join('');
     }
   </script>
 </body>

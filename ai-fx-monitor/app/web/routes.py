@@ -68,6 +68,14 @@ from app.data.resampler import to_4h, to_daily
 from app.indicators.bollinger_bands import calculate_bollinger_bands
 from app.indicators.moving_average import calculate_ma
 from app.scripts.backtest import run_backtest
+from app.scripts.walk_forward import (
+    DEFAULT_IS_RATIO,
+    DEFAULT_N_WINDOWS,
+    DEFAULT_WINDOW_BARS,
+    DEFAULT_STEP,
+    DEFAULT_FUTURE_BARS,
+    run_walk_forward,
+)
 from app.scripts.optimizer import VALID_METRICS, optimize
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
@@ -1246,3 +1254,91 @@ async def api_push_test():
         return {"ok": False, "sent": 0, "error": "購読者が0件です"}
     result = await send_push_to_all()
     return {"ok": True, **result, "total": len(subs)}
+
+
+# ============================================================
+# Phase 42: ウォークフォワード分析 API
+# ============================================================
+
+@router.get("/api/walk-forward")
+async def api_walk_forward(
+    symbol: str = "",
+    n_windows: int = DEFAULT_N_WINDOWS,
+    is_ratio: float = DEFAULT_IS_RATIO,
+    window_bars: int = DEFAULT_WINDOW_BARS,
+    step: int = DEFAULT_STEP,
+    future_bars: int = DEFAULT_FUTURE_BARS,
+):
+    """ウォークフォワード分析を実行して JSON で返す。
+
+    注文は発生しない。分析・集計のみ。
+    """
+    if not symbol or symbol not in SUPPORTED_SYMBOLS:
+        return {"ok": False, "error": f"未対応シンボル: {symbol}"}
+
+    is_ratio = max(0.5, min(0.9, is_ratio))
+    n_windows = max(2, min(10, n_windows))
+    window_bars = max(200, min(2000, window_bars))
+    step = max(1, min(168, step))
+    future_bars = max(10, min(500, future_bars))
+
+    try:
+        result = run_walk_forward(
+            symbol=symbol,
+            n_windows=n_windows,
+            is_ratio=is_ratio,
+            window_bars=window_bars,
+            step=step,
+            future_bars=future_bars,
+        )
+    except Exception as exc:
+        logger.error("ウォークフォワードエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    windows_data = [
+        {
+            "window_num": w.window_num,
+            "is_start_bar": w.is_start_bar,
+            "is_end_bar": w.is_end_bar,
+            "oos_start_bar": w.oos_start_bar,
+            "oos_end_bar": w.oos_end_bar,
+            "is_trades": w.is_trades,
+            "is_wins": w.is_wins,
+            "is_losses": w.is_losses,
+            "is_win_rate": w.is_win_rate,
+            "is_total_pips": w.is_total_pips,
+            "is_avg_pips": w.is_avg_pips,
+            "oos_trades": w.oos_trades,
+            "oos_wins": w.oos_wins,
+            "oos_losses": w.oos_losses,
+            "oos_win_rate": w.oos_win_rate,
+            "oos_total_pips": w.oos_total_pips,
+            "oos_avg_pips": w.oos_avg_pips,
+            "overfitting_score": w.overfitting_score,
+            "robustness_ratio": w.robustness_ratio,
+        }
+        for w in result.windows
+    ]
+
+    return {
+        "ok": True,
+        "symbol": result.symbol,
+        "n_windows": result.n_windows,
+        "is_ratio": result.is_ratio,
+        "window_bars": result.window_bars,
+        "step": result.step,
+        "total_data_bars": result.total_data_bars,
+        "windows": windows_data,
+        "avg_is_win_rate": result.avg_is_win_rate,
+        "avg_oos_win_rate": result.avg_oos_win_rate,
+        "avg_is_pips": result.avg_is_pips,
+        "avg_oos_pips": result.avg_oos_pips,
+        "avg_overfitting_score": result.avg_overfitting_score,
+        "avg_robustness_ratio": result.avg_robustness_ratio,
+        "total_oos_trades": result.total_oos_trades,
+        "total_oos_wins": result.total_oos_wins,
+        "total_oos_losses": result.total_oos_losses,
+        "combined_oos_win_rate": result.combined_oos_win_rate,
+        "combined_oos_pips": result.combined_oos_pips,
+        "assessment": result.assessment,
+    }

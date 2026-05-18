@@ -737,3 +737,38 @@ def get_performance_report(db_path: Path | None = None) -> dict:
         "monthly": monthly,
         "total_closed": total_row["cnt"] if total_row else 0,
     }
+
+
+# ============================================================
+# Phase 26: チャート用データ
+# ============================================================
+
+def get_chart_data(symbol: str | None = None, limit: int = 60, db_path: Path | None = None) -> list[dict]:
+    """クローズ済み取引の時系列データを返す（チャート描画用）。
+
+    Returns:
+        累積pipsを含む取引リスト（古い順）
+    """
+    with get_db(db_path) as conn:
+        params: list = []
+        where = "WHERE human_action IN ('buy_approved', 'sell_approved') AND outcome IS NOT NULL"
+        if symbol:
+            where += " AND symbol = ?"
+            params.append(symbol)
+        rows = conn.execute(
+            f"""
+            SELECT created_at, signal, score, pnl_pips, outcome, symbol
+            FROM approval_history
+            {where}
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            params + [limit],
+        ).fetchall()
+
+    trades = [dict(r) for r in reversed(rows)]
+    cumulative = 0.0
+    for t in trades:
+        cumulative += t["pnl_pips"] or 0.0
+        t["cumulative_pips"] = round(cumulative, 1)
+    return trades

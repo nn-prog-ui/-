@@ -433,6 +433,29 @@
 
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+    <p id="refresh-status" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></p>
   </footer>
+
+  <!-- Phase 25: 自動リフレッシュ -->
+  <script>
+  (function() {
+    fetch('/api/settings')
+      .then(r => r.json())
+      .then(s => {
+        if (!s.scan_enabled) return;
+        let secs = (s.scan_interval_minutes || 60) * 60;
+        const el = document.getElementById('refresh-status');
+        const tick = () => {
+          if (secs <= 0) { location.reload(); return; }
+          const m = Math.floor(secs / 60), sec = secs % 60;
+          el.textContent = `次の自動更新まで ${m}分 ${String(sec).padStart(2,'0')}秒`;
+          secs--;
+          setTimeout(tick, 1000);
+        };
+        tick();
+      })
+      .catch(() => {});
+  })();
+  </script>
 </body>
 </html>

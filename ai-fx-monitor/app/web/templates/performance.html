@@ -230,10 +230,116 @@
       {% endif %}
     </section>
 
+    <!-- Phase 26: 累積損益チャート -->
+    <section class="card" style="margin-top:1.5rem;">
+      <h2 class="card-title">累積損益チャート（クローズ済み取引）</h2>
+      <div id="chart-container" style="width:100%; overflow-x:auto;">
+        <svg id="pips-chart" width="760" height="280" style="display:block; margin:0 auto; background:var(--card-bg); border-radius:8px;"></svg>
+      </div>
+      <p id="chart-status" style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:0.5rem;">読み込み中...</p>
+    </section>
+
   </main>
 
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
   </footer>
+
+  <!-- Phase 26: 純粋SVGチャート -->
+  <script>
+  (function() {
+    const svg = document.getElementById('pips-chart');
+    const status = document.getElementById('chart-status');
+    const W = 760, H = 280, PAD = { top: 20, right: 20, bottom: 40, left: 60 };
+    const innerW = W - PAD.left - PAD.right;
+    const innerH = H - PAD.top - PAD.bottom;
+
+    function el(tag, attrs) {
+      const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      Object.entries(attrs || {}).forEach(([k, v]) => e.setAttribute(k, v));
+      return e;
+    }
+
+    function drawChart(trades) {
+      svg.innerHTML = '';
+      if (!trades || trades.length === 0) {
+        status.textContent = 'チャートデータがありません（クローズ済み取引がまだありません）';
+        return;
+      }
+      status.textContent = `${trades.length}件のクローズ済み取引`;
+
+      const pips = trades.map(t => t.cumulative_pips);
+      const minP = Math.min(0, ...pips);
+      const maxP = Math.max(0, ...pips);
+      const range = maxP - minP || 1;
+
+      const scaleX = i => PAD.left + (i / (trades.length - 1 || 1)) * innerW;
+      const scaleY = v => PAD.top + innerH - ((v - minP) / range) * innerH;
+
+      // グリッド線
+      [0, 0.25, 0.5, 0.75, 1].forEach(frac => {
+        const y = PAD.top + innerH * frac;
+        const line = el('line', { x1: PAD.left, y1: y, x2: PAD.left + innerW, y2: y,
+          stroke: '#333', 'stroke-width': '1', 'stroke-dasharray': '4,4' });
+        svg.appendChild(line);
+        const val = maxP - frac * range;
+        const txt = el('text', { x: PAD.left - 6, y: y + 4, 'text-anchor': 'end',
+          fill: '#888', 'font-size': '11' });
+        txt.textContent = val.toFixed(1);
+        svg.appendChild(txt);
+      });
+
+      // ゼロライン
+      if (minP < 0 && maxP > 0) {
+        const y0 = scaleY(0);
+        svg.appendChild(el('line', { x1: PAD.left, y1: y0, x2: PAD.left + innerW, y2: y0,
+          stroke: '#555', 'stroke-width': '1.5' }));
+      }
+
+      // 折れ線パス
+      const pts = trades.map((t, i) => `${scaleX(i).toFixed(1)},${scaleY(t.cumulative_pips).toFixed(1)}`).join(' ');
+      const polyline = el('polyline', {
+        points: pts, fill: 'none', stroke: '#60a5fa', 'stroke-width': '2', 'stroke-linejoin': 'round'
+      });
+      svg.appendChild(polyline);
+
+      // トレードマーカー
+      trades.forEach((t, i) => {
+        const cx = scaleX(i), cy = scaleY(t.cumulative_pips);
+        const color = t.outcome === 'win' ? '#4ade80' : t.outcome === 'loss' ? '#f87171' : '#888';
+        const circle = el('circle', { cx, cy, r: 5, fill: color, stroke: '#1a1a2e', 'stroke-width': '1.5' });
+        const title = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        title.textContent = `${t.symbol} ${t.closed_at ? t.closed_at.slice(0, 10) : ''} ${t.pips !== null ? (t.pips > 0 ? '+' : '') + t.pips.toFixed(1) + 'pips' : ''}`;
+        circle.appendChild(title);
+        svg.appendChild(circle);
+      });
+
+      // X軸ラベル（最大5点）
+      const step = Math.max(1, Math.floor(trades.length / 5));
+      trades.forEach((t, i) => {
+        if (i % step !== 0 && i !== trades.length - 1) return;
+        const x = scaleX(i);
+        const txt = el('text', { x, y: PAD.top + innerH + 18, 'text-anchor': 'middle',
+          fill: '#888', 'font-size': '10' });
+        txt.textContent = t.closed_at ? t.closed_at.slice(5, 10) : String(i + 1);
+        svg.appendChild(txt);
+      });
+
+      // 凡例
+      [['勝ち', '#4ade80'], ['負け', '#f87171']].forEach(([label, color], idx) => {
+        const lx = PAD.left + idx * 80;
+        svg.appendChild(el('circle', { cx: lx, cy: 12, r: 5, fill: color }));
+        const txt = el('text', { x: lx + 10, y: 16, fill: '#aaa', 'font-size': '11' });
+        txt.textContent = label;
+        svg.appendChild(txt);
+      });
+    }
+
+    fetch('/api/chart-data?limit=60')
+      .then(r => r.json())
+      .then(d => drawChart(d.trades))
+      .catch(() => { status.textContent = 'チャートデータの読み込みに失敗しました'; });
+  })();
+  </script>
 </body>
 </html>

@@ -17,6 +17,7 @@ from app.database.repository import (
     close_demo_order,
     get_all_settings,
     get_approval_by_id,
+    get_chart_data,
     get_demo_order_by_id,
     get_demo_orders,
     get_demo_performance_stats,
@@ -25,6 +26,7 @@ from app.database.repository import (
     get_open_trades,
     get_performance_report,
     get_performance_stats,
+    get_setting,
     save_approval,
     save_demo_order,
     save_settings,
@@ -591,3 +593,28 @@ async def report(request: Request):
         "report.html",
         {"request": request, "data": data},
     )
+
+
+# ============================================================
+# Phase 25: 設定JSON API（自動リフレッシュ用）
+# ============================================================
+
+@router.get("/api/settings")
+async def api_settings():
+    """現在のアプリ設定をJSONで返す（自動リフレッシュ間隔など）。"""
+    return {
+        "scan_interval_minutes": int(get_setting("scan_interval_minutes") or 60),
+        "scan_enabled": get_setting("scan_enabled") == "true",
+    }
+
+
+# ============================================================
+# Phase 26: チャートデータAPI
+# ============================================================
+
+@router.get("/api/chart-data")
+async def api_chart_data(symbol: str = "", limit: int = 60):
+    """クローズ済み取引の時系列データをJSONで返す（チャート描画用）。"""
+    sym = symbol if symbol else None
+    trades = get_chart_data(symbol=sym, limit=limit)
+    return {"trades": trades, "symbol": symbol or "全ペア", "count": len(trades)}

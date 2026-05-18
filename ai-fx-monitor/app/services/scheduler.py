@@ -47,6 +47,7 @@ def _run_scan() -> None:
     from app.services.market_analyzer import run_analysis
     from app.services.notification import notify_analysis_result
     from app.database.repository import check_and_close_open_trades
+    from app.services.alert_evaluator import evaluate_alerts
 
     logger.info("定期スキャン開始: 対象=%s", SUPPORTED_SYMBOLS)
 
@@ -69,6 +70,11 @@ def _run_scan() -> None:
                     )
             else:
                 logger.debug("current_price が取得できないため SL/TP確認をスキップ: %s", symbol)
+
+            # 4. Phase 33: カスタムアラート評価
+            fired = evaluate_alerts(result)
+            if fired:
+                logger.info("アラート発火: %s %d件", symbol, len(fired))
 
             logger.debug("スキャン完了: %s signal=%s", symbol, result.signal)
 

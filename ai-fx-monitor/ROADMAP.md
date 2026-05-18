@@ -251,6 +251,18 @@ AI FX市場監視システム 開発ロードマップ
 
 ---
 
+### Phase 33：カスタムアラート設定 ✅
+
+- [x] `alerts` DB テーブル（symbol / label / condition_type / condition_value / cooldown_minutes / last_triggered_at）
+- [x] 条件タイプ 5種：`signal_type` / `confluence_min` / `rsi_below` / `rsi_above` / `score_min`
+- [x] `app/services/alert_evaluator.py` — 条件評価エンジン（クールダウン・発火・通知）
+- [x] `app/database/repository.py` — CRUD（create / get / toggle / delete / update_triggered）
+- [x] `app/services/scheduler.py` — スキャン時に `evaluate_alerts()` を呼び出し
+- [x] `GET /alerts` / `POST /alerts` / `POST /alerts/{id}/toggle` / `POST /alerts/{id}/delete`
+- [x] `app/web/templates/alerts.html` — 作成フォーム・一覧・条件説明テーブル
+- [x] 全テンプレートのナビに「アラート」リンク追加
+- [x] テスト22件（全311テスト通過）
+
 ### Phase 32：マルチタイムフレーム判定強化 ✅
 
 - [x] `ConfluenceResult` dataclass（daily/4h/1h 各TFの方向一致フラグ）

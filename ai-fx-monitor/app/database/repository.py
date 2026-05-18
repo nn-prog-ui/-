@@ -843,3 +843,90 @@ def get_chart_data(symbol: str | None = None, limit: int = 60, db_path: Path | N
         cumulative += t["pnl_pips"] or 0.0
         t["cumulative_pips"] = round(cumulative, 1)
     return trades
+
+
+# ---------------------------------------------------------------------------
+# Phase 33: カスタムアラート CRUD
+# ---------------------------------------------------------------------------
+
+ALERT_CONDITION_TYPES = {
+    "signal_type": "シグナル種別",
+    "confluence_min": "TF一致度（以上）",
+    "rsi_below": "RSI（未満）",
+    "rsi_above": "RSI（以上）",
+    "score_min": "スコア絶対値（以上）",
+}
+
+
+def create_alert(
+    symbol: str,
+    label: str,
+    condition_type: str,
+    condition_value: str,
+    cooldown_minutes: int = 60,
+    db_path: Path | None = None,
+) -> int:
+    """アラートを新規作成して ID を返す。"""
+    if condition_type not in ALERT_CONDITION_TYPES:
+        raise ValueError(f"無効な condition_type: {condition_type}")
+    with get_db(db_path) as conn:
+        cursor = conn.execute(
+            """
+            INSERT INTO alerts (created_at, symbol, label, condition_type, condition_value,
+                                active, cooldown_minutes)
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+            """,
+            (
+                datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"),
+                symbol,
+                label,
+                condition_type,
+                condition_value,
+                cooldown_minutes,
+            ),
+        )
+        return cursor.lastrowid
+
+
+def get_alerts(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """全アラートを新しい順で返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM alerts ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_active_alerts(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """有効（active=1）なアラートだけ返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM alerts WHERE active = 1"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def toggle_alert(alert_id: int, db_path: Path | None = None) -> bool:
+    """アラートの active フラグを反転して、反転後の値を返す。"""
+    with get_db(db_path) as conn:
+        row = conn.execute("SELECT active FROM alerts WHERE id = ?", (alert_id,)).fetchone()
+        if row is None:
+            raise ValueError(f"アラートが見つかりません: id={alert_id}")
+        new_active = 0 if row["active"] else 1
+        conn.execute("UPDATE alerts SET active = ? WHERE id = ?", (new_active, alert_id))
+    return bool(new_active)
+
+
+def delete_alert(alert_id: int, db_path: Path | None = None) -> None:
+    """アラートを削除する。"""
+    with get_db(db_path) as conn:
+        conn.execute("DELETE FROM alerts WHERE id = ?", (alert_id,))
+
+
+def update_alert_triggered(alert_id: int, db_path: Path | None = None) -> None:
+    """last_triggered_at を現在時刻に更新する。"""
+    with get_db(db_path) as conn:
+        conn.execute(
+            "UPDATE alerts SET last_triggered_at = ? WHERE id = ?",
+            (datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), alert_id),
+        )

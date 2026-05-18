@@ -118,6 +118,19 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 33：カスタムアラート設定（2026-05-18）
+
+- `app/database/models.py`：`CREATE_ALERTS_TABLE` 追加
+- `app/database/db.py`：`init_db()` に alerts テーブル作成を追加
+- `app/database/repository.py`：CRUD 6関数追加（create/get/get_active/toggle/delete/update_triggered）
+- `app/services/alert_evaluator.py`：条件評価エンジン新規作成（5条件タイプ・クールダウン・通知フォールバック）
+- `app/services/scheduler.py`：`_run_scan()` に `evaluate_alerts()` 呼び出し追加
+- `app/web/routes.py`：`/alerts` GET/POST + toggle/delete エンドポイント追加
+- `app/web/templates/alerts.html`：作成フォーム・一覧・条件説明テーブル新規作成
+- `app/web/static/style.css`：アラートリスト用CSSブロック追加
+- 全テンプレートのナビに「アラート」リンク追加
+- `tests/test_alert_evaluator.py`：テスト22件新規作成（全311テスト通過）
+
 ### Phase 32：マルチタイムフレーム判定強化（2026-05-18）
 
 - `app/strategy/scoring.py`：`ConfluenceResult` dataclass + `calculate_timeframe_confluence()` 追加

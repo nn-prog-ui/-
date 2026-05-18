@@ -10,11 +10,15 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 
 from app.database.repository import (
+    ALERT_CONDITION_TYPES,
     HUMAN_ACTION_BUY,
     HUMAN_ACTION_SELL,
     HUMAN_ACTION_SKIP,
     check_and_close_open_trades,
     close_demo_order,
+    create_alert,
+    delete_alert,
+    get_alerts,
     get_all_settings,
     get_approval_by_id,
     get_chart_data,
@@ -31,6 +35,7 @@ from app.database.repository import (
     save_backtest_results,
     save_demo_order,
     save_settings,
+    toggle_alert,
 )
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DATA_DIR, DEFAULT_SYMBOL, SUPPORTED_SYMBOLS, SYMBOL_CSV_MAP
@@ -744,3 +749,65 @@ async def api_all_signals():
         else:
             result.append({"symbol": sym, "signal": "NONE", "score": None, "current_price": None, "analyzed_at": None})
     return {"signals": result}
+
+
+# ============================================================
+# Phase 33: カスタムアラート設定
+# ============================================================
+
+@router.get("/alerts", response_class=HTMLResponse)
+async def alerts_page(request: Request):
+    """アラート一覧・作成ページ。"""
+    alerts = get_alerts()
+    return templates.TemplateResponse("alerts.html", {
+        "request": request,
+        "alerts": alerts,
+        "symbols": SUPPORTED_SYMBOLS,
+        "condition_types": ALERT_CONDITION_TYPES,
+    })
+
+
+@router.post("/alerts")
+async def create_alert_route(
+    request: Request,
+    symbol: str = Form(...),
+    label: str = Form(...),
+    condition_type: str = Form(...),
+    condition_value: str = Form(...),
+    cooldown_minutes: int = Form(60),
+):
+    """アラートを新規作成してアラートページへリダイレクト。"""
+    label = label.strip()
+    condition_value = condition_value.strip()
+    if not label or not condition_value:
+        raise HTTPException(status_code=400, detail="ラベルと条件値は必須です。")
+    if symbol not in SUPPORTED_SYMBOLS:
+        raise HTTPException(status_code=400, detail="無効な通貨ペアです。")
+    try:
+        create_alert(
+            symbol=symbol,
+            label=label,
+            condition_type=condition_type,
+            condition_value=condition_value,
+            cooldown_minutes=cooldown_minutes,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@router.post("/alerts/{alert_id}/toggle")
+async def toggle_alert_route(alert_id: int):
+    """アラートの有効/無効を切り替えてアラートページへリダイレクト。"""
+    try:
+        toggle_alert(alert_id)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    return RedirectResponse("/alerts", status_code=303)
+
+
+@router.post("/alerts/{alert_id}/delete")
+async def delete_alert_route(alert_id: int):
+    """アラートを削除してアラートページへリダイレクト。"""
+    delete_alert(alert_id)
+    return RedirectResponse("/alerts", status_code=303)

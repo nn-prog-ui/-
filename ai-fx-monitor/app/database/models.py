@@ -83,6 +83,21 @@ MIGRATE_ADD_OUTCOME_COLUMNS = [
     "ALTER TABLE approval_history ADD COLUMN pnl_pips REAL",
 ]
 
+# Phase 33: カスタムアラートテーブル
+CREATE_ALERTS_TABLE = """
+CREATE TABLE IF NOT EXISTS alerts (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at        TEXT NOT NULL,
+    symbol            TEXT NOT NULL,
+    label             TEXT NOT NULL,
+    condition_type    TEXT NOT NULL,
+    condition_value   TEXT NOT NULL,
+    active            INTEGER DEFAULT 1,
+    cooldown_minutes  INTEGER DEFAULT 60,
+    last_triggered_at TEXT
+);
+"""
+
 # 将来の価格追跡テーブル（拡張用）
 CREATE_PRICE_TRACKING_TABLE = """
 CREATE TABLE IF NOT EXISTS price_tracking (

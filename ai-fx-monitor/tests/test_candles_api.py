@@ -1,0 +1,93 @@
+"""Phase 28: /api/candles エンドポイントのテスト"""
+from __future__ import annotations
+
+from unittest.mock import patch
+
+import numpy as np
+import pandas as pd
+import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+
+def _make_df(n: int = 80, start: float = 150.0) -> pd.DataFrame:
+    """テスト用1時間足OHLCデータを生成する。"""
+    np.random.seed(0)
+    closes = [start]
+    for _ in range(n - 1):
+        closes.append(max(closes[-1] + np.random.normal(0, 0.05), 1.0))
+    closes = np.array(closes)
+    highs = closes + 0.1
+    lows = closes - 0.1
+    opens = np.roll(closes, 1)
+    opens[0] = start
+    idx = pd.date_range("2024-01-01", periods=n, freq="1h")
+    return pd.DataFrame({"open": opens, "high": highs, "low": lows, "close": closes}, index=idx)
+
+
+@pytest.fixture()
+def client():
+    return TestClient(app)
+
+
+class TestCandlesApiBasic:
+    def test_returns_200(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(), False)):
+            resp = client.get("/api/candles?symbol=USD/JPY&limit=50")
+        assert resp.status_code == 200
+
+    def test_returns_json_keys(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=50").json()
+        assert "candles" in data
+        assert "symbol" in data
+        assert "count" in data
+
+    def test_limit_respected(self, client):
+        df = _make_df(n=80)
+        with patch("app.web.routes.load_or_generate", return_value=(df, False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=30").json()
+        assert data["count"] == 30
+        assert len(data["candles"]) == 30
+
+    def test_candle_has_ohlc_fields(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=5").json()
+        for c in data["candles"]:
+            assert "t" in c
+            assert "o" in c
+            assert "h" in c
+            assert "l" in c
+            assert "c" in c
+
+    def test_candle_values_are_floats(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=10").json()
+        for c in data["candles"]:
+            assert isinstance(c["o"], float)
+            assert isinstance(c["h"], float)
+            assert isinstance(c["l"], float)
+            assert isinstance(c["c"], float)
+
+    def test_high_gte_low(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=60), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=60").json()
+        for c in data["candles"]:
+            assert c["h"] >= c["l"]
+
+    def test_symbol_reflected_in_response(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(), False)):
+            data = client.get("/api/candles?symbol=EUR/USD&limit=10").json()
+        assert data["symbol"] == "EUR/USD"
+
+    def test_unsupported_symbol_falls_back_to_default(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(), False)):
+            data = client.get("/api/candles?symbol=FAKE/XX&limit=10").json()
+        assert data["symbol"] == "USD/JPY"
+
+    def test_empty_df_returns_empty_candles(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(pd.DataFrame(), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=10").json()
+        assert data["candles"] == []
+        assert data["count"] == 0

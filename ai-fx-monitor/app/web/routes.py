@@ -33,7 +33,8 @@ from app.database.repository import (
     save_settings,
 )
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
-from app.config import DEFAULT_SYMBOL, SUPPORTED_SYMBOLS
+from app.config import DATA_DIR, DEFAULT_SYMBOL, SUPPORTED_SYMBOLS, SYMBOL_CSV_MAP
+from app.data.loader import load_or_generate
 from app.scripts.backtest import run_backtest
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -629,3 +630,30 @@ async def api_chart_data(symbol: str = "", limit: int = 60):
     sym = symbol if symbol else None
     trades = get_chart_data(symbol=sym, limit=limit)
     return {"trades": trades, "symbol": symbol or "全ペア", "count": len(trades)}
+
+
+# ============================================================
+# Phase 28: ローソク足チャートデータAPI
+# ============================================================
+
+@router.get("/api/candles")
+async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60):
+    """1時間足OHLCデータをJSONで返す（ローソク足チャート描画用）。"""
+    if symbol not in SUPPORTED_SYMBOLS:
+        symbol = DEFAULT_SYMBOL
+    csv_name = SYMBOL_CSV_MAP.get(symbol, "USDJPY_1h.csv")
+    csv_path = DATA_DIR / csv_name
+    df, _ = load_or_generate(csv_path, symbol=symbol)
+    if df.empty:
+        return {"candles": [], "symbol": symbol, "count": 0}
+    df = df.tail(limit).copy()
+    candles = []
+    for ts, row in df.iterrows():
+        candles.append({
+            "t": str(ts)[:16],
+            "o": round(float(row["open"]), 3),
+            "h": round(float(row["high"]), 3),
+            "l": round(float(row["low"]), 3),
+            "c": round(float(row["close"]), 3),
+        })
+    return {"candles": candles, "symbol": symbol, "count": len(candles)}

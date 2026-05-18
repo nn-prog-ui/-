@@ -73,6 +73,21 @@
       {% endif %}
     </section>
 
+    <!-- Phase 28: ローソク足チャート -->
+    <section class="card" id="candle-chart-section" style="margin-top:1rem;">
+      <h3 class="card-title" style="margin-bottom:0.5rem;">
+        ローソク足チャート（1時間足）
+        <span id="candle-symbol-label" style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem;"></span>
+      </h3>
+      <div style="width:100%;overflow-x:auto;">
+        <svg id="candle-svg" width="760" height="260"
+             style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;">
+          <text x="380" y="135" text-anchor="middle" fill="#666" font-size="13">読み込み中...</text>
+        </svg>
+      </div>
+      <p id="candle-status" style="font-size:0.75rem;color:var(--text-muted);margin:0.3rem 0 0;text-align:right;"></p>
+    </section>
+
     <!-- メイン判定 -->
     <section class="signal-section card {{ result.signal_css_class }}">
       <div class="signal-main">
@@ -435,6 +450,128 @@
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
     <p id="refresh-status" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></p>
   </footer>
+
+  <!-- Phase 28: ローソク足チャート描画 -->
+  <script>
+  (function() {
+    var symbol = (new URLSearchParams(location.search).get('symbol')) || 'USD/JPY';
+    var entryPrice  = {{ result.entry_price  if result and result.entry_price  is not none else 'null' }};
+    var stopLoss    = {{ result.stop_loss    if result and result.stop_loss    is not none else 'null' }};
+    var takeProfit  = {{ result.take_profit  if result and result.take_profit  is not none else 'null' }};
+    var currentPrice = {{ result.current_price if result and result.current_price is not none else 'null' }};
+    var signal = '{{ result.signal if result else "" }}';
+
+    function drawCandles(candles) {
+      var svg = document.getElementById('candle-svg');
+      if (!svg) return;
+      var W = svg.viewBox && svg.viewBox.baseVal.width || 760;
+      var H = svg.viewBox && svg.viewBox.baseVal.height || 260;
+      var PAD = {top: 16, right: 16, bottom: 36, left: 60};
+      var cw = W - PAD.left - PAD.right;
+      var ch = H - PAD.top - PAD.bottom;
+
+      if (!candles || candles.length === 0) {
+        svg.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#888" font-size="13">データなし</text>';
+        return;
+      }
+
+      var highs = candles.map(function(c){return c.h;});
+      var lows  = candles.map(function(c){return c.l;});
+      var prices = [Math.max.apply(null, highs), Math.min.apply(null, lows)];
+      if (entryPrice  !== null) prices.push(entryPrice);
+      if (stopLoss    !== null) prices.push(stopLoss);
+      if (takeProfit  !== null) prices.push(takeProfit);
+      if (currentPrice !== null) prices.push(currentPrice);
+
+      var maxP = Math.max.apply(null, prices);
+      var minP = Math.min.apply(null, prices);
+      var span = maxP - minP || 1;
+      var padP = span * 0.06;
+      maxP += padP; minP -= padP; span = maxP - minP;
+
+      function toY(p) { return PAD.top + ch * (1 - (p - minP) / span); }
+
+      var n = candles.length;
+      var candleW = Math.max(3, Math.floor(cw / n * 0.7));
+      var step = cw / n;
+
+      var parts = [];
+
+      // Grid lines (4 horizontal)
+      for (var gi = 0; gi <= 4; gi++) {
+        var gp = minP + (span / 4) * gi;
+        var gy = toY(gp);
+        parts.push('<line x1="' + PAD.left + '" y1="' + gy + '" x2="' + (PAD.left + cw) + '" y2="' + gy +
+          '" stroke="#1e2040" stroke-width="1"/>');
+        parts.push('<text x="' + (PAD.left - 4) + '" y="' + (gy + 4) + '" text-anchor="end" fill="#666" font-size="10">' +
+          gp.toFixed(3) + '</text>');
+      }
+
+      // Candles
+      for (var i = 0; i < n; i++) {
+        var c = candles[i];
+        var x = PAD.left + step * i + step / 2;
+        var isUp = c.c >= c.o;
+        var color = isUp ? '#4ade80' : '#f87171';
+        var yH = toY(c.h), yL = toY(c.l);
+        var yO = toY(c.o), yC = toY(c.c);
+        var yTop = Math.min(yO, yC), yBot = Math.max(yO, yC);
+        var bodyH = Math.max(1, yBot - yTop);
+        // wick
+        parts.push('<line x1="' + x + '" y1="' + yH + '" x2="' + x + '" y2="' + yL +
+          '" stroke="' + color + '" stroke-width="1"/>');
+        // body
+        parts.push('<rect x="' + (x - candleW/2) + '" y="' + yTop + '" width="' + candleW + '" height="' + bodyH +
+          '" fill="' + color + '" rx="1"/>');
+      }
+
+      // X-axis date labels (every ~10 candles)
+      var labelEvery = Math.max(1, Math.floor(n / 6));
+      for (var li = 0; li < n; li += labelEvery) {
+        var lx = PAD.left + step * li + step / 2;
+        var lbl = candles[li].t.slice(5, 13).replace('T', ' ');
+        parts.push('<text x="' + lx + '" y="' + (H - 4) + '" text-anchor="middle" fill="#555" font-size="9">' + lbl + '</text>');
+      }
+
+      // Horizontal price lines
+      function hline(price, color, dash, label) {
+        if (price === null || price === undefined) return;
+        var ly = toY(price);
+        parts.push('<line x1="' + PAD.left + '" y1="' + ly + '" x2="' + (PAD.left + cw) + '" y2="' + ly +
+          '" stroke="' + color + '" stroke-width="1.5" stroke-dasharray="' + dash + '"/>');
+        parts.push('<text x="' + (PAD.left + cw + 2) + '" y="' + (ly + 4) + '" fill="' + color + '" font-size="9">' +
+          label + ' ' + price.toFixed(3) + '</text>');
+      }
+
+      if (signal !== 'SKIP') {
+        hline(entryPrice,  '#facc15', '4 2', 'EP');
+        hline(stopLoss,    '#f87171', '3 2', 'SL');
+        hline(takeProfit,  '#4ade80', '3 2', 'TP');
+      }
+      hline(currentPrice, '#a78bfa', '2 2', '現在');
+
+      // Border
+      parts.push('<rect x="' + PAD.left + '" y="' + PAD.top + '" width="' + cw + '" height="' + ch +
+        '" fill="none" stroke="#1e2040" stroke-width="1"/>');
+
+      svg.innerHTML = parts.join('');
+    }
+
+    fetch('/api/candles?symbol=' + encodeURIComponent(symbol) + '&limit=60')
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var lbl = document.getElementById('candle-symbol-label');
+        if (lbl) lbl.textContent = d.symbol + '  ' + d.count + '本';
+        drawCandles(d.candles);
+        var st = document.getElementById('candle-status');
+        if (st) st.textContent = '最新: ' + (d.candles.length ? d.candles[d.candles.length-1].t : '');
+      })
+      .catch(function(){
+        var svg = document.getElementById('candle-svg');
+        if (svg) svg.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#888" font-size="13">チャートデータの読み込みに失敗しました</text>';
+      });
+  })();
+  </script>
 
   <!-- Phase 25: 自動リフレッシュ -->
   <script>

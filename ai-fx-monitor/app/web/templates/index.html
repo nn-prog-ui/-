@@ -22,6 +22,7 @@
       <a href="/optimizer" class="nav-link">最適化</a>
       <a href="/correlation" class="nav-link">相関</a>
       <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
       <a href="/report" class="nav-link">レポート</a>
       <a href="/journal" class="nav-link">ジャーナル</a>
       <a href="/alerts" class="nav-link">アラート</a>
@@ -123,6 +124,19 @@
     <div class="alert alert-caution">
       <strong>重要指標警戒中：</strong>
       経済指標「{{ result.economic_event_name }}」の前後60分に該当します。ルール上は見送りです。
+    </div>
+    {% endif %}
+
+    {% if warning_events %}
+    <div class="alert alert-warning" style="display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;">
+      <strong style="white-space:nowrap;">📅 直近24h指標警戒：</strong>
+      <span>
+      {% for ev in warning_events %}
+      <span class="econ-imp-badge econ-imp-{{ ev.importance|lower }}">{{ ev.importance }}</span>
+      {{ ev.event_dt[:16] }} {{ ev.currency }} {{ ev.event_name }}{% if not loop.last %} &nbsp;|&nbsp; {% endif %}
+      {% endfor %}
+      &nbsp;<a href="/calendar" style="color:var(--text-secondary);font-size:0.82rem;">→ カレンダー</a>
+      </span>
     </div>
     {% endif %}
 

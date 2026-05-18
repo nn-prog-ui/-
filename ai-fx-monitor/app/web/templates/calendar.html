@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 経済指標カレンダー</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link active">指標</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">経済指標カレンダー（{{ total }} 件）</h2>
+      <p class="history-note" style="margin-top:8px;">
+        重要な経済指標の発表スケジュールを手動登録します。
+        直近24時間以内の HIGH/MEDIUM イベントは判定画面に警戒バッジとして表示されます。
+      </p>
+    </section>
+
+    <!-- 警戒中イベント -->
+    {% if warning_events %}
+    <div class="alert alert-warning" style="margin-bottom:0;">
+      <strong>⚠ 指標警戒中：</strong>
+      {% for ev in warning_events %}
+      <span class="econ-imp-badge econ-imp-{{ ev.importance|lower }}">{{ importance_labels.get(ev.importance,'?') }}</span>
+      {{ ev.event_dt[:16] }} {{ ev.currency }} {{ ev.event_name }}{% if not loop.last %}&nbsp;/&nbsp;{% endif %}
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <!-- 新規登録フォーム -->
+    <section class="card">
+      <h3 class="card-title">新規イベント登録</h3>
+      <form method="POST" action="/calendar" class="settings-form">
+        <div class="settings-grid">
+          <div class="settings-item">
+            <label class="settings-label">発表日時（UTC）</label>
+            <input type="datetime-local" name="event_dt" class="settings-input"
+                   required style="font-size:0.85rem;padding:5px 8px;">
+          </div>
+          <div class="settings-item">
+            <label class="settings-label">通貨</label>
+            <input type="text" name="currency" class="settings-input"
+                   placeholder="例: JPY, USD, EUR" maxlength="6" required
+                   style="font-size:0.85rem;padding:5px 8px;">
+          </div>
+          <div class="settings-item">
+            <label class="settings-label">重要度</label>
+            <select name="importance" class="settings-input" style="font-size:0.85rem;padding:5px 8px;">
+              {% for level in importance_levels %}
+              <option value="{{ level }}" {% if level == 'HIGH' %}selected{% endif %}>
+                {{ importance_labels.get(level, level) }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="settings-item">
+            <label class="settings-label">イベント名</label>
+            <input type="text" name="event_name" class="settings-input"
+                   placeholder="例: 米雇用統計, FOMC議事録" required
+                   style="font-size:0.85rem;padding:5px 8px;">
+          </div>
+          <div class="settings-item" style="grid-column:1/-1;">
+            <label class="settings-label">メモ（任意）</label>
+            <input type="text" name="note" class="settings-input"
+                   placeholder="例: 予想: +20万人" style="font-size:0.85rem;padding:5px 8px;">
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <button type="submit" class="btn-approve" style="padding:6px 20px;font-size:0.85rem;">
+            登録
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <!-- フィルター -->
+    <section class="card">
+      <form method="GET" action="/calendar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="journal-field">
+          <label class="journal-label">通貨</label>
+          <input type="text" name="currency" value="{{ currency_filter }}"
+                 class="settings-input" style="width:80px;font-size:0.85rem;padding:5px 8px;"
+                 placeholder="JPY など">
+        </div>
+        <div class="journal-field">
+          <label class="journal-label">重要度</label>
+          <select name="importance" class="settings-input" style="font-size:0.85rem;padding:5px 8px;">
+            <option value="">すべて</option>
+            {% for level in importance_levels %}
+            <option value="{{ level }}" {% if importance_filter == level %}selected{% endif %}>
+              {{ importance_labels.get(level, level) }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-approve" style="padding:5px 16px;font-size:0.85rem;">絞り込み</button>
+        {% if currency_filter or importance_filter %}
+        <a href="/calendar" class="btn-secondary" style="padding:5px 12px;font-size:0.85rem;text-decoration:none;">クリア</a>
+        {% endif %}
+      </form>
+    </section>
+
+    <!-- イベント一覧 -->
+    {% if events %}
+    <section class="card">
+      <div class="report-table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>発表日時（UTC）</th>
+              <th>通貨</th>
+              <th>重要度</th>
+              <th>イベント名</th>
+              <th>メモ</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ev in events %}
+            <tr>
+              <td style="white-space:nowrap;">{{ ev.event_dt[:16] }}</td>
+              <td><span class="history-symbol">{{ ev.currency }}</span></td>
+              <td>
+                <span class="econ-imp-badge econ-imp-{{ ev.importance|lower }}">
+                  {{ importance_labels.get(ev.importance, ev.importance) }}
+                </span>
+              </td>
+              <td>{{ ev.event_name }}</td>
+              <td style="color:var(--text-muted);font-size:0.82rem;">{{ ev.note or '' }}</td>
+              <td>
+                <form method="POST" action="/calendar/{{ ev.id }}/delete"
+                      onsubmit="return confirm('削除しますか？');" style="margin:0;">
+                  <button type="submit" class="btn-secondary"
+                          style="padding:3px 10px;font-size:0.78rem;color:#ff5252;">削除</button>
+                </form>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    {% if total_pages > 1 %}
+    <nav class="pagination">
+      {% if page > 1 %}
+      <a href="/calendar?page={{ page - 1 }}&currency={{ currency_filter }}&importance={{ importance_filter }}" class="page-link">← 前へ</a>
+      {% endif %}
+      <span class="page-info">{{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a href="/calendar?page={{ page + 1 }}&currency={{ currency_filter }}&importance={{ importance_filter }}" class="page-link">次へ →</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="card">
+      <p class="history-note" style="text-align:center;padding:32px 0;">
+        {% if currency_filter or importance_filter %}
+        条件に一致するイベントがありません。
+        {% else %}
+        まだイベントが登録されていません。上のフォームから追加してください。
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+    <!-- 重要度の説明 -->
+    <section class="card">
+      <h3 class="card-title">重要度の目安</h3>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:0.85rem;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="econ-imp-badge econ-imp-high">★★★ 高</span>
+          <span>雇用統計・FOMC・CPI・GDP発表など。判定画面に警戒バッジを表示します。</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="econ-imp-badge econ-imp-medium">★★☆ 中</span>
+          <span>貿易収支・小売売上高など。HIGH同様に警戒バッジを表示します。</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span class="econ-imp-badge econ-imp-low">★☆☆ 低</span>
+          <span>影響が比較的小さい指標。警戒バッジは表示しません。</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

@@ -1369,6 +1369,30 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   color: #90a4ae;
 }
 
+/* ── Phase 39: 経済指標カレンダー ── */
+.econ-imp-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.econ-imp-high   { background: rgba(239,68,68,0.25);  color: #fca5a5; border: 1px solid rgba(239,68,68,0.5); }
+.econ-imp-medium { background: rgba(251,191,36,0.2);  color: #fde68a; border: 1px solid rgba(251,191,36,0.5); }
+.econ-imp-low    { background: rgba(148,163,184,0.15); color: var(--text-muted); border: 1px solid var(--border-color); }
+
+.alert-warning {
+  background: rgba(251,191,36,0.1);
+  border: 1px solid rgba(251,191,36,0.4);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fde68a;
+  font-size: 0.88rem;
+  margin-bottom: 12px;
+}
+
 /* ── Phase 38: チャート表示 ── */
 .chart-container {
   position: relative;

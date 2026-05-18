@@ -47,6 +47,14 @@ from app.database.repository import (
     save_demo_order,
     save_settings,
     toggle_alert,
+    IMPORTANCE_LEVELS,
+    IMPORTANCE_LABELS,
+    create_economic_event,
+    delete_economic_event,
+    get_economic_events,
+    count_economic_events,
+    get_upcoming_warning_events,
+    has_upcoming_warning,
 )
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DATA_DIR, DEFAULT_SYMBOL, SUPPORTED_SYMBOLS, SYMBOL_CSV_MAP
@@ -106,6 +114,12 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
             },
         )
 
+    # Phase 39: 直近の経済指標警戒情報を渡す
+    try:
+        warning_events = get_upcoming_warning_events()
+    except Exception:
+        warning_events = []
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -113,6 +127,7 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
             "result": result,
             "error": None,
             "supported_symbols": SUPPORTED_SYMBOLS,
+            "warning_events": warning_events,
         },
     )
 
@@ -1088,3 +1103,77 @@ async def correlation_page(
         "lookback_options": LOOKBACK_OPTIONS,
         "correlation_label": correlation_label,
     })
+
+
+# ============================================================
+# Phase 39: 経済指標カレンダー
+# ============================================================
+
+@router.get("/calendar", response_class=HTMLResponse)
+async def calendar_page(
+    request: Request,
+    page: int = 1,
+    currency: str = "",
+    importance: str = "",
+    per_page: int = 20,
+):
+    """経済指標カレンダーページ。"""
+    offset = (page - 1) * per_page
+    cur_filter = currency.strip().upper() or None
+    imp_filter = importance.strip() or None
+    events = get_economic_events(
+        limit=per_page, offset=offset,
+        currency=cur_filter, importance=imp_filter,
+    )
+    total = count_economic_events(currency=cur_filter, importance=imp_filter)
+    total_pages = (total + per_page - 1) // per_page
+    warning_events = get_upcoming_warning_events()
+    return templates.TemplateResponse("calendar.html", {
+        "request": request,
+        "events": events,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "currency_filter": currency,
+        "importance_filter": importance,
+        "importance_levels": IMPORTANCE_LEVELS,
+        "importance_labels": IMPORTANCE_LABELS,
+        "warning_events": warning_events,
+    })
+
+
+@router.post("/calendar", response_class=HTMLResponse)
+async def calendar_create(
+    request: Request,
+    event_dt: str = Form(...),
+    currency: str = Form(...),
+    importance: str = Form("MEDIUM"),
+    event_name: str = Form(...),
+    note: str = Form(""),
+):
+    """経済指標イベントを新規登録する。"""
+    try:
+        create_economic_event(
+            event_dt=event_dt,
+            currency=currency,
+            importance=importance,
+            event_name=event_name,
+            note=note,
+        )
+    except Exception as e:
+        logger.warning("経済指標登録エラー: %s", e)
+    return RedirectResponse(url="/calendar", status_code=303)
+
+
+@router.post("/calendar/{event_id}/delete", response_class=HTMLResponse)
+async def calendar_delete(event_id: int):
+    """経済指標イベントを削除する。"""
+    delete_economic_event(event_id)
+    return RedirectResponse(url="/calendar", status_code=303)
+
+
+@router.get("/api/upcoming-events")
+async def api_upcoming_events(hours: int = 24):
+    """直近 hours 時間以内の HIGH/MEDIUM イベントをJSONで返す。"""
+    events = get_upcoming_warning_events(window_hours=hours)
+    return {"events": events, "count": len(events), "has_warning": len(events) > 0}

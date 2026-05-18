@@ -124,3 +124,16 @@ CREATE TABLE IF NOT EXISTS price_tracking (
     FOREIGN KEY (approval_id) REFERENCES approval_history(id)
 );
 """
+
+# Phase 39: 経済指標カレンダー
+CREATE_ECONOMIC_EVENTS_TABLE = """
+CREATE TABLE IF NOT EXISTS economic_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    event_dt    TEXT NOT NULL,
+    currency    TEXT NOT NULL,
+    importance  TEXT NOT NULL DEFAULT 'MEDIUM',
+    event_name  TEXT NOT NULL,
+    note        TEXT
+);
+"""

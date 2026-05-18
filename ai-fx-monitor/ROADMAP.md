@@ -276,6 +276,21 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 39：経済指標カレンダー ✅
+
+- [x] `economic_events` DB テーブル（id / event_dt / currency / importance / event_name / note）
+- [x] 重要度 3段階：HIGH（★★★）/ MEDIUM（★★☆）/ LOW（★☆☆）
+- [x] CRUD 関数：`create_economic_event` / `get_economic_events` / `count_economic_events` / `delete_economic_event`
+- [x] `get_upcoming_warning_events()` — 直近N時間以内の HIGH/MEDIUM イベントを返す
+- [x] `has_upcoming_warning()` — 警戒中かどうかを bool で返す
+- [x] `GET /calendar` / `POST /calendar` / `POST /calendar/{id}/delete` ルート追加
+- [x] `GET /api/upcoming-events` — 直近イベントをJSON返却（has_warning フラグ付き）
+- [x] `app/web/templates/calendar.html` — 登録フォーム・フィルター・一覧・重要度説明
+- [x] `index.html` — 直近24h以内の HIGH/MEDIUM イベントを警戒バッジで表示
+- [x] 全テンプレートのナビに「指標」リンク追加
+- [x] `app/web/static/style.css` — `econ-imp-badge` / `alert-warning` CSSブロック追加
+- [x] テスト34件（全457テスト通過）
+
 ### Phase 38：チャート表示（Chart.js） ✅
 
 - [x] `GET /charts` — チャートダッシュボードページ（symbol/limit クエリ対応）

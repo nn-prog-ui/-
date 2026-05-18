@@ -118,6 +118,24 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 39：経済指標カレンダー（2026-05-18）
+
+- `app/database/models.py`：`CREATE_ECONOMIC_EVENTS_TABLE` 追加
+- `app/database/db.py`：`init_db()` に `CREATE_ECONOMIC_EVENTS_TABLE` 追加
+- `app/database/repository.py`：
+  - `from datetime import datetime` → `datetime, timedelta` に変更
+  - `create_economic_event / get_economic_events / count_economic_events / delete_economic_event` 追加
+  - `get_upcoming_warning_events / has_upcoming_warning` 追加（window_hours パラメータ対応）
+- `app/web/routes.py`：`/calendar` GET/POST、`/calendar/{id}/delete`、`/api/upcoming-events` ルート追加
+- `app/web/routes.py`：`/`（判定ページ）に `warning_events` を渡すよう変更
+- `app/web/templates/calendar.html`：登録フォーム・フィルター・一覧テーブル・重要度説明新規作成
+- `app/web/templates/index.html`：直近24h警戒バッジを挿入
+- 全テンプレートのナビに「指標」リンク追加
+- `app/web/static/style.css`：`econ-imp-badge`（HIGH/MEDIUM/LOW色分け）・`alert-warning` CSS追加
+- `tests/test_calendar.py`：テスト34件新規作成（全457テスト通過）
+
+---
+
 ### Phase 38：チャート表示（Chart.js）（2026-05-18）
 
 - `app/web/routes.py`：`GET /api/chart-stats`（月次成績・BUY/SELL別勝率JSON）と `GET /charts`ルート追加

@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -1153,3 +1153,126 @@ def get_demo_orders_for_export(db_path: Path | None = None) -> list[dict[str, An
             "SELECT * FROM demo_orders ORDER BY created_at DESC"
         ).fetchall()
     return [dict(r) for r in rows]
+
+
+# ---------------------------------------------------------------------------
+# Phase 39: 経済指標カレンダー CRUD
+# ---------------------------------------------------------------------------
+
+IMPORTANCE_LEVELS = ["HIGH", "MEDIUM", "LOW"]
+IMPORTANCE_LABELS = {"HIGH": "★★★ 高", "MEDIUM": "★★☆ 中", "LOW": "★☆☆ 低"}
+WARNING_WINDOW_HOURS = 24  # この時間以内のHIGH/MEDIUMイベントを警戒表示
+
+
+def create_economic_event(
+    event_dt: str,
+    currency: str,
+    importance: str,
+    event_name: str,
+    note: str = "",
+    db_path: Path | None = None,
+) -> int:
+    """経済指標イベントを登録して ID を返す。"""
+    if importance not in IMPORTANCE_LEVELS:
+        raise ValueError(f"importance は {IMPORTANCE_LEVELS} のいずれかにしてください。")
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO economic_events (created_at, event_dt, currency, importance, event_name, note)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (now, event_dt, currency.strip().upper(), importance, event_name.strip(), note.strip()),
+        )
+    return cur.lastrowid
+
+
+def get_economic_events(
+    limit: int = 50,
+    offset: int = 0,
+    currency: str | None = None,
+    importance: str | None = None,
+    db_path: Path | None = None,
+) -> list[dict]:
+    """登録済みイベントを event_dt 昇順で返す。"""
+    where_clauses = []
+    params: list = []
+    if currency:
+        where_clauses.append("currency = ?")
+        params.append(currency.upper())
+    if importance:
+        where_clauses.append("importance = ?")
+        params.append(importance)
+    where = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT * FROM economic_events
+            {where}
+            ORDER BY event_dt ASC
+            LIMIT ? OFFSET ?
+            """,
+            params + [limit, offset],
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_economic_events(
+    currency: str | None = None,
+    importance: str | None = None,
+    db_path: Path | None = None,
+) -> int:
+    """イベント件数を返す。"""
+    where_clauses = []
+    params: list = []
+    if currency:
+        where_clauses.append("currency = ?")
+        params.append(currency.upper())
+    if importance:
+        where_clauses.append("importance = ?")
+        params.append(importance)
+    where = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            f"SELECT COUNT(*) FROM economic_events {where}", params
+        ).fetchone()
+    return row[0] if row else 0
+
+
+def delete_economic_event(event_id: int, db_path: Path | None = None) -> bool:
+    """イベントを削除して True を返す（存在しない場合は False）。"""
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM economic_events WHERE id = ?", (event_id,)
+        )
+    return cur.rowcount > 0
+
+
+def get_upcoming_warning_events(
+    window_hours: int = WARNING_WINDOW_HOURS,
+    db_path: Path | None = None,
+) -> list[dict]:
+    """直近 window_hours 時間以内の HIGH/MEDIUM イベントを返す（警戒判定用）。"""
+    now = datetime.utcnow()
+    dt_from = now.strftime("%Y-%m-%d %H:%M:%S")
+    dt_to = (now + timedelta(hours=window_hours)).strftime("%Y-%m-%d %H:%M:%S")
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT * FROM economic_events
+            WHERE importance IN ('HIGH', 'MEDIUM')
+              AND event_dt >= ?
+              AND event_dt <= ?
+            ORDER BY event_dt ASC
+            """,
+            (dt_from, dt_to),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def has_upcoming_warning(
+    window_hours: int = WARNING_WINDOW_HOURS,
+    db_path: Path | None = None,
+) -> bool:
+    """window_hours 以内に HIGH/MEDIUM イベントがあれば True を返す。"""
+    return len(get_upcoming_warning_events(window_hours=window_hours, db_path=db_path)) > 0

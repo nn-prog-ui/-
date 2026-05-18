@@ -665,6 +665,53 @@ async def api_chart_data(symbol: str = "", limit: int = 60):
     return {"trades": trades, "symbol": symbol or "全ペア", "count": len(trades)}
 
 
+@router.get("/api/chart-stats")
+async def api_chart_stats():
+    """チャートページ用の集計データをJSONで返す。
+
+    レスポンス:
+      - monthly: 月次 wins/losses/total_pips
+      - by_signal: BUY/SELL別勝率
+      - pips_distribution: pipsのヒストグラムバケット
+    """
+    report = get_performance_report()
+    monthly = [
+        {
+            "month": m["month"],
+            "wins": m["wins"],
+            "losses": m["losses"],
+            "total_pips": round(m.get("total_pips") or 0.0, 1),
+            "win_rate": round(m["wins"] / (m["wins"] + m["losses"]) * 100, 1)
+            if (m["wins"] + m["losses"]) > 0 else None,
+        }
+        for m in report.get("monthly", [])
+    ]
+    by_signal = [
+        {
+            "signal": r["signal"],
+            "wins": r["wins"],
+            "losses": r["losses"],
+            "total_pips": round(r.get("total_pips") or 0.0, 1),
+            "avg_pips": round(r.get("avg_pips") or 0.0, 1),
+            "win_rate": round(r["wins"] / (r["wins"] + r["losses"]) * 100, 1)
+            if (r["wins"] + r["losses"]) > 0 else None,
+        }
+        for r in report.get("by_signal", [])
+    ]
+    return {"monthly": monthly, "by_signal": by_signal}
+
+
+@router.get("/charts", response_class=HTMLResponse)
+async def charts_page(request: Request, symbol: str = "", limit: int = 100):
+    """チャートダッシュボードページ。"""
+    return templates.TemplateResponse("charts.html", {
+        "request": request,
+        "supported_symbols": SUPPORTED_SYMBOLS,
+        "selected_symbol": symbol,
+        "limit": limit,
+    })
+
+
 # ============================================================
 # Phase 28: ローソク足チャートデータAPI
 # ============================================================

@@ -118,6 +118,21 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 38：チャート表示（Chart.js）（2026-05-18）
+
+- `app/web/routes.py`：`GET /api/chart-stats`（月次成績・BUY/SELL別勝率JSON）と `GET /charts`ルート追加
+- `app/web/templates/charts.html`：Chart.js CDN使用のチャートダッシュボード新規作成
+  - エクイティカーブ（累積pips）、月次棒グラフ複合、月次勝率ライン、BUY/SELL複合グラフ
+  - 通貨ペア・件数フィルターで非同期再読み込み
+- 全テンプレートのナビに「チャート」リンク追加
+- `app/web/static/style.css`：`.chart-container` / `.chart-grid-2col` CSS追加
+- `tests/conftest.py`：HTTPインテグレーションテスト用DB初期化フィクスチャを新規作成
+  - `scope="session", autouse=True` で全テスト実行前にスキーマ・マイグレーション適用
+  - 従来のHTTPテストで `outcome` 列が存在しないエラーを修正
+- `tests/test_charts.py`：テスト15件新規作成（全423テスト通過）
+
+---
+
 ### Phase 37：通貨相関マトリクス（2026-05-18）
 
 - `app/services/correlation.py`：ピアソン相関係数計算サービス新規作成

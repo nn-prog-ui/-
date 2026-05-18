@@ -276,6 +276,21 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 38：チャート表示（Chart.js） ✅
+
+- [x] `GET /charts` — チャートダッシュボードページ（symbol/limit クエリ対応）
+- [x] `GET /api/chart-stats` — 月次成績・BUY/SELL別勝率をJSONで返す新規エンドポイント
+- [x] Chart.js 4.4.0（CDN）でブラウザ描画、バックエンド変更最小
+- [x] エクイティカーブ（累積pips折れ線、勝ち緑/負け赤の点カラー）
+- [x] 月次成績棒グラフ（勝ち/負け積み上げ + 合計pips折れ線 複合グラフ）
+- [x] 月次勝率ラインチャート
+- [x] BUY/SELL別勝率・平均pips棒グラフ（複合）
+- [x] 通貨ペア・件数フィルター（非同期再読み込み）
+- [x] `app/web/static/style.css` — `.chart-container` / `.chart-grid-2col` CSS追加
+- [x] 全テンプレートのナビに「チャート」リンク追加
+- [x] `tests/conftest.py` — HTTPテスト用DB初期化フィクスチャ（autouse session scope）
+- [x] テスト15件（全423テスト通過）
+
 ### Phase 37：通貨相関マトリクス ✅
 
 - [x] `app/services/correlation.py` — 日次リターンのピアソン相関係数計算（注文なし・分析のみ）

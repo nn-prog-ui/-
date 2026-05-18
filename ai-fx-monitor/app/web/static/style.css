@@ -1369,6 +1369,27 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   color: #90a4ae;
 }
 
+/* ── Phase 38: チャート表示 ── */
+.chart-container {
+  position: relative;
+  height: 280px;
+  width: 100%;
+}
+
+.chart-container-sm {
+  height: 220px;
+}
+
+.chart-grid-2col {
+  grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 768px) {
+  .chart-grid-2col { grid-template-columns: 1fr; }
+  .chart-container { height: 220px; }
+  .chart-container-sm { height: 180px; }
+}
+
 /* ── Phase 37: 通貨相関マトリクス ── */
 .corr-table-wrap {
   overflow-x: auto;

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - チャート</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link active">チャート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">成績チャート</h2>
+      <p class="history-note">
+        承認済みトレードの成績を時系列・月次・シグナル別にグラフ表示します。
+        データはバックグラウンドで非同期取得します。
+      </p>
+    </section>
+
+    <!-- フィルター -->
+    <section class="card">
+      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <label class="settings-label" style="margin:0;">通貨ペア</label>
+        <select id="symbol-select" class="settings-input" style="font-size:0.85rem;padding:5px 8px;width:auto;">
+          <option value="">全ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if selected_symbol == sym %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <label class="settings-label" style="margin:0;">直近件数</label>
+        <select id="limit-select" class="settings-input" style="font-size:0.85rem;padding:5px 8px;width:auto;">
+          <option value="50" {% if limit == 50 %}selected{% endif %}>50件</option>
+          <option value="100" {% if limit == 100 %}selected{% endif %}>100件</option>
+          <option value="200" {% if limit == 200 %}selected{% endif %}>200件</option>
+        </select>
+        <button class="btn-approve" id="reload-btn" style="padding:5px 16px;font-size:0.85rem;">
+          再読み込み
+        </button>
+        <span id="chart-status" style="color:var(--text-muted);font-size:0.82rem;"></span>
+      </div>
+    </section>
+
+    <!-- エクイティカーブ -->
+    <section class="card">
+      <h3 class="card-title">エクイティカーブ（累積 pips）</h3>
+      <p class="history-note" style="margin-bottom:8px;">
+        承認したトレードのpips損益を時系列で積み上げたグラフです。
+      </p>
+      <div class="chart-container">
+        <canvas id="equity-chart"></canvas>
+      </div>
+      <p id="equity-empty" class="history-note" style="text-align:center;display:none;padding:24px 0;">
+        データがありません。承認済みトレードを追加してください。
+      </p>
+    </section>
+
+    <!-- 月次成績 -->
+    <section class="card">
+      <h3 class="card-title">月次成績（勝ち / 負け / 合計 pips）</h3>
+      <div class="chart-container">
+        <canvas id="monthly-chart"></canvas>
+      </div>
+      <p id="monthly-empty" class="history-note" style="text-align:center;display:none;padding:24px 0;">
+        月次データがありません。
+      </p>
+    </section>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;" class="chart-grid-2col">
+
+      <!-- 月次勝率 -->
+      <section class="card">
+        <h3 class="card-title">月次勝率（%）</h3>
+        <div class="chart-container chart-container-sm">
+          <canvas id="winrate-chart"></canvas>
+        </div>
+        <p id="winrate-empty" class="history-note" style="text-align:center;display:none;padding:16px 0;">
+          データがありません。
+        </p>
+      </section>
+
+      <!-- シグナル別勝率 -->
+      <section class="card">
+        <h3 class="card-title">BUY / SELL 別勝率</h3>
+        <div class="chart-container chart-container-sm">
+          <canvas id="signal-chart"></canvas>
+        </div>
+        <p id="signal-empty" class="history-note" style="text-align:center;display:none;padding:16px 0;">
+          データがありません。
+        </p>
+      </section>
+
+    </div>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+
+  <script>
+    // ── Chart.js グローバル設定 ──────────────────────────────
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = 'rgba(255,255,255,0.08)';
+    Chart.defaults.font.family = "'Hiragino Sans', 'Meiryo', sans-serif";
+
+    const COLORS = {
+      buy:    'rgba(74,222,128,0.85)',
+      sell:   'rgba(248,113,113,0.85)',
+      neutral:'rgba(148,163,184,0.6)',
+      accent: 'rgba(99,179,237,0.85)',
+      line:   '#4ade80',
+      pips_pos: 'rgba(74,222,128,0.7)',
+      pips_neg: 'rgba(248,113,113,0.7)',
+    };
+
+    let charts = {};
+
+    function destroyChart(id) {
+      if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+    }
+
+    // ── エクイティカーブ ─────────────────────────────────────
+    function renderEquity(trades) {
+      destroyChart('equity');
+      if (!trades || trades.length === 0) {
+        document.getElementById('equity-chart').style.display = 'none';
+        document.getElementById('equity-empty').style.display = 'block';
+        return;
+      }
+      document.getElementById('equity-chart').style.display = '';
+      document.getElementById('equity-empty').style.display = 'none';
+
+      const labels = trades.map(t => t.created_at ? t.created_at.slice(0, 10) : '');
+      const data   = trades.map(t => t.cumulative_pips);
+      const pointColors = trades.map(t =>
+        (t.pnl_pips || 0) >= 0 ? COLORS.pips_pos : COLORS.pips_neg
+      );
+
+      charts['equity'] = new Chart(document.getElementById('equity-chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: '累積 pips',
+            data,
+            borderColor: COLORS.line,
+            backgroundColor: 'rgba(74,222,128,0.08)',
+            pointBackgroundColor: pointColors,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            fill: true,
+            tension: 0.3,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: ctx => ` 累積: ${ctx.raw > 0 ? '+' : ''}${ctx.raw} pips`,
+                afterLabel: (ctx) => {
+                  const t = trades[ctx.dataIndex];
+                  return ` 単体: ${(t.pnl_pips || 0) > 0 ? '+' : ''}${t.pnl_pips || 0} pips  ${t.signal || ''}`;
+                },
+              },
+            },
+          },
+          scales: {
+            y: {
+              grid: { color: 'rgba(255,255,255,0.06)' },
+              ticks: { callback: v => (v > 0 ? '+' : '') + v },
+            },
+            x: { ticks: { maxRotation: 45, maxTicksLimit: 12 } },
+          },
+        },
+      });
+    }
+
+    // ── 月次棒グラフ（勝ち/負け件数 + pips折れ線） ───────────
+    function renderMonthly(monthly) {
+      destroyChart('monthly');
+      destroyChart('winrate');
+      if (!monthly || monthly.length === 0) {
+        document.getElementById('monthly-chart').style.display = 'none';
+        document.getElementById('monthly-empty').style.display = 'block';
+        document.getElementById('winrate-chart').style.display = 'none';
+        document.getElementById('winrate-empty').style.display = 'block';
+        return;
+      }
+      document.getElementById('monthly-chart').style.display = '';
+      document.getElementById('monthly-empty').style.display = 'none';
+      document.getElementById('winrate-chart').style.display = '';
+      document.getElementById('winrate-empty').style.display = 'none';
+
+      const labels    = monthly.map(m => m.month);
+      const wins      = monthly.map(m => m.wins);
+      const losses    = monthly.map(m => m.losses);
+      const totalPips = monthly.map(m => m.total_pips);
+
+      charts['monthly'] = new Chart(document.getElementById('monthly-chart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: '勝ち',
+              data: wins,
+              backgroundColor: COLORS.buy,
+              stack: 'trades',
+            },
+            {
+              label: '負け',
+              data: losses,
+              backgroundColor: COLORS.sell,
+              stack: 'trades',
+            },
+            {
+              label: '合計 pips',
+              data: totalPips,
+              type: 'line',
+              yAxisID: 'y2',
+              borderColor: COLORS.accent,
+              backgroundColor: 'transparent',
+              pointRadius: 4,
+              tension: 0.3,
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y:  { stacked: true, grid: { color: 'rgba(255,255,255,0.06)' } },
+            y2: { position: 'right', grid: { drawOnChartArea: false },
+                  ticks: { callback: v => (v > 0 ? '+' : '') + v } },
+            x:  { ticks: { maxRotation: 45 } },
+          },
+        },
+      });
+
+      // 月次勝率ライン
+      const winRates = monthly.map(m => m.win_rate);
+      charts['winrate'] = new Chart(document.getElementById('winrate-chart'), {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: '月次勝率 %',
+            data: winRates,
+            borderColor: COLORS.accent,
+            backgroundColor: 'rgba(99,179,237,0.1)',
+            pointRadius: 5,
+            fill: true,
+            tension: 0.3,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            y: {
+              min: 0, max: 100,
+              grid: { color: 'rgba(255,255,255,0.06)' },
+              ticks: { callback: v => v + '%' },
+            },
+            x: { ticks: { maxRotation: 45, maxTicksLimit: 10 } },
+          },
+        },
+      });
+    }
+
+    // ── BUY/SELL別勝率棒グラフ ───────────────────────────────
+    function renderSignal(bySignal) {
+      destroyChart('signal');
+      if (!bySignal || bySignal.length === 0) {
+        document.getElementById('signal-chart').style.display = 'none';
+        document.getElementById('signal-empty').style.display = 'block';
+        return;
+      }
+      document.getElementById('signal-chart').style.display = '';
+      document.getElementById('signal-empty').style.display = 'none';
+
+      const labels   = bySignal.map(s => s.signal === 'BUY' ? '買い(BUY)' : '売り(SELL)');
+      const winRates = bySignal.map(s => s.win_rate);
+      const avgPips  = bySignal.map(s => s.avg_pips);
+      const bgColors = bySignal.map(s => s.signal === 'BUY' ? COLORS.buy : COLORS.sell);
+
+      charts['signal'] = new Chart(document.getElementById('signal-chart'), {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: '勝率 %',
+              data: winRates,
+              backgroundColor: bgColors,
+              yAxisID: 'y',
+            },
+            {
+              label: '平均 pips',
+              data: avgPips,
+              type: 'line',
+              yAxisID: 'y2',
+              borderColor: COLORS.accent,
+              backgroundColor: 'transparent',
+              pointRadius: 6,
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: 'top' } },
+          scales: {
+            y:  { min: 0, max: 100, ticks: { callback: v => v + '%' },
+                  grid: { color: 'rgba(255,255,255,0.06)' } },
+            y2: { position: 'right', grid: { drawOnChartArea: false },
+                  ticks: { callback: v => (v > 0 ? '+' : '') + v + ' pips' } },
+          },
+        },
+      });
+    }
+
+    // ── データ取得 ────────────────────────────────────────────
+    async function loadCharts() {
+      const sym   = document.getElementById('symbol-select').value;
+      const limit = document.getElementById('limit-select').value;
+      const status = document.getElementById('chart-status');
+      status.textContent = '読み込み中...';
+
+      try {
+        const [tradeRes, statsRes] = await Promise.all([
+          fetch(`/api/chart-data?symbol=${encodeURIComponent(sym)}&limit=${limit}`),
+          fetch('/api/chart-stats'),
+        ]);
+        const tradeData = await tradeRes.json();
+        const statsData = await statsRes.json();
+
+        renderEquity(tradeData.trades);
+        renderMonthly(statsData.monthly);
+        renderSignal(statsData.by_signal);
+
+        const count = tradeData.count;
+        status.textContent = `${tradeData.symbol} — ${count} 件のトレードデータを表示中`;
+      } catch (e) {
+        status.textContent = 'データ取得エラー: ' + e.message;
+        console.error(e);
+      }
+    }
+
+    document.getElementById('reload-btn').addEventListener('click', loadCharts);
+    document.getElementById('symbol-select').addEventListener('change', loadCharts);
+    document.getElementById('limit-select').addEventListener('change', loadCharts);
+
+    // 初期ロード
+    loadCharts();
+  </script>
+</body>
+</html>

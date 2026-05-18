@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 通貨相関マトリクス</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/correlation" class="nav-link active">相関</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">通貨相関マトリクス</h2>
+      <p class="history-note">
+        各通貨ペアの日次リターンを使ったピアソン相関係数です。
+        <strong>正相関（赤）</strong>が強い場合は同方向に動きやすく、
+        <strong>負相関（青）</strong>が強い場合は逆方向に動きやすい傾向があります。<br>
+        <strong style="color:var(--color-warning);">⚠ 過去データに基づく統計値です。将来の値動きを保証しません。</strong>
+      </p>
+    </section>
+
+    <!-- 期間フィルター -->
+    <section class="card">
+      <form method="GET" action="/correlation" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+        <label class="settings-label" style="margin:0;">分析期間</label>
+        {% for label, days in lookback_options.items() %}
+        <a href="/correlation?lookback={{ days }}"
+           class="{% if lookback == days %}btn-approve{% else %}btn-secondary{% endif %}"
+           style="padding:5px 14px;font-size:0.85rem;text-decoration:none;">
+          {{ label }}
+        </a>
+        {% endfor %}
+        <span style="color:var(--text-muted);font-size:0.82rem;margin-left:4px;">
+          現在: 直近 {{ lookback }} 営業日
+        </span>
+      </form>
+    </section>
+
+    {% if error %}
+    <div class="alert alert-error">
+      <strong>エラー：</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    {% if corr %}
+
+    <!-- ヒートマップ -->
+    <section class="card">
+      <h3 class="card-title">相関ヒートマップ（{{ corr.lookback_days }}日間）</h3>
+      <div class="corr-table-wrap">
+        <table class="corr-table">
+          <thead>
+            <tr>
+              <th class="corr-header-cell"></th>
+              {% for sym in corr.symbols %}
+              <th class="corr-header-cell">{{ sym }}</th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for i, sym_row in enumerate(corr.symbols) %}
+            <tr>
+              <th class="corr-row-label">{{ sym_row }}</th>
+              {% for j, sym_col in enumerate(corr.symbols) %}
+              {% set val = corr.matrix[i][j] %}
+              {% set css = corr.to_css_class(val) %}
+              <td class="corr-cell {{ css }}" title="{{ sym_row }} × {{ sym_col }}: {{ correlation_label(val) }}">
+                {% if val is not none %}
+                  {{ "%.2f"|format(val) }}
+                {% else %}
+                  ---
+                {% endif %}
+              </td>
+              {% endfor %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- 凡例 -->
+    <section class="card">
+      <h3 class="card-title">凡例</h3>
+      <div class="corr-legend">
+        <div class="corr-legend-item">
+          <span class="corr-swatch corr-pos-strong"></span>
+          <span>+0.7以上：強い正相関（同方向に動く）</span>
+        </div>
+        <div class="corr-legend-item">
+          <span class="corr-swatch corr-pos-medium"></span>
+          <span>+0.3〜+0.7：中程度の正相関</span>
+        </div>
+        <div class="corr-legend-item">
+          <span class="corr-swatch corr-neutral"></span>
+          <span>-0.3〜+0.3：相関なし（独立に動く）</span>
+        </div>
+        <div class="corr-legend-item">
+          <span class="corr-swatch corr-neg-medium"></span>
+          <span>-0.7〜-0.3：中程度の負相関</span>
+        </div>
+        <div class="corr-legend-item">
+          <span class="corr-swatch corr-neg-strong"></span>
+          <span>-0.7以下：強い負相関（逆方向に動く）</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- データ情報 -->
+    {% if corr.data_points %}
+    <section class="card">
+      <h3 class="card-title">使用データ点数</h3>
+      <div class="indicators-grid">
+        {% for sym, pts in corr.data_points.items() %}
+        <div class="indicator-item">
+          <span class="ind-label">{{ sym }}</span>
+          <span class="ind-value">{{ pts }}日分</span>
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
+    {% elif not error %}
+    <div class="card">
+      <p class="history-note" style="text-align:center;padding:32px 0;">
+        データを読み込んでいます...
+      </p>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

@@ -276,6 +276,20 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 37：通貨相関マトリクス ✅
+
+- [x] `app/services/correlation.py` — 日次リターンのピアソン相関係数計算（注文なし・分析のみ）
+- [x] `CorrelationMatrix` dataclass（symbols / matrix / lookback_days / data_points）
+- [x] `to_css_class()` — 相関値からヒートマップ用CSSクラスを返す（5段階）
+- [x] `calculate_correlation_matrix()` — 全ペアの相関マトリクスを計算（共通インデックスで算出）
+- [x] `correlation_label()` — 相関値を日本語ラベルに変換
+- [x] 期間プリセット4種：1ヶ月(21日) / 3ヶ月(63日) / 6ヶ月(126日) / 1年(252日)
+- [x] `GET /correlation` ルート追加（lookbackクエリパラメータ対応）
+- [x] `app/web/templates/correlation.html` — ヒートマップ・凡例・データ点数カード
+- [x] 全テンプレートのナビに「相関」リンク追加
+- [x] `app/web/static/style.css` — ヒートマップCSSブロック追加（5段階カラースケール）
+- [x] テスト34件（全408テスト通過）
+
 ### Phase 36：戦略パラメータ最適化 ✅
 
 - [x] `app/scripts/optimizer.py` — グリッドサーチ最適化エンジン（注文なし・分析専用）

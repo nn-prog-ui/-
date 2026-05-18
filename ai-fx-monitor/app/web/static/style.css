@@ -1369,6 +1369,74 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   color: #90a4ae;
 }
 
+/* ── Phase 37: 通貨相関マトリクス ── */
+.corr-table-wrap {
+  overflow-x: auto;
+}
+
+.corr-table {
+  border-collapse: collapse;
+  min-width: 360px;
+  font-size: 0.88rem;
+}
+
+.corr-header-cell,
+.corr-row-label {
+  padding: 8px 12px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-weight: 600;
+  white-space: nowrap;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-color);
+}
+
+.corr-row-label {
+  text-align: right;
+}
+
+.corr-cell {
+  padding: 10px 14px;
+  text-align: center;
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: default;
+  transition: opacity 0.15s;
+}
+
+.corr-cell:hover { opacity: 0.8; }
+
+.corr-pos-strong  { background: rgba(239,68,68,0.35);  color: #fca5a5; }
+.corr-pos-medium  { background: rgba(239,68,68,0.15);  color: #fca5a5; }
+.corr-neutral     { background: rgba(148,163,184,0.1); color: var(--text-muted); }
+.corr-neg-medium  { background: rgba(59,130,246,0.15); color: #93c5fd; }
+.corr-neg-strong  { background: rgba(59,130,246,0.35); color: #93c5fd; }
+.corr-na          { background: transparent; color: var(--text-muted); }
+
+.corr-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.corr-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
+.corr-swatch {
+  display: inline-block;
+  width: 36px;
+  height: 20px;
+  border-radius: 4px;
+  border: 1px solid rgba(255,255,255,0.1);
+  flex-shrink: 0;
+}
+
 /* レスポンシブ調整 */
 @media (max-width: 640px) {
   .dashboard-grid { grid-template-columns: 1fr; }

@@ -118,6 +118,21 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 37：通貨相関マトリクス（2026-05-18）
+
+- `app/services/correlation.py`：ピアソン相関係数計算サービス新規作成
+  - `CorrelationMatrix` dataclass（matrix / data_points / get() / to_css_class()）
+  - `calculate_correlation_matrix()` — 日次リターンの共通インデックス相関計算
+  - NaN ガード実装（np.isnan チェック）
+- `app/web/routes.py`：`GET /correlation` ルート追加（lookbackクエリパラメータ対応）
+- `app/web/templates/correlation.html`：ヒートマップテーブル・凡例・データ点数カード新規作成
+- 全テンプレートのナビに「相関」リンク追加
+- `app/web/static/style.css`：ヒートマップ用CSSブロック追加（corr-pos/neg-strong/medium/neutral）
+- 境界値バグ修正：-0.7の境界テストで期待値を修正（`>= -0.7` は corr-neg-medium）
+- `tests/test_correlation.py`：テスト34件新規作成（全408テスト通過）
+
+---
+
 ### Phase 36：戦略パラメータ最適化（2026-05-18）
 
 - `app/scripts/optimizer.py`：グリッドサーチ最適化エンジン新規作成（注文なし・分析専用）

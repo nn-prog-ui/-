@@ -56,6 +56,7 @@ from app.indicators.bollinger_bands import calculate_bollinger_bands
 from app.indicators.moving_average import calculate_ma
 from app.scripts.backtest import run_backtest
 from app.scripts.optimizer import VALID_METRICS, optimize
+from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
 
@@ -1015,4 +1016,28 @@ async def optimizer_run(
         "error": None,
         "form": form,
         "best": results[0] if results else None,
+    })
+
+
+@router.get("/correlation", response_class=HTMLResponse)
+async def correlation_page(
+    request: Request,
+    lookback: int = 63,
+):
+    """通貨相関マトリクスページ。"""
+    try:
+        corr = calculate_correlation_matrix(lookback_days=lookback)
+        error = None
+    except Exception as e:
+        logger.exception("相関マトリクス計算エラー")
+        corr = None
+        error = str(e)
+
+    return templates.TemplateResponse("correlation.html", {
+        "request": request,
+        "corr": corr,
+        "error": error,
+        "lookback": lookback,
+        "lookback_options": LOOKBACK_OPTIONS,
+        "correlation_label": correlation_label,
     })

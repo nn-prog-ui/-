@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - パラメータ最適化</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link active">最適化</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">戦略パラメータ最適化</h2>
+      <p class="history-note">
+        指定したパラメータ範囲でバックテストをグリッドサーチし、
+        最も成績が良いMA期間・RSI閾値の組み合わせを探索します。<br>
+        <strong style="color:var(--color-warning);">⚠ バックテストは過去データのシミュレーションです。将来の成績を保証しません。</strong>
+      </p>
+    </section>
+
+    {% if error %}
+    <div class="alert alert-error">
+      <strong>エラー：</strong> {{ error }}
+    </div>
+    {% endif %}
+
+    <!-- パラメータフォーム -->
+    <section class="card">
+      <h3 class="card-title">グリッドサーチ設定</h3>
+      <form method="POST" action="/optimizer" class="settings-form" id="opt-form">
+        <div class="settings-grid">
+
+          <div class="settings-item">
+            <label class="settings-label">通貨ペア</label>
+            <select name="symbol" class="settings-input">
+              {% for sym in symbols %}
+              <option value="{{ sym }}" {% if form.get('symbol') == sym %}selected{% endif %}>{{ sym }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">最適化メトリック</label>
+            <select name="metric" class="settings-input">
+              {% for m in metrics %}
+              <option value="{{ m }}" {% if form.get('metric', 'win_rate') == m %}selected{% endif %}>
+                {% if m == 'win_rate' %}勝率（win_rate）
+                {% elif m == 'total_pips' %}合計pips（total_pips）
+                {% else %}平均pips（avg_pips）{% endif %}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">短期MA候補 <small style="color:var(--text-muted);">カンマ区切り</small></label>
+            <input type="text" name="ma_short" class="settings-input"
+                   value="{{ form.get('ma_short', '10,15,20,25') }}"
+                   placeholder="例: 10,15,20,25">
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">長期MA候補 <small style="color:var(--text-muted);">カンマ区切り</small></label>
+            <input type="text" name="ma_long" class="settings-input"
+                   value="{{ form.get('ma_long', '50,75,100') }}"
+                   placeholder="例: 50,75,100">
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">RSI BUY上限候補 <small style="color:var(--text-muted);">カンマ区切り</small></label>
+            <input type="text" name="rsi_max" class="settings-input"
+                   value="{{ form.get('rsi_max', '65,70,75') }}"
+                   placeholder="例: 65,70,75">
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">ウィンドウ幅（本）</label>
+            <input type="number" name="window" class="settings-input"
+                   value="{{ form.get('window', 300) }}" min="100" max="1000">
+          </div>
+
+          <div class="settings-item">
+            <label class="settings-label">ステップ幅（本）</label>
+            <input type="number" name="step" class="settings-input"
+                   value="{{ form.get('step', 24) }}" min="4" max="168">
+          </div>
+
+        </div>
+
+        <div style="margin-top:16px;display:flex;align-items:center;gap:12px;">
+          <button type="submit" class="btn-approve" id="opt-btn" onclick="showRunning()">
+            最適化を実行
+          </button>
+          <span id="opt-running" style="display:none;color:var(--text-muted);font-size:0.85rem;">
+            実行中... しばらくお待ちください ⏳
+          </span>
+        </div>
+      </form>
+    </section>
+
+    {% if best %}
+    <!-- 最優秀パラメータ -->
+    <section class="card" style="border-color:rgba(0,230,118,0.4);">
+      <h3 class="card-title" style="color:#00e676;">★ 推奨パラメータ（{{ form.get('metric','win_rate') }} 最優秀）</h3>
+      <div class="indicators-grid">
+        <div class="indicator-item">
+          <span class="ind-label">短期MA</span>
+          <span class="ind-value" style="font-size:1.3rem;color:#00e676;">{{ best.params.ma_short }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">長期MA</span>
+          <span class="ind-value" style="font-size:1.3rem;color:#00e676;">{{ best.params.ma_long }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">RSI BUY上限</span>
+          <span class="ind-value" style="font-size:1.3rem;color:#00e676;">{{ best.params.rsi_buy_max }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">取引数</span>
+          <span class="ind-value">{{ best.trade_count }}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">勝率</span>
+          <span class="ind-value {% if best.win_rate and best.win_rate >= 50 %}rsi-normal{% endif %}">
+            {{ "%.1f%%"|format(best.win_rate) if best.win_rate is not none else "---" }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">合計pips</span>
+          <span class="ind-value {% if best.total_pips > 0 %}text-buy{% elif best.total_pips < 0 %}text-sell{% endif %}">
+            {{ "%+.1f"|format(best.total_pips) }}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">平均pips</span>
+          <span class="ind-value {% if best.avg_pips and best.avg_pips > 0 %}text-buy{% elif best.avg_pips and best.avg_pips < 0 %}text-sell{% endif %}">
+            {{ "%+.1f"|format(best.avg_pips) if best.avg_pips is not none else "---" }}
+          </span>
+        </div>
+      </div>
+    </section>
+    {% endif %}
+
+    {% if results is not none %}
+    <!-- 全結果テーブル -->
+    <section class="card">
+      <h3 class="card-title">グリッドサーチ結果（上位{{ results|length }}件 / {{ form.get('metric','win_rate') }} 降順）</h3>
+      {% if results %}
+      <div class="report-table-wrap">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>短期MA</th>
+              <th>長期MA</th>
+              <th>RSI上限</th>
+              <th>取引数</th>
+              <th>勝ち</th>
+              <th>負け</th>
+              <th>勝率%</th>
+              <th>合計pips</th>
+              <th>平均pips</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for r in results %}
+            <tr {% if loop.index == 1 %}style="background:rgba(0,230,118,0.08);font-weight:700;"{% endif %}>
+              <td>{{ loop.index }}</td>
+              <td>{{ r.params.ma_short }}</td>
+              <td>{{ r.params.ma_long }}</td>
+              <td>{{ r.params.rsi_buy_max }}</td>
+              <td>{{ r.trade_count }}</td>
+              <td style="color:#00e676;">{{ r.wins }}</td>
+              <td style="color:#ff5252;">{{ r.losses }}</td>
+              <td>{{ "%.1f"|format(r.win_rate) if r.win_rate is not none else "---" }}</td>
+              <td class="{% if r.total_pips > 0 %}text-buy{% elif r.total_pips < 0 %}text-sell{% endif %}">
+                {{ "%+.1f"|format(r.total_pips) }}
+              </td>
+              <td class="{% if r.avg_pips and r.avg_pips > 0 %}text-buy{% elif r.avg_pips and r.avg_pips < 0 %}text-sell{% endif %}">
+                {{ "%+.1f"|format(r.avg_pips) if r.avg_pips is not none else "---" }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <p class="history-note" style="text-align:center;padding:24px 0;">
+        有効なトレードが発生しませんでした。ウィンドウ幅やステップを調整してください。
+      </p>
+      {% endif %}
+    </section>
+    {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+
+  <script>
+    function showRunning() {
+      document.getElementById('opt-btn').disabled = true;
+      document.getElementById('opt-running').style.display = 'inline';
+    }
+  </script>
+</body>
+</html>

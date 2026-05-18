@@ -55,6 +55,7 @@ from app.data.resampler import to_4h, to_daily
 from app.indicators.bollinger_bands import calculate_bollinger_bands
 from app.indicators.moving_average import calculate_ma
 from app.scripts.backtest import run_backtest
+from app.scripts.optimizer import VALID_METRICS, optimize
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
 
@@ -950,3 +951,68 @@ async def export_demo_orders():
     """デモ注文成績を CSV でダウンロード。"""
     rows = get_demo_orders_for_export()
     return _rows_to_csv(rows, "fx_demo_orders.csv")
+
+
+# ============================================================
+# Phase 36: 戦略パラメータ最適化
+# ============================================================
+
+@router.get("/optimizer", response_class=HTMLResponse)
+async def optimizer_page(request: Request):
+    """最適化フォームページ（初期表示）。"""
+    return templates.TemplateResponse("optimizer.html", {
+        "request": request,
+        "symbols": SUPPORTED_SYMBOLS,
+        "metrics": VALID_METRICS,
+        "results": None,
+        "error": None,
+        "form": {},
+    })
+
+
+@router.post("/optimizer", response_class=HTMLResponse)
+async def optimizer_run(
+    request: Request,
+    symbol: str = Form("USD/JPY"),
+    ma_short: str = Form("10,15,20,25"),
+    ma_long: str = Form("50,75,100"),
+    rsi_max: str = Form("65,70,75"),
+    metric: str = Form("win_rate"),
+    window: int = Form(300),
+    step: int = Form(24),
+):
+    """最適化を実行して結果を表示する。"""
+    form = dict(symbol=symbol, ma_short=ma_short, ma_long=ma_long,
+                rsi_max=rsi_max, metric=metric, window=window, step=step)
+    try:
+        ma_s  = sorted({int(x.strip()) for x in ma_short.split(",") if x.strip()})
+        ma_l  = sorted({int(x.strip()) for x in ma_long.split(",") if x.strip()})
+        rsi_m = sorted({int(x.strip()) for x in rsi_max.split(",") if x.strip()})
+        results = optimize(
+            symbol=symbol,
+            ma_short_values=ma_s,
+            ma_long_values=ma_l,
+            rsi_buy_max_values=rsi_m,
+            metric=metric,
+            window=window,
+            step=step,
+        )
+    except Exception as e:
+        return templates.TemplateResponse("optimizer.html", {
+            "request": request,
+            "symbols": SUPPORTED_SYMBOLS,
+            "metrics": VALID_METRICS,
+            "results": None,
+            "error": str(e),
+            "form": form,
+        })
+
+    return templates.TemplateResponse("optimizer.html", {
+        "request": request,
+        "symbols": SUPPORTED_SYMBOLS,
+        "metrics": VALID_METRICS,
+        "results": results[:20],
+        "error": None,
+        "form": form,
+        "best": results[0] if results else None,
+    })

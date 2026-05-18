@@ -276,6 +276,21 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 36：戦略パラメータ最適化 ✅
+
+- [x] `app/scripts/optimizer.py` — グリッドサーチ最適化エンジン（注文なし・分析専用）
+- [x] `OptimizeParams` dataclass（ma_short / ma_long / rsi_buy_max / rsi_buy_min / rsi_sell_min / rsi_sell_max）
+- [x] `OptimizeResult` dataclass（wins / losses / open_count / total_pips / win_rate / avg_pips / score）
+- [x] `_analyze_with_params()` — 本番 rules.py を一切変更しない最適化専用シグナル判定
+- [x] `_run_one()` — ウォークフォワード型ミニバックテスト（window/step/future_bars 設定可）
+- [x] `optimize()` — グリッドサーチ本体（short < long フィルター、最大200組み合わせ上限）
+- [x] 最適化メトリック 3種：`win_rate` / `total_pips` / `avg_pips`
+- [x] CLI 対応（`python -m app.scripts.optimizer --symbol USD/JPY --metric win_rate`）
+- [x] `GET /optimizer` / `POST /optimizer` ルート追加
+- [x] `app/web/templates/optimizer.html` — グリッドサーチフォーム・推奨パラメータカード・結果テーブル
+- [x] 全テンプレートのナビに「最適化」リンク追加
+- [x] テスト31件（全374テスト通過）
+
 ### Phase 33：カスタムアラート設定 ✅
 
 - [x] `alerts` DB テーブル（symbol / label / condition_type / condition_value / cooldown_minutes / last_triggered_at）

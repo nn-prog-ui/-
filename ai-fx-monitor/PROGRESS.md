@@ -118,6 +118,21 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 36：戦略パラメータ最適化（2026-05-18）
+
+- `app/scripts/optimizer.py`：グリッドサーチ最適化エンジン新規作成（注文なし・分析専用）
+  - `OptimizeParams` / `OptimizeResult` dataclass、`_analyze_with_params()`、`optimize()` 関数
+  - 本番 `rules.py` は一切変更せず、別関数でパラメータ注入型シグナル判定を実装
+  - MA候補×RSI候補のグリッドサーチ、最大200組み合わせ上限
+  - CLI対応（`python -m app.scripts.optimizer`）
+- `app/web/routes.py`：`GET /optimizer` / `POST /optimizer` ルート追加
+- `app/web/templates/optimizer.html`：グリッドサーチフォーム・推奨パラメータカード・結果テーブル新規作成
+- 全テンプレートのナビに「最適化」リンク追加
+- `app/scripts/optimizer.py`：`load_or_generate()` 呼び出し引数のバグを修正（シグネチャが1引数）
+- `tests/test_optimizer.py`：テスト31件新規作成（全374テスト通過）
+
+---
+
 ### Phase 35：CSV エクスポート（2026-05-18）
 
 - `app/database/repository.py`：エクスポート用クエリ3関数追加（history/journal/demo-orders）

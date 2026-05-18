@@ -1069,3 +1069,87 @@ def get_journal_count(
             params,
         ).fetchone()
     return row["cnt"] if row else 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 35: CSV エクスポート用クエリ
+# ---------------------------------------------------------------------------
+
+def get_history_for_export(
+    symbol: str | None = None,
+    signal: str | None = None,
+    human_action: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """承認履歴をフィルター付きで全件取得する（エクスポート用）。"""
+    where_clauses: list[str] = []
+    params: list[Any] = []
+    if symbol:
+        where_clauses.append("symbol = ?")
+        params.append(symbol)
+    if signal:
+        where_clauses.append("signal = ?")
+        params.append(signal)
+    if human_action:
+        where_clauses.append("human_action = ?")
+        params.append(human_action)
+    if date_from:
+        where_clauses.append("created_at >= ?")
+        params.append(date_from)
+    if date_to:
+        where_clauses.append("created_at <= ?")
+        params.append(date_to + " 23:59:59")
+
+    where = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            f"SELECT * FROM approval_history {where} ORDER BY created_at DESC",
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_journal_for_export(
+    tag_filter: str | None = None,
+    entry_type_filter: str | None = None,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """ジャーナルを approval_history と JOIN して全件取得する（エクスポート用）。"""
+    where_clauses = ["j.notes IS NOT NULL"]
+    params: list[Any] = []
+    if tag_filter:
+        where_clauses.append("j.tags LIKE ?")
+        params.append(f"%{tag_filter}%")
+    if entry_type_filter:
+        where_clauses.append("j.entry_type = ?")
+        params.append(entry_type_filter)
+    where = " AND ".join(where_clauses)
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                j.approval_id, j.entry_type, j.emotion_score, j.tags, j.notes,
+                j.created_at as journal_created_at, j.updated_at,
+                a.symbol, a.signal, a.human_action, a.current_price,
+                a.entry_price, a.stop_loss, a.take_profit, a.risk_reward,
+                a.pnl_pips, a.outcome, a.daily_trend, a.h4_trend,
+                a.created_at as trade_date
+            FROM trade_journal j
+            JOIN approval_history a ON j.approval_id = a.id
+            WHERE {where}
+            ORDER BY j.updated_at DESC
+            """,
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_demo_orders_for_export(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """デモ注文を全件取得する（エクスポート用）。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM demo_orders ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]

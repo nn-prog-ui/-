@@ -1021,6 +1021,42 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 }
 
 /* ============================================================
+   Phase 35: CSV エクスポートバー
+   ============================================================ */
+
+.export-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.export-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.export-btn {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid rgba(64,196,255,0.4);
+  color: #40c4ff;
+  background: rgba(64,196,255,0.08);
+  transition: all var(--transition);
+}
+.export-btn:hover {
+  background: rgba(64,196,255,0.18);
+  border-color: rgba(64,196,255,0.7);
+}
+
+/* ============================================================
    Phase 34: トレードジャーナル
    ============================================================ */
 

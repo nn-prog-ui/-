@@ -29,8 +29,16 @@
   <main class="main-content">
 
     <section class="card">
-      <h2 class="card-title">承認履歴（全 {{ total }} 件）</h2>
-      <p class="history-note">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <h2 class="card-title" style="margin:0;">承認履歴（全 {{ total }} 件）</h2>
+        <div class="export-bar">
+          <span class="export-label">エクスポート</span>
+          <a href="/export/history.csv" class="export-btn">📥 全件 CSV</a>
+          <a href="/export/history.csv?signal=BUY" class="export-btn">買いのみ</a>
+          <a href="/export/history.csv?signal=SELL" class="export-btn">売りのみ</a>
+        </div>
+      </div>
+      <p class="history-note" style="margin-top:8px;">
         このページは過去の人間承認アクションの記録です。注文は一切発生していません。
       </p>
     </section>

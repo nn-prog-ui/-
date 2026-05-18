@@ -118,6 +118,16 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 35：CSV エクスポート（2026-05-18）
+
+- `app/database/repository.py`：エクスポート用クエリ3関数追加（history/journal/demo-orders）
+- `app/web/routes.py`：`csv`/`io` インポート + StreamingResponse + 3エクスポートエンドポイント追加
+- `app/web/templates/history.html`：エクスポートバー追加（全件/買いのみ/売りのみ）
+- `app/web/templates/journal.html`：エクスポートバー追加
+- `app/web/templates/performance.html`：エクスポートバー追加（買い承認/売り承認/デモ注文）
+- `app/web/static/style.css`：`.export-bar` / `.export-btn` スタイル追加
+- `tests/test_export.py`：テスト16件新規作成（全343テスト通過）
+
 ### Phase 34：トレードジャーナル（2026-05-18）
 
 - `app/database/models.py`：`CREATE_TRADE_JOURNAL_TABLE` 追加

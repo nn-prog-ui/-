@@ -251,6 +251,18 @@ AI FX市場監視システム 開発ロードマップ
 
 ---
 
+### Phase 35：CSV エクスポート ✅
+
+- [x] `get_history_for_export()` — ペア・シグナル・アクション・期間フィルター付き全件取得
+- [x] `get_journal_for_export()` — タグ・タイプフィルター付き全件取得（approval_history JOIN）
+- [x] `get_demo_orders_for_export()` — デモ注文全件取得
+- [x] `GET /export/history.csv` — クエリパラメータでフィルター可能な CSV ダウンロード
+- [x] `GET /export/journal.csv` — ジャーナル CSV ダウンロード
+- [x] `GET /export/demo-orders.csv` — デモ注文成績 CSV ダウンロード
+- [x] `history.html` / `journal.html` / `performance.html` にエクスポートバーを追加
+- [x] `text/csv; charset=utf-8-sig`（Excel で文字化けしない BOM 付き UTF-8）
+- [x] テスト16件（全343テスト通過）
+
 ### Phase 34：トレードジャーナル ✅
 
 - [x] `trade_journal` DB テーブル（approval_id・notes・tags・entry_type・emotion_score）

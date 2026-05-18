@@ -1,12 +1,14 @@
 """FastAPIルーティング"""
 from __future__ import annotations
 
+import csv
+import io
 import json
 import logging
 from pathlib import Path
 
 from fastapi import APIRouter, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 
 from app.database.repository import (
@@ -20,6 +22,9 @@ from app.database.repository import (
     delete_alert,
     get_alerts,
     get_all_settings,
+    get_demo_orders_for_export,
+    get_history_for_export,
+    get_journal_for_export,
     get_journal_count,
     get_journal_entries,
     get_journal_entry,
@@ -882,3 +887,66 @@ async def save_journal(
         emotion_score=max(1, min(5, emotion_score)),
     )
     return RedirectResponse(f"/history?highlight={record_id}", status_code=303)
+
+
+# ============================================================
+# Phase 35: CSV エクスポート
+# ============================================================
+
+def _rows_to_csv(rows: list[dict], filename: str) -> StreamingResponse:
+    """行リストを CSV StreamingResponse に変換する。"""
+    if not rows:
+        output = io.StringIO()
+        output.write("データがありません\n")
+        output.seek(0)
+    else:
+        output = io.StringIO()
+        writer = csv.DictWriter(output, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+        output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv; charset=utf-8-sig",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/export/history.csv")
+async def export_history(
+    symbol: str = "",
+    signal: str = "",
+    human_action: str = "",
+    date_from: str = "",
+    date_to: str = "",
+):
+    """承認履歴を CSV でダウンロード。"""
+    rows = get_history_for_export(
+        symbol=symbol or None,
+        signal=signal or None,
+        human_action=human_action or None,
+        date_from=date_from or None,
+        date_to=date_to or None,
+    )
+    return _rows_to_csv(rows, "fx_history.csv")
+
+
+@router.get("/export/journal.csv")
+async def export_journal(
+    tag: str = "",
+    entry_type: str = "",
+):
+    """ジャーナルを CSV でダウンロード。"""
+    rows = get_journal_for_export(
+        tag_filter=tag or None,
+        entry_type_filter=entry_type or None,
+    )
+    return _rows_to_csv(rows, "fx_journal.csv")
+
+
+@router.get("/export/demo-orders.csv")
+async def export_demo_orders():
+    """デモ注文成績を CSV でダウンロード。"""
+    rows = get_demo_orders_for_export()
+    return _rows_to_csv(rows, "fx_demo_orders.csv")

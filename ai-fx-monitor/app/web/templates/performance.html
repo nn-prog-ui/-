@@ -29,8 +29,16 @@
   <main class="main-content">
 
     <section class="card">
-      <h2 class="card-title">取引成績（シミュレーション）</h2>
-      <p class="history-note">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <h2 class="card-title" style="margin:0;">取引成績（シミュレーション）</h2>
+        <div class="export-bar">
+          <span class="export-label">エクスポート</span>
+          <a href="/export/history.csv?human_action=buy_approved" class="export-btn">買い承認 CSV</a>
+          <a href="/export/history.csv?human_action=sell_approved" class="export-btn">売り承認 CSV</a>
+          <a href="/export/demo-orders.csv" class="export-btn">📥 デモ注文 CSV</a>
+        </div>
+      </div>
+      <p class="history-note" style="margin-top:8px;">
         このページは過去の承認取引のシミュレーション成績です。実際の注文・損益ではありません。
       </p>
     </section>

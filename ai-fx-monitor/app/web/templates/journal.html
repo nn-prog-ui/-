@@ -29,8 +29,14 @@
   <main class="main-content">
 
     <section class="card">
-      <h2 class="card-title">トレードジャーナル（{{ total }} 件）</h2>
-      <p class="history-note">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <h2 class="card-title" style="margin:0;">トレードジャーナル（{{ total }} 件）</h2>
+        <div class="export-bar">
+          <span class="export-label">エクスポート</span>
+          <a href="/export/journal.csv{% if tag_filter %}?tag={{ tag_filter }}{% endif %}" class="export-btn">📥 CSV ダウンロード</a>
+        </div>
+      </div>
+      <p class="history-note" style="margin-top:8px;">
         履歴画面でトレードに追加したメモ・タグ・振り返りの一覧です。
         タグやタイプで絞り込んでパターン分析に活用してください。
       </p>

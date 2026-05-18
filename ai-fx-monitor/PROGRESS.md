@@ -118,6 +118,17 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 32：マルチタイムフレーム判定強化（2026-05-18）
+
+- `app/strategy/scoring.py`：`ConfluenceResult` dataclass + `calculate_timeframe_confluence()` 追加
+- `app/strategy/rules.py`：`SignalResult.confluence` フィールド追加、analyze_signal()でconfluence計算
+- `app/services/market_analyzer.py`：`AnalysisResult.confluence` フィールド追加・伝播
+- `app/web/static/style.css`：TFバッジ・confluenceスコアバッジのCSSブロック追加
+- `app/web/templates/index.html`：環境認識カードにconfluenceパネル挿入
+- `tests/test_confluence.py`：テスト10件新規作成（全289テスト通過）
+
+---
+
 ## エラー記録
 
 ### relatedTransactionIDs が空リストの IndexError（Phase 13）

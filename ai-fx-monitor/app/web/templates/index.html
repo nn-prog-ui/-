@@ -160,6 +160,24 @@
           <span class="ind-value">{{ result.h1_status }}</span>
         </div>
       </div>
+      {% if result.confluence %}
+      {% set cf = result.confluence %}
+      <div class="confluence-panel">
+        <span class="confluence-label">TF一致</span>
+        <div class="tf-badges">
+          <span class="tf-badge {% if cf.daily_agrees %}agree{% else %}disagree{% endif %}">
+            <span class="tf-dot"></span>日足
+          </span>
+          <span class="tf-badge {% if cf.h4_agrees %}agree{% else %}disagree{% endif %}">
+            <span class="tf-dot"></span>4H
+          </span>
+          <span class="tf-badge {% if cf.h1_agrees %}agree{% else %}disagree{% endif %}">
+            <span class="tf-dot"></span>1H
+          </span>
+        </div>
+        <span class="confluence-score-badge {{ cf.css_class }}">{{ cf.label }}</span>
+      </div>
+      {% endif %}
     </section>
 
     <!-- テクニカル指標 -->

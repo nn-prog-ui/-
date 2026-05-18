@@ -24,7 +24,7 @@ from app.services.ai_commentary import MockCommentaryAdapter
 from app.services.economic_calendar import is_near_economic_event
 from app.strategy.risk import TradeSetup, calculate_buy_setup, calculate_sell_setup
 from app.strategy.rules import SIGNAL_BUY, SIGNAL_SELL, SIGNAL_SKIP, SignalResult, analyze_signal
-from app.strategy.scoring import ConditionResult
+from app.strategy.scoring import ConditionResult, ConfluenceResult
 
 logger = logging.getLogger(__name__)
 
@@ -69,6 +69,8 @@ class AnalysisResult:
     sell_conditions: list[ConditionResult] = field(default_factory=list)
     # Phase 20: 過去トレードからの学習データ
     historical_stats: dict = field(default_factory=dict)
+    # Phase 32: マルチタイムフレーム一致度
+    confluence: ConfluenceResult | None = None
 
     @property
     def signal_label(self) -> str:
@@ -223,4 +225,5 @@ def run_analysis(
         buy_conditions=signal_result.buy_conditions,
         sell_conditions=signal_result.sell_conditions,
         historical_stats=historical_stats,
+        confluence=signal_result.confluence,
     )

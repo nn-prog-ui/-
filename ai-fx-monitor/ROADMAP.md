@@ -175,6 +175,18 @@ AI FX市場監視システム 開発ロードマップ
 
 ---
 
+### Phase 32：マルチタイムフレーム判定強化 ✅
+
+- [x] `ConfluenceResult` dataclass（daily/4h/1h 各TFの方向一致フラグ）
+- [x] `calculate_timeframe_confluence()` — 方向ごとの一致度スコア（0〜3）を計算
+- [x] `SignalResult.confluence` フィールド追加（analyze_signal()で自動計算）
+- [x] `AnalysisResult.confluence` フィールド追加（market_analyzer.pyで伝播）
+- [x] `index.html` にTFバッジパネル追加（日足/4H/1H の一致バッジ＋スコアラベル）
+- [x] CSSクラス（confluence-strong/medium/weak, tf-badge agree/disagree）追加
+- [x] テスト10件（全289テスト通過）
+
+---
+
 ## 絶対に実装しないこと
 
 - 本番注文の自動発注

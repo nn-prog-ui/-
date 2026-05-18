@@ -16,7 +16,13 @@ from app.indicators.atr import (
 )
 from app.indicators.moving_average import get_ma_trend
 from app.indicators.rsi import get_rsi_value
-from app.strategy.scoring import ConditionResult, ScoreResult, calculate_score
+from app.strategy.scoring import (
+    ConditionResult,
+    ConfluenceResult,
+    ScoreResult,
+    calculate_score,
+    calculate_timeframe_confluence,
+)
 
 SIGNAL_BUY = "BUY"
 SIGNAL_SELL = "SELL"
@@ -42,6 +48,8 @@ class SignalResult:
     # Phase 19: 判定根拠（条件ごとの結果）
     buy_conditions: list[ConditionResult] = field(default_factory=list)
     sell_conditions: list[ConditionResult] = field(default_factory=list)
+    # Phase 32: マルチタイムフレーム一致度
+    confluence: ConfluenceResult | None = None
 
 
 def analyze_signal(
@@ -145,6 +153,17 @@ def analyze_signal(
             skip_reasons.append(f"売り条件未充足: {', '.join(failed)}")
         score = buy_score if buy_score.passed_count >= sell_score.passed_count else sell_score
 
+    # Phase 32: マルチタイムフレーム一致度を計算
+    confluence_direction = signal if signal in (SIGNAL_BUY, SIGNAL_SELL) else (
+        SIGNAL_BUY if buy_score.passed_count >= sell_score.passed_count else SIGNAL_SELL
+    )
+    confluence = calculate_timeframe_confluence(
+        daily_trend=daily_trend,
+        h4_trend=h4_trend,
+        h1_breakout=h1_high_breakout if confluence_direction == SIGNAL_BUY else h1_low_breakout,
+        direction=confluence_direction,
+    )
+
     return SignalResult(
         signal=signal,
         score=score,
@@ -159,6 +178,7 @@ def analyze_signal(
         data_sufficient=True,
         buy_conditions=buy_conditions,
         sell_conditions=sell_conditions,
+        confluence=confluence,
     )
 
 

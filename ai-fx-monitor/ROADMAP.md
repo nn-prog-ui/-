@@ -173,6 +173,82 @@ AI FX市場監視システム 開発ロードマップ
 - [x] demo_orders テーブルへのマイグレーション（exit_price/pnl_pips/closed_at）
 - [x] テスト35件（全180テスト通過）
 
+### Phase 19：判定根拠の条件表示 ✅
+
+- [x] `AnalysisResult.buy_conditions` / `sell_conditions`（ConditionResult リスト）
+- [x] `index.html` に「判定根拠」セクション追加（条件ごとの合否アイコン・詳細テキスト）
+- [x] `.condition-pass` / `.condition-fail` スタイル
+
+### Phase 20：過去トレード学習データ ✅
+
+- [x] `get_signal_pattern_stats()` — 日足・4H トレンドパターン別の勝率・取引数を集計
+- [x] `AnalysisResult.historical_stats` フィールド追加
+- [x] `index.html` に「同パターン成績」カード表示（勝率・取引数・直近結果）
+
+### Phase 21：バックテスト可視化 ✅
+
+- [x] `app/web/templates/backtest.html` — パラメータフォーム + 結果グリッド
+- [x] `GET /backtest` — フォーム表示
+- [x] `POST /backtest` — バックテスト実行・結果表示（勝率・pips集計・条件別分類）
+
+### Phase 22：設定画面 ✅
+
+- [x] `app/web/templates/settings.html` — スキャン間隔・通知トグル・OANDA接続確認
+- [x] `GET /settings` / `POST /settings` — app_settings テーブルへの永続化
+- [x] `app_settings` DB テーブル（SCAN_ENABLED / SCAN_INTERVAL_MINUTES ほか）
+
+### Phase 23：ダッシュボード ✅
+
+- [x] `app/web/templates/dashboard.html` — 複数通貨ペアの最新シグナル一覧
+- [x] `GET /dashboard` — 全ペアを並行分析して表示
+- [x] `/api/all-signals` JSON エンドポイント
+
+### Phase 24：精度レポート ✅
+
+- [x] `app/web/templates/report.html` — 方向別・パターン別・トレンド別の勝率表
+- [x] `GET /report` — approval_history + demo_orders を集計して表示
+
+### Phase 25：自動リフレッシュ ✅
+
+- [x] `index.html` に 60秒ポーリング実装（`setInterval(checkSignals, POLL_MS)`）
+- [x] `/api/latest-signal` エンドポイント — ページリロードなしで最新シグナルを取得
+- [x] シグナル変化時のみ DOM を更新
+
+### Phase 26：SVG 累積損益チャート ✅
+
+- [x] `performance.html` に SVG 累積 pips ラインチャートを追加
+- [x] `/api/chart-data` エンドポイント — 時系列累積 pips データを返す
+- [x] ホバーツールチップ・軸ラベル・レスポンシブ対応
+
+### Phase 27：バックテスト結果を DB 保存 ✅
+
+- [x] `save_backtest_results()` — バックテスト結果を approval_history にシミュレーション記録として保存
+- [x] `POST /backtest` 実行後に即時 DB 保存（シミュレーションフラグ付き）
+
+### Phase 28：SVG ローソク足チャート ✅
+
+- [x] `index.html` に SVG ローソク足チャート追加（`drawCandles()` 関数）
+- [x] 陽線・陰線（緑/赤）＋ヒゲ描画
+- [x] エントリー・SL・TP 水平ライン重ね表示
+- [x] `/api/candles?tf=` エンドポイント — OHLCV データを JSON で返す
+
+### Phase 29：ブラウザ通知（Web Notification API）✅
+
+- [x] `index.html` に Notification API 実装
+- [x] 初回ロード時に通知許可を要求
+- [x] `checkSignals()` でシグナル変化検出時に `showNotification()` を呼び出し
+
+### Phase 30：ローソク足チャートに MA20・MA50・BB 重ねプロット ✅
+
+- [x] SVG チャートに MA20 ライン（青）・MA50 ライン（橙）を追加
+- [x] BB 上限・下限バンド（グレー破線）を重ね描画
+
+### Phase 31：ローソク足チャートに複数時間足タブ ✅
+
+- [x] チャート上部に「1時間 / 4時間 / 1日足」タブボタンを追加
+- [x] `data-tf` 切替で `/api/candles?tf=1h|4h|1d` を再取得・再描画
+- [x] アクティブタブの `.tf-active` スタイル
+
 ---
 
 ### Phase 32：マルチタイムフレーム判定強化 ✅

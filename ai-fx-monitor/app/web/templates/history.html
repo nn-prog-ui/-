@@ -20,6 +20,7 @@
       <a href="/performance" class="nav-link">成績</a>
       <a href="/backtest" class="nav-link">バックテスト</a>
       <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
       <a href="/alerts" class="nav-link">アラート</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
@@ -37,7 +38,7 @@
     {% if records %}
     <div class="history-list">
       {% for r in records %}
-      <article class="history-card card signal-{{ r.signal|lower if r.signal else 'skip' }}">
+      <article class="history-card card signal-{{ r.signal|lower if r.signal else 'skip' }}" data-id="{{ r.id }}">
         <header class="history-card-header">
           <div class="history-meta">
             <span class="history-id">#{{ r.id }}</span>
@@ -134,6 +135,72 @@
             </a>
           </div>
           {% endif %}
+
+          <!-- Phase 34: ジャーナルセクション -->
+          {% set jnl = r.journal %}
+          <div class="journal-section" id="journal-section-{{ r.id }}">
+            {% if jnl %}
+            <div class="journal-preview" onclick="toggleJournal({{ r.id }})">
+              <span class="journal-toggle-icon">📝</span>
+              <span class="journal-entry-type-badge">{{ jnl.entry_type }}</span>
+              {% if jnl.tags %}
+              {% for tag in jnl.tags.split(',') %}
+              <span class="journal-tag">{{ tag.strip() }}</span>
+              {% endfor %}
+              {% endif %}
+              <span class="journal-emotion">{{ emotion_labels.get(jnl.emotion_score, '') }}</span>
+              <span class="journal-edit-hint">（クリックして編集）</span>
+            </div>
+            {% else %}
+            <button class="journal-add-btn" onclick="toggleJournal({{ r.id }})">
+              + ジャーナルを追加
+            </button>
+            {% endif %}
+
+            <div class="journal-form-wrap" id="journal-form-{{ r.id }}" style="display:none;">
+              <form method="POST" action="/journal/{{ r.id }}" class="journal-form">
+                <div class="journal-form-row">
+                  <div class="journal-field">
+                    <label class="journal-label">タイプ</label>
+                    <select name="entry_type" class="settings-input" style="font-size:0.85rem;padding:4px 8px;">
+                      {% for et in entry_types %}
+                      <option value="{{ et }}" {% if jnl and jnl.entry_type == et %}selected{% endif %}>{{ et }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                  <div class="journal-field">
+                    <label class="journal-label">感情スコア</label>
+                    <select name="emotion_score" class="settings-input" style="font-size:0.85rem;padding:4px 8px;">
+                      {% for score, label in emotion_labels.items() %}
+                      <option value="{{ score }}" {% if jnl and jnl.emotion_score == score %}selected{% elif not jnl and score == 3 %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
+                    </select>
+                  </div>
+                </div>
+                <div class="journal-field" style="margin-top:8px;">
+                  <label class="journal-label">タグ（カンマ区切り）</label>
+                  <input
+                    type="text" name="tags" class="settings-input"
+                    style="font-size:0.85rem;padding:4px 8px;"
+                    placeholder="例: 押し目, 3TF一致"
+                    value="{{ jnl.tags if jnl else '' }}"
+                  >
+                </div>
+                <div class="journal-field" style="margin-top:8px;">
+                  <label class="journal-label">振り返りメモ</label>
+                  <textarea
+                    name="notes" class="journal-textarea"
+                    placeholder="エントリー根拠・感想・次回への反省を記録..."
+                    rows="3"
+                  >{{ jnl.notes if jnl else '' }}</textarea>
+                </div>
+                <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
+                  <button type="button" class="btn-secondary" style="font-size:0.82rem;padding:4px 12px;" onclick="toggleJournal({{ r.id }})">キャンセル</button>
+                  <button type="submit" class="btn-approve" style="font-size:0.82rem;padding:4px 14px;">保存</button>
+                </div>
+              </form>
+            </div>
+          </div>
         </div>
       </article>
       {% endfor %}
@@ -164,5 +231,20 @@
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
   </footer>
+
+  <script>
+    function toggleJournal(id) {
+      const wrap = document.getElementById('journal-form-' + id);
+      if (!wrap) return;
+      wrap.style.display = wrap.style.display === 'none' ? 'block' : 'none';
+    }
+    // URLにhighlight=IDがある場合はスクロール
+    const params = new URLSearchParams(location.search);
+    const hid = params.get('highlight');
+    if (hid) {
+      const el = document.querySelector('.history-card[data-id="' + hid + '"]');
+      if (el) { el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline='2px solid #4ade80'; }
+    }
+  </script>
 </body>
 </html>

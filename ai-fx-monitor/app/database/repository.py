@@ -930,3 +930,142 @@ def update_alert_triggered(alert_id: int, db_path: Path | None = None) -> None:
             "UPDATE alerts SET last_triggered_at = ? WHERE id = ?",
             (datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S"), alert_id),
         )
+
+
+# ---------------------------------------------------------------------------
+# Phase 34: トレードジャーナル CRUD
+# ---------------------------------------------------------------------------
+
+JOURNAL_ENTRY_TYPES = [
+    "ブレイクアウト",
+    "押し目買い",
+    "戻り売り",
+    "反発",
+    "ダマシ",
+    "反省",
+    "要検証",
+    "その他",
+]
+
+JOURNAL_EMOTION_LABELS = {
+    1: "😰 焦り",
+    2: "😟 やや焦り",
+    3: "😐 普通",
+    4: "🙂 冷静",
+    5: "😌 完全冷静",
+}
+
+
+def upsert_journal(
+    approval_id: int,
+    notes: str = "",
+    tags: str = "",
+    entry_type: str = "その他",
+    emotion_score: int = 3,
+    db_path: Path | None = None,
+) -> int:
+    """ジャーナルを新規作成または更新して ID を返す。"""
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db(db_path) as conn:
+        existing = conn.execute(
+            "SELECT id FROM trade_journal WHERE approval_id = ?", (approval_id,)
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE trade_journal
+                SET updated_at=?, notes=?, tags=?, entry_type=?, emotion_score=?
+                WHERE approval_id=?
+                """,
+                (now, notes, tags, entry_type, emotion_score, approval_id),
+            )
+            return existing["id"]
+        cursor = conn.execute(
+            """
+            INSERT INTO trade_journal (approval_id, created_at, updated_at, notes, tags, entry_type, emotion_score)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (approval_id, now, now, notes, tags, entry_type, emotion_score),
+        )
+        return cursor.lastrowid
+
+
+def get_journal_entry(approval_id: int, db_path: Path | None = None) -> dict[str, Any] | None:
+    """特定の承認IDのジャーナルを返す。存在しなければ None。"""
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            "SELECT * FROM trade_journal WHERE approval_id = ?", (approval_id,)
+        ).fetchone()
+    return dict(row) if row else None
+
+
+def get_journal_entries(
+    tag_filter: str | None = None,
+    entry_type_filter: str | None = None,
+    limit: int = 50,
+    offset: int = 0,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """ジャーナル一覧を approval_history と JOIN して返す。タグ・タイプで絞り込み可。"""
+    where_clauses = ["j.notes IS NOT NULL"]
+    params: list[Any] = []
+
+    if tag_filter:
+        where_clauses.append("j.tags LIKE ?")
+        params.append(f"%{tag_filter}%")
+    if entry_type_filter:
+        where_clauses.append("j.entry_type = ?")
+        params.append(entry_type_filter)
+
+    where = " AND ".join(where_clauses)
+    params += [limit, offset]
+
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                j.*,
+                a.symbol, a.signal, a.human_action, a.current_price,
+                a.entry_price, a.stop_loss, a.take_profit, a.risk_reward,
+                a.pnl_pips, a.outcome, a.daily_trend, a.h4_trend,
+                a.created_at as trade_date
+            FROM trade_journal j
+            JOIN approval_history a ON j.approval_id = a.id
+            WHERE {where}
+            ORDER BY j.updated_at DESC
+            LIMIT ? OFFSET ?
+            """,
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_journal_count(
+    tag_filter: str | None = None,
+    entry_type_filter: str | None = None,
+    db_path: Path | None = None,
+) -> int:
+    """ジャーナル件数を返す。"""
+    where_clauses = ["j.notes IS NOT NULL"]
+    params: list[Any] = []
+
+    if tag_filter:
+        where_clauses.append("j.tags LIKE ?")
+        params.append(f"%{tag_filter}%")
+    if entry_type_filter:
+        where_clauses.append("j.entry_type = ?")
+        params.append(entry_type_filter)
+
+    where = " AND ".join(where_clauses)
+
+    with get_db(db_path) as conn:
+        row = conn.execute(
+            f"""
+            SELECT COUNT(*) as cnt
+            FROM trade_journal j
+            JOIN approval_history a ON j.approval_id = a.id
+            WHERE {where}
+            """,
+            params,
+        ).fetchone()
+    return row["cnt"] if row else 0

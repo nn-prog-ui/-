@@ -20,6 +20,12 @@ from app.database.repository import (
     delete_alert,
     get_alerts,
     get_all_settings,
+    get_journal_count,
+    get_journal_entries,
+    get_journal_entry,
+    JOURNAL_ENTRY_TYPES,
+    JOURNAL_EMOTION_LABELS,
+    upsert_journal,
     get_approval_by_id,
     get_chart_data,
     get_demo_order_by_id,
@@ -162,6 +168,8 @@ async def history(request: Request, page: int = 1, per_page: int = 20):
             "sell_approved": "売り承認",
             "skipped": "見送り",
         }.get(r.get("human_action", ""), "不明")
+        # Phase 34: ジャーナルを各レコードに付与
+        r["journal"] = get_journal_entry(r["id"])
 
     return templates.TemplateResponse(
         "history.html",
@@ -171,6 +179,8 @@ async def history(request: Request, page: int = 1, per_page: int = 20):
             "page": page,
             "total_pages": total_pages,
             "total": total,
+            "entry_types": JOURNAL_ENTRY_TYPES,
+            "emotion_labels": JOURNAL_EMOTION_LABELS,
         },
     )
 
@@ -811,3 +821,64 @@ async def delete_alert_route(alert_id: int):
     """アラートを削除してアラートページへリダイレクト。"""
     delete_alert(alert_id)
     return RedirectResponse("/alerts", status_code=303)
+
+
+# ============================================================
+# Phase 34: トレードジャーナル
+# ============================================================
+
+@router.get("/journal", response_class=HTMLResponse)
+async def journal_page(
+    request: Request,
+    tag: str = "",
+    entry_type: str = "",
+    page: int = 1,
+):
+    """ジャーナル一覧ページ。タグ・タイプ絞り込み対応。"""
+    per_page = 20
+    offset = (page - 1) * per_page
+    tag_filter = tag.strip() or None
+    type_filter = entry_type.strip() or None
+
+    entries = get_journal_entries(
+        tag_filter=tag_filter,
+        entry_type_filter=type_filter,
+        limit=per_page,
+        offset=offset,
+    )
+    total = get_journal_count(tag_filter=tag_filter, entry_type_filter=type_filter)
+    total_pages = max(1, (total + per_page - 1) // per_page)
+
+    return templates.TemplateResponse("journal.html", {
+        "request": request,
+        "entries": entries,
+        "total": total,
+        "page": page,
+        "total_pages": total_pages,
+        "entry_types": JOURNAL_ENTRY_TYPES,
+        "emotion_labels": JOURNAL_EMOTION_LABELS,
+        "tag_filter": tag or "",
+        "type_filter": entry_type or "",
+    })
+
+
+@router.post("/journal/{record_id}")
+async def save_journal(
+    record_id: int,
+    notes: str = Form(""),
+    tags: str = Form(""),
+    entry_type: str = Form("その他"),
+    emotion_score: int = Form(3),
+):
+    """ジャーナルを保存して履歴ページへリダイレクト。"""
+    approval = get_approval_by_id(record_id)
+    if not approval:
+        raise HTTPException(status_code=404, detail="承認記録が見つかりません。")
+    upsert_journal(
+        approval_id=record_id,
+        notes=notes.strip(),
+        tags=tags.strip(),
+        entry_type=entry_type,
+        emotion_score=max(1, min(5, emotion_score)),
+    )
+    return RedirectResponse(f"/history?highlight={record_id}", status_code=303)

@@ -83,6 +83,21 @@ MIGRATE_ADD_OUTCOME_COLUMNS = [
     "ALTER TABLE approval_history ADD COLUMN pnl_pips REAL",
 ]
 
+# Phase 34: トレードジャーナルテーブル
+CREATE_TRADE_JOURNAL_TABLE = """
+CREATE TABLE IF NOT EXISTS trade_journal (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    approval_id   INTEGER NOT NULL UNIQUE,
+    created_at    TEXT NOT NULL,
+    updated_at    TEXT NOT NULL,
+    notes         TEXT,
+    tags          TEXT,
+    entry_type    TEXT DEFAULT 'その他',
+    emotion_score INTEGER DEFAULT 3,
+    FOREIGN KEY (approval_id) REFERENCES approval_history(id)
+);
+"""
+
 # Phase 33: カスタムアラートテーブル
 CREATE_ALERTS_TABLE = """
 CREATE TABLE IF NOT EXISTS alerts (

@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - トレードジャーナル</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link active">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <section class="card">
+      <h2 class="card-title">トレードジャーナル（{{ total }} 件）</h2>
+      <p class="history-note">
+        履歴画面でトレードに追加したメモ・タグ・振り返りの一覧です。
+        タグやタイプで絞り込んでパターン分析に活用してください。
+      </p>
+    </section>
+
+    <!-- フィルター -->
+    <section class="card">
+      <form method="GET" action="/journal" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;">
+        <div class="journal-field">
+          <label class="journal-label">タグ検索</label>
+          <input type="text" name="tag" value="{{ tag_filter }}"
+                 class="settings-input" style="width:160px;font-size:0.85rem;padding:5px 8px;"
+                 placeholder="押し目, 反省 など">
+        </div>
+        <div class="journal-field">
+          <label class="journal-label">タイプ</label>
+          <select name="entry_type" class="settings-input" style="font-size:0.85rem;padding:5px 8px;">
+            <option value="">すべて</option>
+            {% for et in entry_types %}
+            <option value="{{ et }}" {% if type_filter == et %}selected{% endif %}>{{ et }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button type="submit" class="btn-approve" style="padding:5px 16px;font-size:0.85rem;">絞り込み</button>
+        {% if tag_filter or type_filter %}
+        <a href="/journal" class="btn-secondary" style="padding:5px 12px;font-size:0.85rem;text-decoration:none;">クリア</a>
+        {% endif %}
+      </form>
+    </section>
+
+    {% if entries %}
+    <div class="history-list">
+      {% for e in entries %}
+      <article class="history-card card signal-{{ e.signal|lower if e.signal else 'skip' }}">
+        <header class="history-card-header">
+          <div class="history-meta">
+            <span class="history-id">#{{ e.approval_id }}</span>
+            <span class="history-time">{{ e.trade_date[:16] if e.trade_date else '' }}</span>
+            <span class="history-symbol">{{ e.symbol }}</span>
+          </div>
+          <div class="history-signals">
+            <span class="signal-badge signal-{{ e.signal|lower if e.signal else 'skip' }}">
+              {{ {'BUY':'買い候補','SELL':'売り候補','SKIP':'見送り'}.get(e.signal,'?') }}
+            </span>
+            <span class="action-badge action-{{ e.human_action }}">
+              {{ {'buy_approved':'買い承認','sell_approved':'売り承認','skipped':'見送り'}.get(e.human_action,'?') }}
+            </span>
+          </div>
+        </header>
+
+        <div class="history-body">
+          <!-- 取引サマリー -->
+          <div class="history-grid" style="margin-bottom:10px;">
+            <div class="history-item">
+              <span class="h-label">エントリー</span>
+              <span class="h-value entry">{{ "%.3f"|format(e.entry_price) if e.entry_price else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">損切り</span>
+              <span class="h-value stoploss">{{ "%.3f"|format(e.stop_loss) if e.stop_loss else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">利確</span>
+              <span class="h-value takeprofit">{{ "%.3f"|format(e.take_profit) if e.take_profit else "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">損益（pips）</span>
+              <span class="h-value {% if e.pnl_pips and e.pnl_pips > 0 %}text-buy{% elif e.pnl_pips and e.pnl_pips < 0 %}text-sell{% endif %}">
+                {% if e.pnl_pips is not none %}{{ "%+.1f"|format(e.pnl_pips) }}{% else %}未決済{% endif %}
+              </span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">日足</span>
+              <span class="h-value trend-{{ e.daily_trend }}">{{ e.daily_trend or "---" }}</span>
+            </div>
+            <div class="history-item">
+              <span class="h-label">4H足</span>
+              <span class="h-value trend-{{ e.h4_trend }}">{{ e.h4_trend or "---" }}</span>
+            </div>
+          </div>
+
+          <!-- ジャーナル本文 -->
+          <div class="journal-entry-block">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+              <span class="journal-entry-type-badge">{{ e.entry_type }}</span>
+              {% if e.tags %}
+              {% for tag in e.tags.split(',') %}
+              <a href="/journal?tag={{ tag.strip() }}" class="journal-tag journal-tag-link">{{ tag.strip() }}</a>
+              {% endfor %}
+              {% endif %}
+              <span class="journal-emotion" style="margin-left:auto;">{{ emotion_labels.get(e.emotion_score, '') }}</span>
+            </div>
+            {% if e.notes %}
+            <p class="journal-notes-text">{{ e.notes }}</p>
+            {% else %}
+            <p style="color:var(--text-muted);font-size:0.82rem;font-style:italic;">メモなし</p>
+            {% endif %}
+            <div style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">
+              更新: {{ e.updated_at[:16] if e.updated_at else '' }}
+              &nbsp;|&nbsp;
+              <a href="/history?highlight={{ e.approval_id }}" style="color:var(--text-secondary);">履歴で見る →</a>
+            </div>
+          </div>
+        </div>
+      </article>
+      {% endfor %}
+    </div>
+
+    {% if total_pages > 1 %}
+    <nav class="pagination">
+      {% if page > 1 %}
+      <a href="/journal?page={{ page - 1 }}&tag={{ tag_filter }}&entry_type={{ type_filter }}" class="page-link">← 前へ</a>
+      {% endif %}
+      <span class="page-info">{{ page }} / {{ total_pages }}</span>
+      {% if page < total_pages %}
+      <a href="/journal?page={{ page + 1 }}&tag={{ tag_filter }}&entry_type={{ type_filter }}" class="page-link">次へ →</a>
+      {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="card">
+      <p class="history-note" style="text-align:center;padding:32px 0;">
+        {% if tag_filter or type_filter %}
+        条件に一致するジャーナルが見つかりません。
+        {% else %}
+        まだジャーナルがありません。
+        <a href="/history" style="color:var(--text-secondary);">履歴画面</a> からトレードにメモを追加してください。
+        {% endif %}
+      </p>
+    </div>
+    {% endif %}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+</body>
+</html>

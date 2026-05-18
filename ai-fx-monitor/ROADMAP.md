@@ -251,6 +251,19 @@ AI FX市場監視システム 開発ロードマップ
 
 ---
 
+### Phase 34：トレードジャーナル ✅
+
+- [x] `trade_journal` DB テーブル（approval_id・notes・tags・entry_type・emotion_score）
+- [x] CRUD 5関数（upsert / get_entry / get_entries / get_count）
+- [x] タイプ 8種（ブレイクアウト/押し目買い/戻り売り/反発/ダマシ/反省/要検証/その他）
+- [x] 感情スコア 1〜5（😰焦り〜😌完全冷静）
+- [x] `history.html` にインラインジャーナルフォーム（追加ボタン→展開）
+- [x] `GET /journal` / `POST /journal/{id}` ルート追加
+- [x] `journal.html` — タグ・タイプ絞り込み付きジャーナル一覧ページ
+- [x] タグクリックで絞り込み・「履歴で見る」リンク
+- [x] 全テンプレートのナビに「ジャーナル」リンク追加
+- [x] テスト16件（全327テスト通過）
+
 ### Phase 33：カスタムアラート設定 ✅
 
 - [x] `alerts` DB テーブル（symbol / label / condition_type / condition_value / cooldown_minutes / last_triggered_at）

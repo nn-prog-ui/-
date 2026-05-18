@@ -118,6 +118,18 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 34：トレードジャーナル（2026-05-18）
+
+- `app/database/models.py`：`CREATE_TRADE_JOURNAL_TABLE` 追加
+- `app/database/db.py`：`init_db()` に trade_journal テーブル作成を追加
+- `app/database/repository.py`：CRUD 5関数 + JOURNAL_ENTRY_TYPES / JOURNAL_EMOTION_LABELS 定数追加
+- `app/web/routes.py`：`/journal` GET + `POST /journal/{id}` 追加、history ルートに journal データ注入
+- `app/web/templates/history.html`：インラインジャーナルフォーム（折りたたみ式）追加
+- `app/web/templates/journal.html`：ジャーナル一覧ページ新規作成
+- `app/web/static/style.css`：ジャーナル用CSSブロック追加
+- 全テンプレートのナビに「ジャーナル」リンク追加
+- `tests/test_journal.py`：テスト16件新規作成（全327テスト通過）
+
 ### Phase 33：カスタムアラート設定（2026-05-18）
 
 - `app/database/models.py`：`CREATE_ALERTS_TABLE` 追加

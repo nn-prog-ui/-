@@ -1021,6 +1021,143 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 }
 
 /* ============================================================
+   Phase 34: トレードジャーナル
+   ============================================================ */
+
+.journal-section {
+  margin-top: 12px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: 10px;
+}
+
+.journal-add-btn {
+  background: transparent;
+  border: 1px dashed var(--border-color);
+  color: var(--text-muted);
+  border-radius: var(--border-radius-sm);
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: all var(--transition);
+  width: 100%;
+  text-align: left;
+}
+.journal-add-btn:hover {
+  border-color: var(--text-secondary);
+  color: var(--text-secondary);
+  background: rgba(255,255,255,0.03);
+}
+
+.journal-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: var(--border-radius-sm);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border-color);
+  transition: background var(--transition);
+}
+.journal-preview:hover { background: rgba(255,255,255,0.06); }
+
+.journal-toggle-icon { font-size: 0.9rem; }
+
+.journal-entry-type-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 0.73rem;
+  font-weight: 700;
+  background: rgba(100,130,255,0.15);
+  color: #8fa8ff;
+  border: 1px solid rgba(100,130,255,0.3);
+}
+
+.journal-tag {
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  background: rgba(255,255,255,0.06);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+.journal-tag-link { text-decoration: none; }
+.journal-tag-link:hover { border-color: var(--text-secondary); }
+
+.journal-emotion {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+.journal-edit-hint {
+  font-size: 0.73rem;
+  color: var(--text-muted);
+  margin-left: auto;
+}
+
+.journal-form-wrap {
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: rgba(0,0,0,0.2);
+  border-radius: var(--border-radius-sm);
+  border: 1px solid var(--border-color);
+}
+
+.journal-form-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.journal-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.journal-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.journal-textarea {
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-sm);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  padding: 6px 10px;
+  resize: vertical;
+  width: 100%;
+  font-family: inherit;
+  transition: border-color var(--transition);
+}
+.journal-textarea:focus {
+  outline: none;
+  border-color: var(--text-secondary);
+}
+
+.journal-entry-block {
+  padding: 10px 12px;
+  background: rgba(100,130,255,0.05);
+  border-left: 3px solid rgba(100,130,255,0.4);
+  border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
+  margin-top: 8px;
+}
+
+.journal-notes-text {
+  font-size: 0.88rem;
+  color: var(--text-primary);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.text-buy  { color: var(--color-buy); }
+.text-sell { color: var(--color-sell); }
+
+/* ============================================================
    Phase 33: カスタムアラートリスト
    ============================================================ */
 

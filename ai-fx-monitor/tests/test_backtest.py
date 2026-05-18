@@ -1,6 +1,8 @@
 """バックテストモジュールのテスト"""
 from __future__ import annotations
 
+import sqlite3
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
@@ -13,6 +15,7 @@ from app.scripts.backtest import (
     _simulate_outcome,
     run_backtest,
 )
+from app.database.repository import save_backtest_results
 from app.strategy.rules import SIGNAL_BUY, SIGNAL_SELL
 
 
@@ -90,6 +93,85 @@ class TestSimulateOutcome:
         result = _simulate_outcome(trade, bars, "EUR/USD")
         assert result.outcome == "win"
         assert result.pnl_pips == pytest.approx(100.0)
+
+
+class TestSaveBacktestResults:
+    """Phase 27: save_backtest_results のテスト。"""
+
+    def _make_db(self, tmp_path: Path) -> Path:
+        """テスト用の一時DBを初期化して返す。"""
+        from app.database.db import init_db
+        db_path = tmp_path / "test.db"
+        init_db(db_path)
+        return db_path
+
+    def _make_trade(self, signal: str, outcome: str) -> BacktestTrade:
+        return BacktestTrade(
+            bar_index=0,
+            signal=signal,
+            entry_price=150.0,
+            stop_loss=149.5,
+            take_profit=151.0,
+            risk_reward=2.0,
+            outcome=outcome,
+            exit_price=151.0 if outcome == "win" else 149.5 if outcome == "loss" else 0.0,
+            pnl_pips=50.0 if outcome == "win" else -50.0 if outcome == "loss" else 0.0,
+        )
+
+    def test_save_closed_trades_only(self, tmp_path):
+        """outcome='open'の取引は保存されない。"""
+        db_path = self._make_db(tmp_path)
+        trades = [
+            self._make_trade("BUY", "win"),
+            self._make_trade("BUY", "open"),
+            self._make_trade("SELL", "loss"),
+        ]
+        count = save_backtest_results(trades, "USD/JPY", db_path)
+        assert count == 2  # open は除外
+
+    def test_returns_saved_count(self, tmp_path):
+        """戻り値が保存件数と一致する。"""
+        db_path = self._make_db(tmp_path)
+        trades = [
+            self._make_trade("BUY", "win"),
+            self._make_trade("SELL", "win"),
+            self._make_trade("BUY", "loss"),
+        ]
+        count = save_backtest_results(trades, "USD/JPY", db_path)
+        assert count == 3
+
+    def test_saved_as_dummy_data(self, tmp_path):
+        """is_dummy_data=1 で保存される。"""
+        import sqlite3
+        db_path = self._make_db(tmp_path)
+        trades = [self._make_trade("BUY", "win")]
+        save_backtest_results(trades, "USD/JPY", db_path)
+
+        conn = sqlite3.connect(str(db_path))
+        row = conn.execute("SELECT is_dummy_data FROM approval_history").fetchone()
+        conn.close()
+        assert row[0] == 1
+
+    def test_win_loss_outcome_saved(self, tmp_path):
+        """outcome=win/loss がそれぞれ正しく保存される。"""
+        import sqlite3
+        db_path = self._make_db(tmp_path)
+        trades = [
+            self._make_trade("BUY", "win"),
+            self._make_trade("SELL", "loss"),
+        ]
+        save_backtest_results(trades, "EUR/USD", db_path)
+
+        conn = sqlite3.connect(str(db_path))
+        rows = conn.execute(
+            "SELECT outcome, human_action FROM approval_history ORDER BY id"
+        ).fetchall()
+        conn.close()
+
+        assert rows[0][0] == "win"
+        assert rows[0][1] == "buy_approved"
+        assert rows[1][0] == "loss"
+        assert rows[1][1] == "sell_approved"
 
 
 class TestRunBacktest:

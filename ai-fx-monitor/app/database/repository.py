@@ -740,6 +740,77 @@ def get_performance_report(db_path: Path | None = None) -> dict:
 
 
 # ============================================================
+# Phase 27: バックテスト結果をapproval_historyに保存
+# ============================================================
+
+def save_backtest_results(
+    trades: list,
+    symbol: str,
+    db_path: Path | None = None,
+) -> int:
+    """バックテスト取引結果をapproval_historyに一括保存する。
+
+    - is_dummy_data=1、human_actionはBUY→buy_approved、SELL→sell_approved
+    - outcome='open'の取引は保存しない（SL/TP未到達）
+    - 戻り値: 保存件数
+    """
+    base_dt = datetime.utcnow()
+    saved = 0
+
+    with get_db(db_path) as conn:
+        for i, trade in enumerate(trades):
+            if trade.outcome == "open":
+                continue
+
+            signal = trade.signal
+            human_action = HUMAN_ACTION_BUY if signal == "BUY" else HUMAN_ACTION_SELL
+            daily_trend = "上昇" if signal == "BUY" else "下降"
+            h4_trend = daily_trend
+            score = int(trade.risk_reward)
+
+            # 各トレードで created_at を少しずつずらす（i秒加算）
+            from datetime import timedelta
+            created_at = (base_dt + timedelta(seconds=i)).strftime("%Y-%m-%d %H:%M:%S")
+
+            conn.execute(
+                """
+                INSERT INTO approval_history (
+                    created_at, symbol, signal, human_action, is_dummy_data,
+                    outcome, exit_price, pnl_pips, closed_at,
+                    entry_price, stop_loss, take_profit, risk_reward,
+                    score, daily_trend, h4_trend
+                ) VALUES (
+                    ?, ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?, ?,
+                    ?, ?, ?
+                )
+                """,
+                (
+                    created_at,
+                    symbol,
+                    signal,
+                    human_action,
+                    1,
+                    trade.outcome,
+                    trade.exit_price,
+                    trade.pnl_pips,
+                    created_at,
+                    trade.entry_price,
+                    trade.stop_loss,
+                    trade.take_profit,
+                    trade.risk_reward,
+                    score,
+                    daily_trend,
+                    h4_trend,
+                ),
+            )
+            saved += 1
+
+    return saved
+
+
+# ============================================================
 # Phase 26: チャート用データ
 # ============================================================
 

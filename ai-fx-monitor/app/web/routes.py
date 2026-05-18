@@ -28,6 +28,7 @@ from app.database.repository import (
     get_performance_stats,
     get_setting,
     save_approval,
+    save_backtest_results,
     save_demo_order,
     save_settings,
 )
@@ -478,11 +479,13 @@ async def backtest_page(
     window: int = 500,
     step: int = 24,
     future: int = 100,
+    save: bool = False,
 ):
     """バックテスト実行ページ。"""
     result = None
     error = None
     ran = False
+    saved_count = None
 
     if symbol and symbol in SUPPORTED_SYMBOLS:
         ran = True
@@ -492,6 +495,13 @@ async def backtest_page(
             logger.error("バックテストエラー: %s", exc)
             error = str(exc)
 
+    if ran and save and result:
+        try:
+            saved_count = save_backtest_results(result.trades, symbol)
+            logger.info("バックテスト結果をDBに保存: %d件 [%s]", saved_count, symbol)
+        except Exception as exc:
+            logger.error("バックテスト結果の保存エラー: %s", exc)
+
     return templates.TemplateResponse(
         "backtest.html",
         {
@@ -499,6 +509,7 @@ async def backtest_page(
             "result": result,
             "error": error,
             "ran": ran,
+            "saved_count": saved_count,
             "supported_symbols": SUPPORTED_SYMBOLS,
             "params": {"symbol": symbol, "window": window, "step": step, "future": future},
         },

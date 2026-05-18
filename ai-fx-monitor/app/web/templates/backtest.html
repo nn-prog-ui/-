@@ -224,6 +224,24 @@
       スプレッド・スリッページ・資金管理は考慮されていません。
     </div>
 
+    <!-- Phase 27: DBに保存 -->
+    <form method="GET" action="/backtest" style="margin-top:1rem;">
+      <input type="hidden" name="symbol" value="{{ params.symbol }}">
+      <input type="hidden" name="window" value="{{ params.window }}">
+      <input type="hidden" name="step" value="{{ params.step }}">
+      <input type="hidden" name="future" value="{{ params.future }}">
+      <input type="hidden" name="save" value="true">
+      <button type="submit" class="btn btn-skip" style="min-width:200px;">
+        結果をDBに保存（成績レポートに反映）
+      </button>
+    </form>
+
+    {% if saved_count %}
+    <div class="alert" style="background:rgba(74,222,128,0.1);border:1px solid #4ade80;border-radius:6px;padding:10px;margin-top:0.5rem;">
+      ✅ {{ saved_count }}件のシミュレーション結果をDBに保存しました。<a href="/report">レポートで確認 →</a>
+    </div>
+    {% endif %}
+
     {% elif ran %}
     <div class="card">
       <p class="empty-history">バックテストを実行できませんでした。通貨ペアを選択し直してください。</p>

@@ -35,6 +35,8 @@ from app.database.repository import (
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DATA_DIR, DEFAULT_SYMBOL, SUPPORTED_SYMBOLS, SYMBOL_CSV_MAP
 from app.data.loader import load_or_generate
+from app.indicators.bollinger_bands import calculate_bollinger_bands
+from app.indicators.moving_average import calculate_ma
 from app.scripts.backtest import run_backtest
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -646,7 +648,7 @@ async def api_chart_data(symbol: str = "", limit: int = 60):
 
 @router.get("/api/candles")
 async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60):
-    """1時間足OHLCデータをJSONで返す（ローソク足チャート描画用）。"""
+    """1時間足OHLCデータ＋MA20・MA50・BB をJSONで返す（Phase 30: チャート描画用）。"""
     if symbol not in SUPPORTED_SYMBOLS:
         symbol = DEFAULT_SYMBOL
     csv_name = SYMBOL_CSV_MAP.get(symbol, "USDJPY_1h.csv")
@@ -654,15 +656,39 @@ async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60):
     df, _ = load_or_generate(csv_path, symbol=symbol)
     if df.empty:
         return {"candles": [], "symbol": symbol, "count": 0}
+
+    # インジケーターはフル系列で計算してから最後の limit 本を切り出す
+    ma20_series = calculate_ma(df["close"], 20)
+    ma50_series = calculate_ma(df["close"], 50)
+    bb_df = calculate_bollinger_bands(df, period=20)
+
     df = df.tail(limit).copy()
+    ma20_series = ma20_series.iloc[-limit:]
+    ma50_series = ma50_series.iloc[-limit:]
+    bb_df = bb_df.iloc[-limit:]
+
+    def _val(v) -> float | None:
+        import math
+        if v is None:
+            return None
+        try:
+            f = float(v)
+            return None if math.isnan(f) else round(f, 3)
+        except (TypeError, ValueError):
+            return None
+
     candles = []
-    for ts, row in df.iterrows():
+    for i, (ts, row) in enumerate(df.iterrows()):
         candles.append({
             "t": str(ts)[:16],
             "o": round(float(row["open"]), 3),
             "h": round(float(row["high"]), 3),
             "l": round(float(row["low"]), 3),
             "c": round(float(row["close"]), 3),
+            "ma20": _val(ma20_series.iloc[i]),
+            "ma50": _val(ma50_series.iloc[i]),
+            "bb_upper": _val(bb_df["bb_upper"].iloc[i]),
+            "bb_lower": _val(bb_df["bb_lower"].iloc[i]),
         })
     return {"candles": candles, "symbol": symbol, "count": len(candles)}
 

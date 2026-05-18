@@ -451,7 +451,7 @@
     <p id="refresh-status" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></p>
   </footer>
 
-  <!-- Phase 28: ローソク足チャート描画 -->
+  <!-- Phase 28/30: ローソク足チャート描画（MA20・MA50・BB重ねプロット） -->
   <script>
   (function() {
     var symbol = (new URLSearchParams(location.search).get('symbol')) || 'USD/JPY';
@@ -464,9 +464,8 @@
     function drawCandles(candles) {
       var svg = document.getElementById('candle-svg');
       if (!svg) return;
-      var W = svg.viewBox && svg.viewBox.baseVal.width || 760;
-      var H = svg.viewBox && svg.viewBox.baseVal.height || 260;
-      var PAD = {top: 16, right: 16, bottom: 36, left: 60};
+      var W = 760, H = 260;
+      var PAD = {top: 16, right: 56, bottom: 36, left: 60};
       var cw = W - PAD.left - PAD.right;
       var ch = H - PAD.top - PAD.bottom;
 
@@ -475,16 +474,22 @@
         return;
       }
 
-      var highs = candles.map(function(c){return c.h;});
-      var lows  = candles.map(function(c){return c.l;});
-      var prices = [Math.max.apply(null, highs), Math.min.apply(null, lows)];
-      if (entryPrice  !== null) prices.push(entryPrice);
-      if (stopLoss    !== null) prices.push(stopLoss);
-      if (takeProfit  !== null) prices.push(takeProfit);
-      if (currentPrice !== null) prices.push(currentPrice);
+      // price range (include MA/BB and overlay lines)
+      var allPrices = [];
+      candles.forEach(function(c) {
+        allPrices.push(c.h, c.l);
+        if (c.ma20 != null) allPrices.push(c.ma20);
+        if (c.ma50 != null) allPrices.push(c.ma50);
+        if (c.bb_upper != null) allPrices.push(c.bb_upper);
+        if (c.bb_lower != null) allPrices.push(c.bb_lower);
+      });
+      if (entryPrice  !== null) allPrices.push(entryPrice);
+      if (stopLoss    !== null) allPrices.push(stopLoss);
+      if (takeProfit  !== null) allPrices.push(takeProfit);
+      if (currentPrice !== null) allPrices.push(currentPrice);
 
-      var maxP = Math.max.apply(null, prices);
-      var minP = Math.min.apply(null, prices);
+      var maxP = Math.max.apply(null, allPrices);
+      var minP = Math.min.apply(null, allPrices);
       var span = maxP - minP || 1;
       var padP = span * 0.06;
       maxP += padP; minP -= padP; span = maxP - minP;
@@ -494,10 +499,11 @@
       var n = candles.length;
       var candleW = Math.max(3, Math.floor(cw / n * 0.7));
       var step = cw / n;
+      function toX(i) { return PAD.left + step * i + step / 2; }
 
       var parts = [];
 
-      // Grid lines (4 horizontal)
+      // Grid lines
       for (var gi = 0; gi <= 4; gi++) {
         var gp = minP + (span / 4) * gi;
         var gy = toY(gp);
@@ -507,33 +513,56 @@
           gp.toFixed(3) + '</text>');
       }
 
+      // BB band (filled area between upper and lower)
+      var bbUpperPts = [], bbLowerPts = [];
+      candles.forEach(function(c, i) {
+        if (c.bb_upper != null && c.bb_lower != null) {
+          bbUpperPts.push(toX(i) + ',' + toY(c.bb_upper));
+          bbLowerPts.push(toX(i) + ',' + toY(c.bb_lower));
+        }
+      });
+      if (bbUpperPts.length > 1) {
+        var polyPts = bbUpperPts.concat(bbLowerPts.slice().reverse()).join(' ');
+        parts.push('<polygon points="' + polyPts + '" fill="rgba(99,179,237,0.08)" stroke="none"/>');
+        parts.push('<polyline points="' + bbUpperPts.join(' ') + '" fill="none" stroke="#63b3ed" stroke-width="1" opacity="0.5"/>');
+        parts.push('<polyline points="' + bbLowerPts.join(' ') + '" fill="none" stroke="#63b3ed" stroke-width="1" opacity="0.5"/>');
+      }
+
+      // MA50 (water blue)
+      var ma50Pts = [];
+      candles.forEach(function(c, i) { if (c.ma50 != null) ma50Pts.push(toX(i) + ',' + toY(c.ma50)); });
+      if (ma50Pts.length > 1)
+        parts.push('<polyline points="' + ma50Pts.join(' ') + '" fill="none" stroke="#38bdf8" stroke-width="1.5"/>');
+
+      // MA20 (orange)
+      var ma20Pts = [];
+      candles.forEach(function(c, i) { if (c.ma20 != null) ma20Pts.push(toX(i) + ',' + toY(c.ma20)); });
+      if (ma20Pts.length > 1)
+        parts.push('<polyline points="' + ma20Pts.join(' ') + '" fill="none" stroke="#fb923c" stroke-width="1.5"/>');
+
       // Candles
       for (var i = 0; i < n; i++) {
         var c = candles[i];
-        var x = PAD.left + step * i + step / 2;
+        var x = toX(i);
         var isUp = c.c >= c.o;
         var color = isUp ? '#4ade80' : '#f87171';
         var yH = toY(c.h), yL = toY(c.l);
         var yO = toY(c.o), yC = toY(c.c);
         var yTop = Math.min(yO, yC), yBot = Math.max(yO, yC);
         var bodyH = Math.max(1, yBot - yTop);
-        // wick
-        parts.push('<line x1="' + x + '" y1="' + yH + '" x2="' + x + '" y2="' + yL +
-          '" stroke="' + color + '" stroke-width="1"/>');
-        // body
-        parts.push('<rect x="' + (x - candleW/2) + '" y="' + yTop + '" width="' + candleW + '" height="' + bodyH +
-          '" fill="' + color + '" rx="1"/>');
+        parts.push('<line x1="' + x + '" y1="' + yH + '" x2="' + x + '" y2="' + yL + '" stroke="' + color + '" stroke-width="1"/>');
+        parts.push('<rect x="' + (x - candleW/2) + '" y="' + yTop + '" width="' + candleW + '" height="' + bodyH + '" fill="' + color + '" rx="1"/>');
       }
 
-      // X-axis date labels (every ~10 candles)
+      // X-axis labels
       var labelEvery = Math.max(1, Math.floor(n / 6));
       for (var li = 0; li < n; li += labelEvery) {
-        var lx = PAD.left + step * li + step / 2;
+        var lx = toX(li);
         var lbl = candles[li].t.slice(5, 13).replace('T', ' ');
         parts.push('<text x="' + lx + '" y="' + (H - 4) + '" text-anchor="middle" fill="#555" font-size="9">' + lbl + '</text>');
       }
 
-      // Horizontal price lines
+      // Horizontal overlay lines (EP/SL/TP/現在値)
       function hline(price, color, dash, label) {
         if (price === null || price === undefined) return;
         var ly = toY(price);
@@ -542,17 +571,27 @@
         parts.push('<text x="' + (PAD.left + cw + 2) + '" y="' + (ly + 4) + '" fill="' + color + '" font-size="9">' +
           label + ' ' + price.toFixed(3) + '</text>');
       }
-
       if (signal !== 'SKIP') {
-        hline(entryPrice,  '#facc15', '4 2', 'EP');
-        hline(stopLoss,    '#f87171', '3 2', 'SL');
-        hline(takeProfit,  '#4ade80', '3 2', 'TP');
+        hline(entryPrice, '#facc15', '4 2', 'EP');
+        hline(stopLoss,   '#f87171', '3 2', 'SL');
+        hline(takeProfit, '#4ade80', '3 2', 'TP');
       }
       hline(currentPrice, '#a78bfa', '2 2', '現在');
 
+      // Legend
+      var lx0 = PAD.left + 4, ly0 = PAD.top + 4;
+      [
+        ['#fb923c', 'MA20'],
+        ['#38bdf8', 'MA50'],
+        ['#63b3ed', 'BB±2σ'],
+      ].forEach(function(item, idx) {
+        var lx = lx0 + idx * 64;
+        parts.push('<line x1="' + lx + '" y1="' + (ly0+5) + '" x2="' + (lx+14) + '" y2="' + (ly0+5) + '" stroke="' + item[0] + '" stroke-width="2"/>');
+        parts.push('<text x="' + (lx+17) + '" y="' + (ly0+9) + '" fill="#999" font-size="9">' + item[1] + '</text>');
+      });
+
       // Border
-      parts.push('<rect x="' + PAD.left + '" y="' + PAD.top + '" width="' + cw + '" height="' + ch +
-        '" fill="none" stroke="#1e2040" stroke-width="1"/>');
+      parts.push('<rect x="' + PAD.left + '" y="' + PAD.top + '" width="' + cw + '" height="' + ch + '" fill="none" stroke="#1e2040" stroke-width="1"/>');
 
       svg.innerHTML = parts.join('');
     }

@@ -1,4 +1,4 @@
-"""Phase 28: /api/candles エンドポイントのテスト"""
+"""Phase 28/30: /api/candles エンドポイントのテスト（MA20・MA50・BB追加対応）"""
 from __future__ import annotations
 
 from unittest.mock import patch
@@ -91,3 +91,51 @@ class TestCandlesApiBasic:
             data = client.get("/api/candles?symbol=USD/JPY&limit=10").json()
         assert data["candles"] == []
         assert data["count"] == 0
+
+
+class TestCandlesApiIndicators:
+    """Phase 30: MA20・MA50・BB フィールドのテスト"""
+
+    def test_candle_has_indicator_fields(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=80), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=50").json()
+        for c in data["candles"]:
+            assert "ma20" in c
+            assert "ma50" in c
+            assert "bb_upper" in c
+            assert "bb_lower" in c
+
+    def test_ma20_present_when_enough_data(self, client):
+        """80本データの後半50本では MA20 が null でない。"""
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=80), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=50").json()
+        # 後半ならMA20が計算できている
+        non_null = [c["ma20"] for c in data["candles"] if c["ma20"] is not None]
+        assert len(non_null) > 0
+
+    def test_ma50_present_when_enough_data(self, client):
+        """110本データの後半50本では MA50 が null でない。"""
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=110), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=50").json()
+        non_null = [c["ma50"] for c in data["candles"] if c["ma50"] is not None]
+        assert len(non_null) > 0
+
+    def test_bb_upper_gte_lower(self, client):
+        """BB 上限 >= 下限 は常に成立する。"""
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=80), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=50").json()
+        for c in data["candles"]:
+            if c["bb_upper"] is not None and c["bb_lower"] is not None:
+                assert c["bb_upper"] >= c["bb_lower"]
+
+    def test_ma20_is_float_or_none(self, client):
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=80), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=50").json()
+        for c in data["candles"]:
+            assert c["ma20"] is None or isinstance(c["ma20"], float)
+
+    def test_insufficient_data_returns_null_ma(self, client):
+        """データ本数 < 20 なら MA20 はすべて null。"""
+        with patch("app.web.routes.load_or_generate", return_value=(_make_df(n=15), False)):
+            data = client.get("/api/candles?symbol=USD/JPY&limit=15").json()
+        assert all(c["ma20"] is None for c in data["candles"])

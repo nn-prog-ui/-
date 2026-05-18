@@ -573,6 +573,77 @@
   })();
   </script>
 
+  <!-- Phase 29: ブラウザ通知 -->
+  <script>
+  (function() {
+    var POLL_MS = 60000; // 1分ごとにシグナルをポーリング
+    var STORE_KEY = 'fx_last_signals';
+
+    function loadStored() {
+      try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch(e) { return {}; }
+    }
+    function saveStored(obj) {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(obj)); } catch(e) {}
+    }
+
+    function requestPermission() {
+      if (!('Notification' in window)) return;
+      if (Notification.permission === 'default') {
+        Notification.requestPermission();
+      }
+    }
+
+    function notify(symbol, signal, score) {
+      if (!('Notification' in window) || Notification.permission !== 'granted') return;
+      var emoji = signal === 'BUY' ? '📈' : '📉';
+      var label = signal === 'BUY' ? '買い候補' : '売り候補';
+      var scoreStr = score != null ? '  スコア: ' + (score > 0 ? '+' : '') + score : '';
+      new Notification(emoji + ' ' + symbol + ' — ' + label + scoreStr, {
+        body: 'AI FX監視システムがシグナルを検出しました。\nクリックして確認してください。',
+        icon: '/static/favicon.ico',
+        tag: 'fx-signal-' + symbol,
+        renotify: true,
+      });
+    }
+
+    function checkSignals() {
+      fetch('/api/all-signals')
+        .then(function(r) { return r.json(); })
+        .then(function(d) {
+          var stored = loadStored();
+          var updated = false;
+          (d.signals || []).forEach(function(item) {
+            var prev = stored[item.symbol];
+            var cur = item.signal;
+            // 前回 SKIP/NONE → 今回 BUY/SELL に変化したときのみ通知
+            if ((cur === 'BUY' || cur === 'SELL') && prev !== cur) {
+              notify(item.symbol, cur, item.score);
+            }
+            if (prev !== cur) {
+              stored[item.symbol] = cur;
+              updated = true;
+            }
+          });
+          if (updated) saveStored(stored);
+        })
+        .catch(function() {});
+    }
+
+    requestPermission();
+    // 初回はページロード直後（すでに分析済みなので通知不要、保存のみ）
+    fetch('/api/all-signals')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        var stored = loadStored();
+        (d.signals || []).forEach(function(item) { stored[item.symbol] = item.signal; });
+        saveStored(stored);
+      })
+      .catch(function() {});
+    // 以降はポーリング
+    setInterval(checkSignals, POLL_MS);
+  })();
+  </script>
+
   <!-- Phase 25: 自動リフレッシュ -->
   <script>
   (function() {

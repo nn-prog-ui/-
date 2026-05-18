@@ -46,16 +46,24 @@ templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # 分析結果をリクエスト間で一時保持（本番ではRedisや引数渡しに変更）
 _last_result: AnalysisResult | None = None
+# 通貨ペアごとの最新シグナルを保持（Phase 29: ブラウザ通知用）
+_signal_cache: dict[str, dict] = {}
 
 
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
-    global _last_result
+    global _last_result, _signal_cache
     if symbol not in SUPPORTED_SYMBOLS:
         symbol = DEFAULT_SYMBOL
     try:
         result = run_analysis(symbol=symbol)
         _last_result = result
+        _signal_cache[symbol] = {
+            "signal": result.signal,
+            "score": result.score,
+            "current_price": result.current_price,
+            "analyzed_at": result.analyzed_at.isoformat(),
+        }
         try:
             notify_analysis_result(result)
         except Exception as exc:
@@ -657,3 +665,35 @@ async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60):
             "c": round(float(row["close"]), 3),
         })
     return {"candles": candles, "symbol": symbol, "count": len(candles)}
+
+
+# ============================================================
+# Phase 29: ブラウザ通知用シグナルAPI
+# ============================================================
+
+@router.get("/api/latest-signal")
+async def api_latest_signal(symbol: str = DEFAULT_SYMBOL):
+    """最新のシグナル情報をJSONで返す（ブラウザ通知ポーリング用）。
+
+    _signal_cache に値がない場合は signal="NONE" を返す。
+    ブラウザ側で前回値と比較し、BUY/SELL への変化時に通知を出す。
+    """
+    if symbol not in SUPPORTED_SYMBOLS:
+        symbol = DEFAULT_SYMBOL
+    cached = _signal_cache.get(symbol)
+    if cached is None:
+        return {"symbol": symbol, "signal": "NONE", "score": None, "current_price": None, "analyzed_at": None}
+    return {"symbol": symbol, **cached}
+
+
+@router.get("/api/all-signals")
+async def api_all_signals():
+    """全サポート通貨ペアの最新シグナルを一括返却する（ダッシュボード通知用）。"""
+    result = []
+    for sym in SUPPORTED_SYMBOLS:
+        cached = _signal_cache.get(sym)
+        if cached:
+            result.append({"symbol": sym, **cached})
+        else:
+            result.append({"symbol": sym, "signal": "NONE", "score": None, "current_price": None, "analyzed_at": None})
+    return {"signals": result}

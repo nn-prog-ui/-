@@ -118,6 +118,22 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 41：Web Push通知（2026-05-18）
+
+- `app/database/models.py`：`CREATE_PUSH_SUBSCRIPTIONS_TABLE` 追加
+- `app/database/db.py`：`init_db()` に追加
+- `app/database/repository.py`：
+  - `save_push_subscription / delete_push_subscription / get_push_subscriptions / count_push_subscriptions` 追加
+  - `get_or_create_vapid_keys` 追加（`set_setting` を直接呼ぶよう修正、`save_settings` は `_SETTINGS_DEFAULTS` 外を無視するバグを回避）
+- `app/services/push_sender.py`：新規作成（VAPID EC P-256 / ES256 JWT / httpx 非同期 push / `send_push_to_all`）
+- `app/web/routes.py`：`/api/push/*` 4ルート追加 + index で BUY/SELL 時に `asyncio.create_task`
+- `app/web/static/sw.js`：push / notificationclick ハンドラ追加
+- `app/web/templates/settings.html`：プッシュ通知 UI 追加（JS で購読/解除/テスト）
+- `cffi` パッケージを `pip install` して `cryptography` の `_cffi_backend` エラーを解消
+- `tests/test_push.py`：テスト34件新規作成（全578テスト通過）
+
+---
+
 ### Phase 40：PWA対応（2026-05-18）
 
 - `create_icons.py` — stdlib (struct / zlib) のみで PNG アイコンを生成するスクリプトを新規作成・実行

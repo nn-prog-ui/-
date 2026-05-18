@@ -55,6 +55,11 @@ from app.database.repository import (
     count_economic_events,
     get_upcoming_warning_events,
     has_upcoming_warning,
+    save_push_subscription,
+    delete_push_subscription,
+    get_push_subscriptions,
+    count_push_subscriptions,
+    get_or_create_vapid_keys,
 )
 from app.services.demo_order import DemoOrderError, DemoOrderAdapter, is_demo_order_available
 from app.config import DATA_DIR, DEFAULT_SYMBOL, SUPPORTED_SYMBOLS, SYMBOL_CSV_MAP
@@ -102,6 +107,14 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
                 check_and_close_open_trades(result.current_price, result.symbol)
         except Exception as exc:
             logger.warning("オープン取引チェックエラー（分析は継続）: %s", exc)
+        # Phase 41: BUY/SELL シグナル時に Web Push 送信
+        if result.signal in ("BUY", "SELL") and count_push_subscriptions() > 0:
+            try:
+                import asyncio
+                from app.services.push_sender import send_push_to_all
+                asyncio.create_task(send_push_to_all())
+            except Exception as exc:
+                logger.warning("Web Push 送信エラー（分析は継続）: %s", exc)
     except Exception as exc:
         logger.error("分析エラー: %s", exc)
         return templates.TemplateResponse(
@@ -1177,3 +1190,59 @@ async def api_upcoming_events(hours: int = 24):
     """直近 hours 時間以内の HIGH/MEDIUM イベントをJSONで返す。"""
     events = get_upcoming_warning_events(window_hours=hours)
     return {"events": events, "count": len(events), "has_warning": len(events) > 0}
+
+
+# ============================================================
+# Phase 41: Web Push 通知 API
+# ============================================================
+
+@router.get("/api/push/vapid-public-key")
+async def api_vapid_public_key():
+    """VAPID 公開鍵（base64url）を返す。ブラウザの pushManager.subscribe() で使用する。"""
+    pub, _ = get_or_create_vapid_keys()
+    return {"publicKey": pub}
+
+
+@router.post("/api/push/subscribe")
+async def api_push_subscribe(request: Request):
+    """Push 購読情報を保存する。
+
+    ボディ: {"endpoint": "...", "keys": {"p256dh": "...", "auth": "..."}}
+    """
+    try:
+        body = await request.json()
+        endpoint = body["endpoint"]
+        keys = body.get("keys", {})
+        p256dh = keys.get("p256dh", "")
+        auth = keys.get("auth", "")
+        user_agent = request.headers.get("user-agent", "")[:200]
+        if not endpoint or not p256dh or not auth:
+            return {"ok": False, "error": "endpoint / p256dh / auth は必須です"}
+        sub_id = save_push_subscription(endpoint, p256dh, auth, user_agent)
+        return {"ok": True, "id": sub_id}
+    except Exception as exc:
+        logger.warning("Push subscribe error: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/push/unsubscribe")
+async def api_push_unsubscribe(request: Request):
+    """Push 購読情報を削除する。ボディ: {"endpoint": "..."}"""
+    try:
+        body = await request.json()
+        endpoint = body.get("endpoint", "")
+        deleted = delete_push_subscription(endpoint)
+        return {"ok": True, "deleted": deleted}
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/api/push/test")
+async def api_push_test():
+    """全購読者にテスト通知を送信する。"""
+    from app.services.push_sender import send_push_to_all
+    subs = get_push_subscriptions()
+    if not subs:
+        return {"ok": False, "sent": 0, "error": "購読者が0件です"}
+    result = await send_push_to_all()
+    return {"ok": True, **result, "total": len(subs)}

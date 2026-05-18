@@ -13,6 +13,7 @@ from app.database.models import (
     CREATE_DEMO_ORDERS_TABLE,
     CREATE_ECONOMIC_EVENTS_TABLE,
     CREATE_PRICE_TRACKING_TABLE,
+    CREATE_PUSH_SUBSCRIPTIONS_TABLE,
     CREATE_TRADE_JOURNAL_TABLE,
     MIGRATE_ADD_DEMO_ORDER_PNL_COLUMNS,
     MIGRATE_ADD_OUTCOME_COLUMNS,
@@ -30,7 +31,8 @@ def init_db(db_path: Path | None = None) -> None:
         conn.execute(CREATE_APP_SETTINGS_TABLE)  # Phase 22
         conn.execute(CREATE_ALERTS_TABLE)          # Phase 33
         conn.execute(CREATE_TRADE_JOURNAL_TABLE)   # Phase 34
-        conn.execute(CREATE_ECONOMIC_EVENTS_TABLE) # Phase 39
+        conn.execute(CREATE_ECONOMIC_EVENTS_TABLE)    # Phase 39
+        conn.execute(CREATE_PUSH_SUBSCRIPTIONS_TABLE) # Phase 41
         # Phase 10 migration: outcome列などを追加（既存列は無視）
         for sql in MIGRATE_ADD_OUTCOME_COLUMNS:
             try:

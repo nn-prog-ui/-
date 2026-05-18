@@ -96,3 +96,45 @@ self.addEventListener('fetch', (event) => {
       )
   );
 });
+
+// ── Phase 41: Web Push ────────────────────────────────────────
+self.addEventListener('push', (event) => {
+  let title = 'AI FX市場監視';
+  let body  = '新しいシグナルがあります。タップして確認してください。';
+  let url   = '/';
+
+  if (event.data) {
+    try {
+      const d = event.data.json();
+      if (d.title) title = d.title;
+      if (d.body)  body  = d.body;
+      if (d.url)   url   = d.url;
+    } catch (_) {}
+  }
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon:  '/static/icons/icon-192.png',
+      badge: '/static/icons/icon-192.png',
+      data:  { url },
+      vibrate: [200, 100, 200],
+    })
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.url) || '/';
+  event.waitUntil(
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((cs) => {
+      const existing = cs.find((c) => c.url.includes(self.location.origin));
+      if (existing) {
+        existing.focus();
+        existing.navigate(target);
+      } else {
+        clients.openWindow(target);
+      }
+    })
+  );
+});

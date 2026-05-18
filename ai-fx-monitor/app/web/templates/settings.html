@@ -164,7 +164,161 @@
       </div>
     </section>
 
+    <!-- Phase 41: Web Push 通知設定 -->
+    <section class="card">
+      <h2 class="card-title">プッシュ通知（PWA）</h2>
+      <p class="history-note" style="margin-bottom:12px;">
+        スマートフォンやPCにホーム追加（PWA）した場合、プッシュ通知でシグナルを受け取れます。
+        ブラウザの通知許可が必要です。
+      </p>
+
+      <div style="display:flex;flex-direction:column;gap:12px;max-width:480px;">
+        <div style="display:flex;gap:10px;align-items:center;">
+          <button id="push-enable-btn" class="btn-approve" style="padding:6px 18px;font-size:0.85rem;">
+            通知を有効にする
+          </button>
+          <button id="push-disable-btn" class="btn-secondary" style="padding:6px 18px;font-size:0.85rem;display:none;">
+            通知を無効にする
+          </button>
+          <span id="push-status" style="color:var(--text-muted);font-size:0.82rem;"></span>
+        </div>
+        <div>
+          <button id="push-test-btn" class="btn-secondary" style="padding:5px 14px;font-size:0.82rem;" disabled>
+            テスト通知を送信
+          </button>
+          <span id="push-test-result" style="margin-left:8px;font-size:0.82rem;color:var(--text-muted);"></span>
+        </div>
+        <p class="history-note" style="font-size:0.8rem;margin:0;">
+          通知は BUY / SELL シグナル検出時に自動送信されます。
+          ブラウザを閉じた状態でも Service Worker が動作していれば受信できます。
+        </p>
+      </div>
+    </section>
+
   </main>
+
+  <script>
+  // ── Push 通知設定 ─────────────────────────────────────────
+  (async () => {
+    const enableBtn  = document.getElementById('push-enable-btn');
+    const disableBtn = document.getElementById('push-disable-btn');
+    const testBtn    = document.getElementById('push-test-btn');
+    const statusEl   = document.getElementById('push-status');
+    const testResult = document.getElementById('push-test-result');
+
+    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      statusEl.textContent = 'このブラウザは Web Push に非対応です。';
+      enableBtn.disabled = true;
+      return;
+    }
+
+    function urlB64ToUint8(b64) {
+      const pad = '='.repeat((4 - b64.length % 4) % 4);
+      const raw = atob((b64 + pad).replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+    }
+
+    async function getVapidKey() {
+      const res = await fetch('/api/push/vapid-public-key');
+      const data = await res.json();
+      return data.publicKey;
+    }
+
+    async function subscribe() {
+      const reg = await navigator.serviceWorker.ready;
+      const vapidKey = await getVapidKey();
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8(vapidKey),
+      });
+      const json = sub.toJSON();
+      const res = await fetch('/api/push/subscribe', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(json),
+      });
+      return await res.json();
+    }
+
+    async function unsubscribe() {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      if (sub) {
+        await fetch('/api/push/unsubscribe', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ endpoint: sub.endpoint }),
+        });
+        await sub.unsubscribe();
+      }
+    }
+
+    async function updateUI() {
+      const reg = await navigator.serviceWorker.ready;
+      const sub = await reg.pushManager.getSubscription();
+      const perm = Notification.permission;
+      if (sub && perm === 'granted') {
+        enableBtn.style.display = 'none';
+        disableBtn.style.display = '';
+        testBtn.disabled = false;
+        statusEl.textContent = '通知有効 (' + Notification.permission + ')';
+      } else {
+        enableBtn.style.display = '';
+        disableBtn.style.display = 'none';
+        testBtn.disabled = true;
+        statusEl.textContent = perm === 'denied' ? '通知がブロックされています（ブラウザ設定を確認してください）' : '通知無効';
+      }
+    }
+
+    enableBtn.addEventListener('click', async () => {
+      enableBtn.disabled = true;
+      statusEl.textContent = '許可をリクエスト中...';
+      try {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') {
+          statusEl.textContent = '通知が拒否されました。';
+          enableBtn.disabled = false;
+          return;
+        }
+        const result = await subscribe();
+        if (result.ok) {
+          statusEl.textContent = '通知を有効にしました。';
+        } else {
+          statusEl.textContent = 'エラー: ' + (result.error || '不明');
+        }
+      } catch (e) {
+        statusEl.textContent = 'エラー: ' + e.message;
+      } finally {
+        enableBtn.disabled = false;
+        await updateUI();
+      }
+    });
+
+    disableBtn.addEventListener('click', async () => {
+      await unsubscribe();
+      statusEl.textContent = '通知を無効にしました。';
+      await updateUI();
+    });
+
+    testBtn.addEventListener('click', async () => {
+      testBtn.disabled = true;
+      testResult.textContent = '送信中...';
+      try {
+        const res = await fetch('/api/push/test', { method: 'POST' });
+        const data = await res.json();
+        testResult.textContent = data.ok
+          ? `送信完了 (${data.sent}/${data.total} 件成功)`
+          : 'エラー: ' + (data.error || '不明');
+      } catch (e) {
+        testResult.textContent = 'エラー: ' + e.message;
+      } finally {
+        testBtn.disabled = false;
+      }
+    });
+
+    await updateUI();
+  })();
+  </script>
 
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>

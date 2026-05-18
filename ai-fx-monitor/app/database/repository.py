@@ -1276,3 +1276,73 @@ def has_upcoming_warning(
 ) -> bool:
     """window_hours 以内に HIGH/MEDIUM イベントがあれば True を返す。"""
     return len(get_upcoming_warning_events(window_hours=window_hours, db_path=db_path)) > 0
+
+
+# ---------------------------------------------------------------------------
+# Phase 41: Web Push 購読情報 CRUD + VAPID 鍵管理
+# ---------------------------------------------------------------------------
+
+def save_push_subscription(
+    endpoint: str,
+    p256dh: str,
+    auth: str,
+    user_agent: str = "",
+    db_path: Path | None = None,
+) -> int:
+    """Push 購読情報を保存して ID を返す（endpoint 重複時は更新）。"""
+    now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            """
+            INSERT INTO push_subscriptions (created_at, endpoint, p256dh, auth, user_agent)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(endpoint) DO UPDATE SET
+                p256dh=excluded.p256dh,
+                auth=excluded.auth,
+                user_agent=excluded.user_agent
+            """,
+            (now, endpoint, p256dh, auth, user_agent),
+        )
+    return cur.lastrowid
+
+
+def delete_push_subscription(endpoint: str, db_path: Path | None = None) -> bool:
+    """Push 購読情報を削除して True を返す（存在しない場合は False）。"""
+    with get_db(db_path) as conn:
+        cur = conn.execute(
+            "DELETE FROM push_subscriptions WHERE endpoint = ?", (endpoint,)
+        )
+    return cur.rowcount > 0
+
+
+def get_push_subscriptions(db_path: Path | None = None) -> list[dict]:
+    """全購読情報を返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM push_subscriptions ORDER BY created_at DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def count_push_subscriptions(db_path: Path | None = None) -> int:
+    """購読件数を返す。"""
+    with get_db(db_path) as conn:
+        row = conn.execute("SELECT COUNT(*) FROM push_subscriptions").fetchone()
+    return row[0] if row else 0
+
+
+def get_or_create_vapid_keys(db_path: Path | None = None) -> tuple[str, str]:
+    """VAPID 鍵ペアを取得または生成して (public_b64url, private_pem) で返す。
+
+    save_settings は _SETTINGS_DEFAULTS にないキーを無視するため、
+    set_setting を直接呼び出す。
+    """
+    pub = get_setting("vapid_public_key", db_path=db_path)
+    priv = get_setting("vapid_private_key_pem", db_path=db_path)
+    if pub and priv:
+        return pub, priv
+    from app.services.push_sender import generate_vapid_keys
+    pub, priv = generate_vapid_keys()
+    set_setting("vapid_public_key", pub, db_path=db_path)
+    set_setting("vapid_private_key_pem", priv, db_path=db_path)
+    return pub, priv

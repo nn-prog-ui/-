@@ -276,6 +276,22 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 41：Web Push通知 ✅
+
+- [x] `app/database/models.py` — `push_subscriptions` テーブル追加（endpoint UNIQUE）
+- [x] `app/database/db.py` — `init_db()` にテーブル作成追加
+- [x] `app/database/repository.py` — Push CRUD 4関数 + `get_or_create_vapid_keys` 追加
+  - `save_push_subscription` / `delete_push_subscription` / `get_push_subscriptions` / `count_push_subscriptions`
+  - `get_or_create_vapid_keys` — `set_setting()` を直接呼んで永続化
+- [x] `app/services/push_sender.py` — VAPID EC P-256 鍵生成・JWT 署名・httpx 非同期送信
+  - `generate_vapid_keys` / `make_vapid_jwt` / `send_push_notification` / `send_push_to_all`
+- [x] `app/web/routes.py` — Push API 4ルート追加 + index で BUY/SELL 時に `asyncio.create_task`
+  - `GET /api/push/vapid-public-key` / `POST /api/push/subscribe` / `POST /api/push/unsubscribe` / `POST /api/push/test`
+- [x] `app/web/static/sw.js` — `push` / `notificationclick` ハンドラ追加
+- [x] `app/web/templates/settings.html` — プッシュ通知セクション追加（有効化・無効化・テスト送信ボタン）
+- [x] `cffi` パッケージを `pip install` して `cryptography` の Rust パニックを解消
+- [x] テスト34件（全578テスト通過）
+
 ### Phase 40：PWA対応 ✅
 
 - [x] `app/web/static/manifest.json` — name / short_name / start_url / display / icons / shortcuts 設定

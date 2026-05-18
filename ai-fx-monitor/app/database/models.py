@@ -137,3 +137,15 @@ CREATE TABLE IF NOT EXISTS economic_events (
     note        TEXT
 );
 """
+
+# Phase 41: Web Push 購読情報
+CREATE_PUSH_SUBSCRIPTIONS_TABLE = """
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at  TEXT NOT NULL,
+    endpoint    TEXT NOT NULL UNIQUE,
+    p256dh      TEXT NOT NULL,
+    auth        TEXT NOT NULL,
+    user_agent  TEXT
+);
+"""

@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#1a1a2e">
   <title>AI FX市場監視 - 承認履歴</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 </head>
 <body>
   <header class="app-header">
@@ -256,6 +262,14 @@
     if (hid) {
       const el = document.querySelector('.history-card[data-id="' + hid + '"]');
       if (el) { el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline='2px solid #4ade80'; }
+    }
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
     }
   </script>
 </body>

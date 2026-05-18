@@ -276,6 +276,16 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 40：PWA対応 ✅
+
+- [x] `app/web/static/manifest.json` — name / short_name / start_url / display / icons / shortcuts 設定
+- [x] `app/web/static/sw.js` — Service Worker（Static Cache First / HTML Network First / API Network Only）
+- [x] `create_icons.py` — stdlib のみで 192×192 / 512×512 PNG アイコンを生成するスクリプト
+- [x] `app/web/static/icons/icon-192.png` / `icon-512.png` — チャートモチーフの PNG アイコン
+- [x] 全14テンプレートの `<head>` に manifest リンク・Apple 対応 meta・apple-touch-icon 追加
+- [x] 全14テンプレートの `</body>` 直前に SW 登録スクリプト追加
+- [x] テスト87件（全544テスト通過）
+
 ### Phase 39：経済指標カレンダー ✅
 
 - [x] `economic_events` DB テーブル（id / event_dt / currency / importance / event_name / note）

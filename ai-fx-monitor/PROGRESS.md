@@ -118,6 +118,20 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 40：PWA対応（2026-05-18）
+
+- `create_icons.py` — stdlib (struct / zlib) のみで PNG アイコンを生成するスクリプトを新規作成・実行
+  - 背景 #1a1a2e（ダーク紺）、折れ線チャートモチーフ（緑 #4ade80）
+- `app/web/static/icons/icon-192.png` / `icon-512.png` — 生成済みアイコンを配置
+- `app/web/static/manifest.json` — PWA 必須フィールドすべて含む（shortcuts 3件）
+- `app/web/static/sw.js` — 3戦略で FetchEvent を処理（Static Cache First / HTML Network First / API Network Only）
+- 全14テンプレート：`<head>` に `<link rel="manifest">` と Apple 関連 meta を追加
+- 全14テンプレート：`</body>` 直前に `navigator.serviceWorker.register` スクリプトを追加
+- `tests/test_pwa.py` — テスト87件新規作成（全544テスト通過）
+  - ファイル存在確認・PNG バリデーション・manifest フィールド検証・SW 内容確認・テンプレートチェック・HTTP配信確認
+
+---
+
 ### Phase 39：経済指標カレンダー（2026-05-18）
 
 - `app/database/models.py`：`CREATE_ECONOMIC_EVENTS_TABLE` 追加

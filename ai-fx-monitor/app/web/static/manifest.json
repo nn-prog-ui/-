@@ -1,0 +1,45 @@
+{
+  "name": "AI FX市場監視システム",
+  "short_name": "FX監視",
+  "description": "AI搭載FX市場シグナル監視・分析ツール（自動注文なし）",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#1a1a2e",
+  "theme_color": "#1a1a2e",
+  "lang": "ja",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "判定画面",
+      "short_name": "判定",
+      "url": "/",
+      "description": "市場シグナルを確認"
+    },
+    {
+      "name": "ダッシュボード",
+      "short_name": "ダッシュ",
+      "url": "/dashboard",
+      "description": "全ペアを一覧表示"
+    },
+    {
+      "name": "成績",
+      "short_name": "成績",
+      "url": "/performance",
+      "description": "トレード成績を確認"
+    }
+  ]
+}

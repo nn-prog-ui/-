@@ -6,6 +6,12 @@
   <meta name="theme-color" content="#1a1a2e">
   <title>AI FX市場監視 - 成績・統計</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
 </head>
 <body>
   <header class="app-header">
@@ -354,6 +360,14 @@
       .then(d => drawChart(d.trades))
       .catch(() => { status.textContent = 'チャートデータの読み込みに失敗しました'; });
   })();
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
   </script>
 </body>
 </html>

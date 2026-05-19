@@ -87,6 +87,12 @@ from app.scripts.sensitivity import (
     DEFAULT_STEPS,
     run_sensitivity,
 )
+from app.scripts.heatmap_calendar import (
+    VALID_METRICS as HEATMAP_VALID_METRICS,
+    WEEKDAY_LABELS,
+    build_heatmap,
+    get_heatmap_rows,
+)
 from app.scripts.optimizer import VALID_METRICS, optimize
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
@@ -1527,5 +1533,67 @@ async def api_sensitivity(
         "cells": cells_data,
         "base_win_rate": result.base_win_rate,
         "base_total_pips": result.base_total_pips,
+        "assessment": result.assessment,
+    }
+
+
+@router.get("/api/heatmap-calendar")
+async def api_heatmap_calendar(
+    symbol: str = "",
+    metric: str = "win_rate",
+    data_source: str = "all",
+):
+    """曜日×時間帯ヒートマップを JSON で返す。
+
+    注文は発生しない。集計・可視化のみ。
+    """
+    # symbol バリデーション（空文字は全通貨ペア）
+    sym: str | None = None
+    if symbol:
+        if symbol not in SUPPORTED_SYMBOLS:
+            return {"ok": False, "error": f"未対応シンボル: {symbol}"}
+        sym = symbol
+
+    if metric not in HEATMAP_VALID_METRICS:
+        return {"ok": False, "error": f"未対応metric: {metric}。有効値: {sorted(HEATMAP_VALID_METRICS)}"}
+
+    is_simulation: bool | None = None
+    if data_source == "simulation":
+        is_simulation = True
+    elif data_source == "real":
+        is_simulation = False
+
+    try:
+        rows = get_heatmap_rows(symbol=sym, is_simulation=is_simulation)
+        result = build_heatmap(rows, metric=metric, symbol=sym)
+    except Exception as exc:
+        logger.error("ヒートマップ生成エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    cells_data = [
+        [
+            {
+                "weekday": c.weekday,
+                "hour": c.hour,
+                "trades": c.trades,
+                "wins": c.wins,
+                "losses": c.losses,
+                "win_rate": c.win_rate,
+                "total_pips": c.total_pips,
+                "avg_pips": c.avg_pips,
+            }
+            for c in row
+        ]
+        for row in result.cells
+    ]
+
+    return {
+        "ok": True,
+        "symbol": result.symbol,
+        "metric": result.metric,
+        "weekday_labels": WEEKDAY_LABELS,
+        "cells": cells_data,
+        "total_trades": result.total_trades,
+        "overall_win_rate": result.overall_win_rate,
         "assessment": result.assessment,
     }

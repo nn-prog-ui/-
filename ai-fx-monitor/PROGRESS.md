@@ -118,6 +118,21 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 45：ヒートマップカレンダー（2026-05-19）
+
+- `app/scripts/heatmap_calendar.py`：新規作成
+  - `HeatmapCell` dataclass（weekday, hour, trades, wins, losses, win_rate, total_pips, avg_pips）
+  - `HeatmapResult` dataclass（7×24 セルマトリクス、総取引数、全体勝率、評価テキスト）
+  - `get_heatmap_rows()` — approval_history から closed 取引を取得（symbol・is_simulation フィルタ対応）
+  - `build_heatmap()` — 7×24 ヒートマップを構築し勝率・損益を集計
+  - `_assess()` — 最良/最悪の曜日×時間帯を日本語テキストで評価
+  - `_parse_created_at()` — "YYYY-MM-DD HH:MM:SS" / ISO形式対応のパーサー
+- `app/web/routes.py`：`GET /api/heatmap-calendar` エンドポイント追加（symbol・metric・data_source フィルタ）
+- `app/web/templates/backtest.html`：ヒートマップカレンダーセクション追加（インタラクティブUI + カラースケール凡例）
+- `tests/test_heatmap_calendar.py`：テスト48件新規作成（全748テスト通過）
+
+---
+
 ### Phase 44：パラメータ感度分析（2026-05-19）
 
 - `app/scripts/sensitivity.py`：新規作成

@@ -276,6 +276,18 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 45：ヒートマップカレンダー ✅
+
+- [x] `app/scripts/heatmap_calendar.py` — ヒートマップ集計エンジン
+  - `HeatmapCell` dataclass（weekday/hour/trades/wins/losses/win_rate/total_pips/avg_pips）
+  - `HeatmapResult` dataclass（7×24 セルマトリクス・全体勝率・評価テキスト）
+  - `get_heatmap_rows()` — approval_history から closed 取引を取得
+  - `build_heatmap()` — 曜日×時間帯の7×24ヒートマップを構築
+  - `_assess()` — 最良/最悪の時間帯を日本語評価テキストで返す
+- [x] `app/web/routes.py` — `GET /api/heatmap-calendar` エンドポイント追加
+- [x] `app/web/templates/backtest.html` — ヒートマップカレンダーUIセクション追加
+- [x] `tests/test_heatmap_calendar.py` — テスト48件（全748テスト通過）
+
 ### Phase 44：パラメータ感度分析 ✅
 
 - [x] `app/scripts/sensitivity.py` — 感度分析エンジン

@@ -589,6 +589,74 @@
 
     </div>
 
+  <!-- Phase 45: ヒートマップカレンダー -->
+  <section class="card" style="margin-top:2rem;">
+    <h2 class="card-title">ヒートマップカレンダー（曜日 × 時間帯）</h2>
+    <p style="color:#888; margin-bottom:1rem;">取引履歴を曜日・時間帯別に集計し、勝率・損益のパターンを可視化します。</p>
+    <div class="indicators-grid" style="gap:0.75rem; margin-bottom:1rem;">
+      <div>
+        <label class="form-label">通貨ペア</label>
+        <select id="hm-symbol" class="symbol-select">
+          <option value="">全ペア</option>
+          {% for s in supported_symbols %}
+          <option value="{{ s }}">{{ s }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label">指標</label>
+        <select id="hm-metric" class="symbol-select">
+          <option value="win_rate">勝率 (%)</option>
+          <option value="total_pips">合計損益 (pips)</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label">データソース</label>
+        <select id="hm-data-source" class="symbol-select">
+          <option value="all">全データ</option>
+          <option value="simulation">シミュレーションのみ</option>
+          <option value="real">実データのみ</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:flex-end;">
+        <button id="hm-run-btn" class="btn btn-buy" style="min-width:140px;" onclick="runHeatmap()">
+          ヒートマップ生成
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <div id="hm-loading" style="display:none;" class="card">
+    <p style="color:#888; text-align:center;">集計中...</p>
+  </div>
+  <div id="hm-error" style="display:none;" class="alert alert-error"></div>
+
+  <div id="hm-result" style="display:none;">
+    <section class="card">
+      <h3 class="card-title">評価</h3>
+      <div id="hm-assessment" style="font-size:1.05rem; line-height:1.7;"></div>
+      <div style="margin-top:0.5rem; color:#666;" id="hm-summary"></div>
+    </section>
+
+    <section class="card" style="overflow-x:auto; margin-top:1rem;">
+      <h3 class="card-title">ヒートマップ（曜日 × 時間帯）</h3>
+      <div id="hm-legend" style="display:flex; gap:0.5rem; align-items:center; margin-bottom:0.75rem; font-size:0.8rem; color:#888;">
+        <span>低</span>
+        <div id="hm-legend-bar" style="width:140px; height:12px; background:linear-gradient(to right, #d73027, #fee08b, #1a9850); border-radius:4px;"></div>
+        <span>高</span>
+      </div>
+      <table id="hm-table" style="border-collapse:collapse; font-size:0.78rem; min-width:700px;">
+        <thead><tr id="hm-thead-row"></tr></thead>
+        <tbody id="hm-tbody"></tbody>
+      </table>
+      <p style="margin-top:0.75rem; color:#888; font-size:0.8rem;">数値はセル内の値（trades=取引数）。取引なしは灰色。</p>
+    </section>
+
+    <div class="alert alert-warning" style="margin-top:1rem;">
+      <strong>注意：</strong> 過去データに基づく集計です。将来の成績を保証しません。
+    </div>
+  </div>
+
   </main>
 
   <footer class="app-footer">
@@ -950,6 +1018,113 @@
           <td style="color:${robColor};">${w.robustness_ratio !== null ? w.robustness_ratio : '---'}</td>
         </tr>`;
       }).join('');
+    }
+
+    // ── Phase 45: ヒートマップカレンダー ──────────────────────────────
+    async function runHeatmap() {
+      const symbol = document.getElementById("hm-symbol").value;
+      const metric = document.getElementById("hm-metric").value;
+      const dataSource = document.getElementById("hm-data-source").value;
+
+      document.getElementById("hm-result").style.display = "none";
+      document.getElementById("hm-error").style.display = "none";
+      document.getElementById("hm-loading").style.display = "block";
+      document.getElementById("hm-run-btn").disabled = true;
+
+      const params = new URLSearchParams({ metric, data_source: dataSource });
+      if (symbol) params.set("symbol", symbol);
+
+      try {
+        const res = await fetch("/api/heatmap-calendar?" + params.toString());
+        const data = await res.json();
+        document.getElementById("hm-loading").style.display = "none";
+        if (!data.ok) {
+          document.getElementById("hm-error").textContent = data.error || "エラー";
+          document.getElementById("hm-error").style.display = "block";
+          return;
+        }
+        renderHeatmap(data);
+        document.getElementById("hm-result").style.display = "block";
+      } catch (e) {
+        document.getElementById("hm-loading").style.display = "none";
+        document.getElementById("hm-error").textContent = "通信エラー: " + e;
+        document.getElementById("hm-error").style.display = "block";
+      } finally {
+        document.getElementById("hm-run-btn").disabled = false;
+      }
+    }
+
+    function renderHeatmap(d) {
+      document.getElementById("hm-assessment").textContent = d.assessment || "評価なし";
+      const wr = d.overall_win_rate !== null ? d.overall_win_rate.toFixed(1) + "%" : "---";
+      document.getElementById("hm-summary").textContent =
+        `総取引数: ${d.total_trades}件 / 全体勝率: ${wr}`;
+
+      const metric = d.metric;
+      const isWR = metric === "win_rate";
+      const labels = d.weekday_labels; // ["月","火",...]
+      const cells = d.cells;           // [7][24]
+
+      // 値の範囲を求める（カラースケール用）
+      let minVal = Infinity, maxVal = -Infinity;
+      for (let wd = 0; wd < 7; wd++) {
+        for (let h = 0; h < 24; h++) {
+          const c = cells[wd][h];
+          if (c.trades > 0) {
+            const v = isWR ? c.win_rate : c.total_pips;
+            if (v !== null) { minVal = Math.min(minVal, v); maxVal = Math.max(maxVal, v); }
+          }
+        }
+      }
+      if (!isFinite(minVal)) { minVal = 0; maxVal = 100; }
+      if (minVal === maxVal) { maxVal = minVal + 1; }
+
+      // ヘッダー行 (時間)
+      const thead = document.getElementById("hm-thead-row");
+      thead.innerHTML = '<th style="padding:2px 6px; background:#222; position:sticky; left:0; z-index:1;">曜日 \\ 時</th>' +
+        Array.from({length: 24}, (_, h) =>
+          `<th style="padding:2px 4px; background:#222; min-width:28px;">${h}</th>`
+        ).join('');
+
+      // 本体
+      const tbody = document.getElementById("hm-tbody");
+      tbody.innerHTML = labels.map((lbl, wd) =>
+        `<tr><td style="padding:2px 6px; font-weight:bold; background:#222; position:sticky; left:0; z-index:1;">${lbl}</td>` +
+        Array.from({length: 24}, (_, h) => {
+          const c = cells[wd][h];
+          if (c.trades === 0) {
+            return `<td style="background:#1a1a2e; color:#444; text-align:center; padding:2px 2px;">-</td>`;
+          }
+          const v = isWR ? c.win_rate : c.total_pips;
+          const bg = hmColor(v, minVal, maxVal);
+          const fg = hmFg(v, minVal, maxVal);
+          const label = isWR ? (v !== null ? v.toFixed(0) + "%" : "?") : (v !== null ? (v > 0 ? "+" : "") + v.toFixed(1) : "?");
+          return `<td style="background:${bg}; color:${fg}; text-align:center; padding:2px 2px; cursor:default;" title="${lbl}曜${h}時: ${label} (${c.trades}件)">${label}</td>`;
+        }).join('') + '</tr>'
+      ).join('');
+    }
+
+    function hmColor(v, minV, maxV) {
+      const t = (v - minV) / (maxV - minV); // 0..1
+      // 赤(低) → 黄(中) → 緑(高)
+      if (t < 0.5) {
+        const u = t * 2;
+        const r = Math.round(215 + (254 - 215) * u);
+        const g = Math.round(48 + (224 - 48) * u);
+        const b = Math.round(39 + (139 - 39) * u);
+        return `rgb(${r},${g},${b})`;
+      } else {
+        const u = (t - 0.5) * 2;
+        const r = Math.round(254 - (254 - 26) * u);
+        const g = Math.round(224 - (224 - 152) * u);
+        const b = Math.round(139 - (139 - 80) * u);
+        return `rgb(${r},${g},${b})`;
+      }
+    }
+
+    function hmFg(v, minV, maxV) {
+      const t = (v - minV) / (maxV - minV);
+      return t < 0.25 || (t >= 0.4 && t < 0.6) ? "#111" : "#fff";
     }
   </script>
 </body>

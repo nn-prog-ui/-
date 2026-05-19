@@ -118,6 +118,22 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 43：モンテカルロ分析（2026-05-19）
+
+- `app/scripts/monte_carlo.py`：新規作成
+  - `run_monte_carlo()` — N回シャッフルして期待損益・DD・破産確率の分布を算出
+  - `_wilson_ci()` — Wilson score法で勝率の95%信頼区間を計算
+  - `get_pnl_pips_from_db()` — DBから損益リストを取得（is_dummy_dataでbacktest/real絞り込み）
+- `app/web/routes.py`：`GET /api/monte-carlo` エンドポイント追加（n_simulations上限5000クランプ）
+- `app/web/templates/backtest.html`：モンテカルロ分析セクション追加
+- `tests/test_monte_carlo.py`：テスト53件新規作成（全665テスト通過）
+
+#### 注意点・修正
+- `_max_drawdown` はグローバルピークからの最大下落を返す（部分的なリカバリー後の下落も含む）
+- APIパッチパスはテスト内で `app.web.routes.get_pnl_pips_from_db` を指定（routes.py がインポートしているため）
+
+---
+
 ### Phase 42：ウォークフォワード分析（2026-05-18）
 
 - `app/scripts/walk_forward.py`：新規作成

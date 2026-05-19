@@ -276,6 +276,27 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 43：モンテカルロ分析 ✅
+
+- [x] `app/scripts/monte_carlo.py` — モンテカルロ分析エンジン
+  - `PercentileStats` dataclass（p5/p25/p50/p75/p95/mean/min/max）
+  - `MonteCarloResult` dataclass（n_trades/ruin_probability/profit_probability/win_rate_ci）
+  - `_max_drawdown()` — 累積損益から最大ドローダウンを計算
+  - `_percentile_stats()` — パーセンタイル統計を計算
+  - `_wilson_ci()` — 勝率の95%信頼区間（Wilson score法）
+  - `run_monte_carlo()` — N回シャッフルして期待損益・DD・破産確率の分布を算出
+  - `get_pnl_pips_from_db()` — DBからクローズ済み損益リストを取得（シンボル・ソース絞り込み対応）
+  - `_assess()` — 破産リスク・収益期待・中央値損益を日本語評価
+- [x] `app/web/routes.py` — `GET /api/monte-carlo` エンドポイント追加
+  - symbol / n_simulations（10〜5000上限）/ ruin_threshold / data_source パラメータ対応
+  - パーセンタイル統計・確率指標・勝率CIを JSON で返す
+- [x] `app/web/templates/backtest.html` — モンテカルロ分析セクション追加
+  - パラメータフォーム（通貨ペア・回数・破産閾値・データソース）
+  - 破産確率・収益期待確率・勝率CI・中央値損益カード
+  - 最終損益/最大DD パーセンタイル比較テーブル
+  - 元データ統計グリッド
+- [x] `tests/test_monte_carlo.py` — テスト53件（全665テスト通過）
+
 ### Phase 42：ウォークフォワード分析 ✅
 
 - [x] `app/scripts/walk_forward.py` — WF分析エンジン

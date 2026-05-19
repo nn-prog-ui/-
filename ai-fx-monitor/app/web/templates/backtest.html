@@ -373,6 +373,116 @@
 
   </main>
 
+  <!-- Phase 43: モンテカルロ分析 -->
+  <main class="main-content" style="border-top: 1px solid #333; padding-top: 1.5rem; margin-top: 1.5rem;">
+
+    <section class="card">
+      <h2 class="card-title">モンテカルロ分析（期待値・破産確率）</h2>
+      <p class="history-note">
+        DBに保存済みのバックテスト損益をランダムシャッフルしてN回シミュレーション。期待損益・最大DD・破産確率の分布を算出します。注文は一切発生しません。
+      </p>
+    </section>
+
+    <section class="card">
+      <h3 class="card-title">パラメータ</h3>
+      <div class="settings-grid">
+
+        <div class="settings-item">
+          <label class="settings-label" for="mc-symbol">通貨ペア</label>
+          <select id="mc-symbol" class="symbol-select">
+            <option value="">全ペア</option>
+            {% for sym in supported_symbols %}
+            <option value="{{ sym }}">{{ sym }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="mc-simulations">シミュレーション回数</label>
+          <input type="number" id="mc-simulations" value="1000" min="10" max="5000" class="settings-input">
+          <small class="settings-hint">10〜5000回（多いほど精度が上がるが時間がかかる）</small>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="mc-ruin">破産閾値（pips）</label>
+          <input type="number" id="mc-ruin" value="-200" max="-1" class="settings-input">
+          <small class="settings-hint">この損益以下になった割合を破産確率として算出</small>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="mc-source">データソース</label>
+          <select id="mc-source" class="symbol-select">
+            <option value="backtest">バックテスト結果のみ</option>
+            <option value="real">実承認のみ</option>
+            <option value="all">全データ</option>
+          </select>
+        </div>
+
+      </div>
+      <div style="margin-top:1rem;">
+        <button id="mc-run-btn" class="btn btn-buy" style="min-width:160px;" onclick="runMonteCarlo()">
+          分析実行
+        </button>
+        <small class="settings-hint" style="display:block;margin-top:0.5rem;">
+          ※先に「バックテスト」を実行して「DBに保存」してください
+        </small>
+      </div>
+    </section>
+
+    <div id="mc-loading" style="display:none;" class="card">
+      <p style="color:#888; text-align:center;">シミュレーション中... しばらくお待ちください</p>
+    </div>
+
+    <div id="mc-error" style="display:none;" class="alert alert-error"></div>
+
+    <div id="mc-result" style="display:none;">
+
+      <!-- 総合評価 -->
+      <section class="card">
+        <h3 class="card-title">総合評価</h3>
+        <div id="mc-assessment" style="font-size:1.05rem; line-height:1.7;"></div>
+      </section>
+
+      <!-- 確率指標カード -->
+      <div class="history-grid" style="margin-bottom:1.5rem;" id="mc-prob-cards"></div>
+
+      <!-- パーセンタイル表 -->
+      <section class="card">
+        <h3 class="card-title">損益・最大DD の分布（<span id="mc-n-sims"></span>回シミュレーション）</h3>
+        <div style="overflow-x:auto;">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>指標</th>
+                <th>最小値</th>
+                <th>5%ile</th>
+                <th>25%ile</th>
+                <th>中央値</th>
+                <th>75%ile</th>
+                <th>95%ile</th>
+                <th>最大値</th>
+                <th>平均</th>
+              </tr>
+            </thead>
+            <tbody id="mc-pct-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 元データ統計 -->
+      <section class="card">
+        <h3 class="card-title">元データ統計（<span id="mc-n-trades"></span>件）</h3>
+        <div class="indicators-grid" id="mc-raw-stats"></div>
+      </section>
+
+      <div class="alert alert-warning" style="margin-top:1rem;">
+        <strong>注意：</strong> モンテカルロ分析は確率的シミュレーションです。将来の成績を保証しません。
+      </div>
+
+    </div>
+
+  </main>
+
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
   </footer>
@@ -382,6 +492,116 @@
         navigator.serviceWorker.register("/static/sw.js")
           .catch((err) => console.warn("SW registration failed:", err));
       });
+    }
+
+    async function runMonteCarlo() {
+      const params = new URLSearchParams({
+        symbol: document.getElementById("mc-symbol").value,
+        n_simulations: document.getElementById("mc-simulations").value,
+        ruin_threshold: document.getElementById("mc-ruin").value,
+        data_source: document.getElementById("mc-source").value,
+      });
+
+      document.getElementById("mc-loading").style.display = "block";
+      document.getElementById("mc-result").style.display = "none";
+      document.getElementById("mc-error").style.display = "none";
+      document.getElementById("mc-run-btn").disabled = true;
+
+      try {
+        const res = await fetch(`/api/monte-carlo?${params}`);
+        const data = await res.json();
+
+        if (!data.ok) {
+          document.getElementById("mc-error").textContent = "エラー: " + data.error;
+          document.getElementById("mc-error").style.display = "block";
+          return;
+        }
+
+        renderMCResult(data);
+        document.getElementById("mc-result").style.display = "block";
+      } catch (e) {
+        document.getElementById("mc-error").textContent = "通信エラー: " + e;
+        document.getElementById("mc-error").style.display = "block";
+      } finally {
+        document.getElementById("mc-loading").style.display = "none";
+        document.getElementById("mc-run-btn").disabled = false;
+      }
+    }
+
+    function renderMCResult(d) {
+      document.getElementById("mc-assessment").textContent = d.assessment || "評価なし";
+      document.getElementById("mc-n-sims").textContent = d.n_simulations.toLocaleString();
+      document.getElementById("mc-n-trades").textContent = d.n_trades;
+
+      // 確率カード
+      const ruinPct = (d.ruin_probability * 100).toFixed(1);
+      const profitPct = (d.profit_probability * 100).toFixed(1);
+      const ruinColor = d.ruin_probability <= 0.05 ? '#4ade80' : d.ruin_probability <= 0.20 ? '#facc15' : '#f87171';
+      const profitColor = d.profit_probability >= 0.70 ? '#4ade80' : d.profit_probability >= 0.50 ? '#facc15' : '#f87171';
+      document.getElementById("mc-prob-cards").innerHTML = `
+        <div class="card" style="text-align:center;">
+          <div class="h-label">破産確率</div>
+          <div class="price-value" style="font-size:2rem;color:${ruinColor};">${ruinPct}%</div>
+          <div class="h-label">閾値: ${d.ruin_threshold}pips以下</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="h-label">収益期待確率</div>
+          <div class="price-value" style="font-size:2rem;color:${profitColor};">${profitPct}%</div>
+          <div class="h-label">プラスで終わる割合</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="h-label">勝率 95% CI</div>
+          <div class="price-value" style="font-size:1.6rem;">
+            ${d.win_rate_ci_lower !== null ? d.win_rate_ci_lower+'%〜'+d.win_rate_ci_upper+'%' : '---'}
+          </div>
+          <div class="h-label">元勝率: ${d.raw_win_rate !== null ? d.raw_win_rate+'%' : '---'}</div>
+        </div>
+        <div class="card" style="text-align:center;">
+          <div class="h-label">中央値最終損益</div>
+          <div class="price-value" style="font-size:2rem;color:${d.final_pips&&d.final_pips.p50>0?'#4ade80':d.final_pips&&d.final_pips.p50<0?'#f87171':'#888'};">
+            ${d.final_pips ? (d.final_pips.p50>0?'+':'')+d.final_pips.p50+'pips' : '---'}
+          </div>
+        </div>
+      `;
+
+      // パーセンタイル表
+      function pRow(label, ps, isNeg) {
+        if (!ps) return '';
+        const color = (v) => v > 0 ? '#4ade80' : v < 0 ? '#f87171' : '#888';
+        const fmt = (v) => (v > 0 ? '+' : '') + v.toFixed(1);
+        return `<tr>
+          <td><strong>${label}</strong></td>
+          <td style="color:${isNeg?'#f87171':color(ps.min)}">${fmt(ps.min)}</td>
+          <td style="color:${isNeg?'#f87171':color(ps.p5)}">${fmt(ps.p5)}</td>
+          <td style="color:${color(ps.p25)}">${fmt(ps.p25)}</td>
+          <td style="color:${color(ps.p50)}">${fmt(ps.p50)}</td>
+          <td style="color:${color(ps.p75)}">${fmt(ps.p75)}</td>
+          <td style="color:${color(ps.p95)}">${fmt(ps.p95)}</td>
+          <td style="color:${color(ps.max)}">${fmt(ps.max)}</td>
+          <td style="color:${color(ps.mean)}">${fmt(ps.mean)}</td>
+        </tr>`;
+      }
+      document.getElementById("mc-pct-tbody").innerHTML =
+        pRow("最終損益 (pips)", d.final_pips, false) +
+        pRow("最大DD (pips)", d.max_drawdown, true);
+
+      // 元データ統計
+      document.getElementById("mc-raw-stats").innerHTML = `
+        <div class="indicator-item">
+          <span class="ind-label">元データ合計pips</span>
+          <span class="ind-value" style="color:${d.raw_total_pips>0?'#4ade80':d.raw_total_pips<0?'#f87171':'#888'};">
+            ${d.raw_total_pips>0?'+':''}${d.raw_total_pips.toFixed(1)}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">元データ最大DD</span>
+          <span class="ind-value" style="color:#f87171;">${d.raw_max_drawdown.toFixed(1)}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">シミュレーション回数</span>
+          <span class="ind-value">${d.n_simulations.toLocaleString()}回</span>
+        </div>
+      `;
     }
 
     async function runWalkForward() {

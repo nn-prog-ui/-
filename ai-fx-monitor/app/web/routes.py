@@ -76,6 +76,12 @@ from app.scripts.walk_forward import (
     DEFAULT_FUTURE_BARS,
     run_walk_forward,
 )
+from app.scripts.monte_carlo import (
+    DEFAULT_N_SIMULATIONS,
+    DEFAULT_RUIN_THRESHOLD,
+    get_pnl_pips_from_db,
+    run_monte_carlo,
+)
 from app.scripts.optimizer import VALID_METRICS, optimize
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
@@ -1340,5 +1346,86 @@ async def api_walk_forward(
         "total_oos_losses": result.total_oos_losses,
         "combined_oos_win_rate": result.combined_oos_win_rate,
         "combined_oos_pips": result.combined_oos_pips,
+        "assessment": result.assessment,
+    }
+
+
+# ============================================================
+# Phase 43: モンテカルロ分析 API
+# ============================================================
+
+@router.get("/api/monte-carlo")
+async def api_monte_carlo(
+    symbol: str = "",
+    n_simulations: int = DEFAULT_N_SIMULATIONS,
+    ruin_threshold: float = DEFAULT_RUIN_THRESHOLD,
+    data_source: str = "backtest",
+):
+    """モンテカルロ分析を実行して JSON で返す。
+
+    注文は発生しない。分析・集計のみ。
+
+    Args:
+        symbol:        通貨ペア（空 = 全ペア）
+        n_simulations: シミュレーション回数（10〜5000）
+        ruin_threshold: 破産閾値 pips（例: -200）
+        data_source:   "backtest"=バックテスト結果のみ / "real"=実承認のみ / "all"=両方
+    """
+    n_simulations = max(10, min(5000, n_simulations))
+
+    is_simulation: bool | None = None
+    if data_source == "backtest":
+        is_simulation = True
+    elif data_source == "real":
+        is_simulation = False
+
+    try:
+        pnl_pips = get_pnl_pips_from_db(
+            symbol=symbol or None,
+            is_simulation=is_simulation,
+        )
+    except Exception as exc:
+        logger.error("モンテカルロ DB取得エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    if not pnl_pips:
+        return {
+            "ok": False,
+            "error": "対象トレードデータがありません。先にバックテストを実行してDBに保存してください。",
+        }
+
+    try:
+        result = run_monte_carlo(
+            pnl_pips=pnl_pips,
+            n_simulations=n_simulations,
+            ruin_threshold=ruin_threshold,
+        )
+    except Exception as exc:
+        logger.error("モンテカルロ実行エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    def ps_to_dict(ps):
+        if ps is None:
+            return None
+        return {
+            "p5": ps.p5, "p25": ps.p25, "p50": ps.p50,
+            "p75": ps.p75, "p95": ps.p95,
+            "mean": ps.mean, "min": ps.minimum, "max": ps.maximum,
+        }
+
+    return {
+        "ok": True,
+        "n_trades": result.n_trades,
+        "n_simulations": result.n_simulations,
+        "ruin_threshold": result.ruin_threshold,
+        "raw_win_rate": result.raw_win_rate,
+        "raw_total_pips": result.raw_total_pips,
+        "raw_max_drawdown": result.raw_max_drawdown,
+        "final_pips": ps_to_dict(result.final_pips),
+        "max_drawdown": ps_to_dict(result.max_drawdown),
+        "ruin_probability": result.ruin_probability,
+        "profit_probability": result.profit_probability,
+        "win_rate_ci_lower": result.win_rate_ci_lower,
+        "win_rate_ci_upper": result.win_rate_ci_upper,
         "assessment": result.assessment,
     }

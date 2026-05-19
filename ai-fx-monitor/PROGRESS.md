@@ -118,6 +118,22 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 46：シグナル品質スコアリング（2026-05-19）
+
+- `app/scripts/signal_quality.py`：新規作成
+  - `_score_bucket()` / `_rsi_bucket()` / `_trend_match()` — 条件バケット分類
+  - `_quality_level()` — 勝率から品質レベル（0〜5）を返す
+  - `QualityStats` dataclass（dimension/trades/wins/win_rate/avg_pips/quality_label/quality_level/quality_description）
+  - `get_signal_quality()` — 具体→抽象の段階的照合で最も信頼性の高いパターン統計を取得
+  - `get_all_pattern_stats()` — 全パターン統計一覧（分析ページ用）
+- `app/services/market_analyzer.py`：`AnalysisResult.signal_quality` フィールド追加、run_analysis()で計算
+- `app/web/routes.py`：`GET /api/signal-quality` および `GET /api/signal-quality/patterns` エンドポイント追加
+- `app/web/templates/index.html`：シグナルセクション直下に品質バッジ（S/A/B/C/D）を表示
+- `app/web/static/style.css`：`.quality-badge` / `.quality-s` 〜 `.quality-d` CSSブロック追加
+- `tests/test_signal_quality.py`：テスト47件新規作成（全795テスト通過）
+
+---
+
 ### Phase 45：ヒートマップカレンダー（2026-05-19）
 
 - `app/scripts/heatmap_calendar.py`：新規作成

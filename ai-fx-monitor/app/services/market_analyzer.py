@@ -71,6 +71,8 @@ class AnalysisResult:
     historical_stats: dict = field(default_factory=dict)
     # Phase 32: マルチタイムフレーム一致度
     confluence: ConfluenceResult | None = None
+    # Phase 46: シグナル品質スコアリング
+    signal_quality: object = None  # QualityStats | None
 
     @property
     def signal_label(self) -> str:
@@ -176,6 +178,25 @@ def run_analysis(
     if signal_result.score is not None:
         score_val = signal_result.score.score
 
+    # Phase 46: シグナル品質スコアリング
+    signal_quality = None
+    try:
+        from app.scripts.signal_quality import get_signal_quality
+        rsi_val = None
+        if not df_1h.empty:
+            from app.indicators.rsi import get_rsi_value
+            rsi_val = get_rsi_value(df_1h)
+        signal_quality = get_signal_quality(
+            symbol=symbol,
+            signal=signal_result.signal,
+            score=score_val,
+            rsi=rsi_val,
+            daily_trend=signal_result.daily_trend,
+            h4_trend=signal_result.h4_trend,
+        )
+    except Exception:
+        signal_quality = None
+
     # Phase 11: ボリンジャーバンド（1時間足）
     bb_upper, bb_middle, bb_lower = get_bb_values(df_1h)
     bb_status = get_bb_status(df_1h)
@@ -226,4 +247,5 @@ def run_analysis(
         sell_conditions=signal_result.sell_conditions,
         historical_stats=historical_stats,
         confluence=signal_result.confluence,
+        signal_quality=signal_quality,
     )

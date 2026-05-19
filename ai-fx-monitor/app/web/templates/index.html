@@ -126,6 +126,38 @@
       </div>
     </section>
 
+    <!-- Phase 46: シグナル品質バッジ -->
+    {% set sq = result.signal_quality %}
+    {% if sq and result.signal in ('BUY', 'SELL') %}
+    <section class="card" style="padding:0.75rem 1rem;">
+      <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
+        <span style="color:#888; font-size:0.85rem;">品質スコア</span>
+        <span class="quality-badge quality-{{ sq.quality_label | lower }}" title="{{ sq.quality_description }}">
+          {{ sq.quality_label }}
+        </span>
+        {% if sq.trades > 0 %}
+        <span style="font-size:0.9rem;">
+          過去勝率:
+          <strong style="{% if sq.win_rate is not none and sq.win_rate >= 50 %}color:#4ade80;{% elif sq.win_rate is not none %}color:#f87171;{% endif %}">
+            {{ "%.0f"|format(sq.win_rate) if sq.win_rate is not none else "---" }}%
+          </strong>
+          （{{ sq.trades }}件 / {{ sq.dimension }}）
+        </span>
+        {% if sq.avg_pips is not none %}
+        <span style="font-size:0.85rem; color:#888;">
+          平均: <strong style="{% if sq.avg_pips >= 0 %}color:#4ade80;{% else %}color:#f87171;{% endif %}">
+            {{ "%+.1f"|format(sq.avg_pips) }}pips
+          </strong>
+        </span>
+        {% endif %}
+        {% else %}
+        <span style="color:#888; font-size:0.85rem;">過去データなし</span>
+        {% endif %}
+        <span style="font-size:0.75rem; color:#666; margin-left:auto;">{{ sq.quality_description }}</span>
+      </div>
+    </section>
+    {% endif %}
+
     {% if result.economic_warning %}
     <div class="alert alert-caution">
       <strong>重要指標警戒中：</strong>

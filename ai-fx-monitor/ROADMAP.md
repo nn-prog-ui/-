@@ -276,6 +276,19 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 46：シグナル品質スコアリング ✅
+
+- [x] `app/scripts/signal_quality.py` — 品質スコアリングエンジン
+  - スコアバケット（high/mid/low）・RSIバケット（oversold/neutral/overbought）・トレンド一致（aligned/mixed）
+  - 品質ラベル S/A/B/C/D/N/A（勝率 65%/55%/45%/35%/それ以下 / データ不足）
+  - `get_signal_quality()` — 具体→抽象の段階的照合で最適なパターンを選択
+  - `get_all_pattern_stats()` — 全パターン統計一覧
+- [x] `app/services/market_analyzer.py` — `AnalysisResult.signal_quality` 追加
+- [x] `app/web/routes.py` — `GET /api/signal-quality` と `GET /api/signal-quality/patterns` 追加
+- [x] `app/web/templates/index.html` — 品質バッジ（S/A/B/C/D）をシグナルセクション直下に表示
+- [x] `app/web/static/style.css` — quality-badge CSSブロック追加
+- [x] `tests/test_signal_quality.py` — テスト47件（全795テスト通過）
+
 ### Phase 45：ヒートマップカレンダー ✅
 
 - [x] `app/scripts/heatmap_calendar.py` — ヒートマップ集計エンジン

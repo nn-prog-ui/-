@@ -1492,3 +1492,23 @@ a:focus-visible, button:focus-visible, input:focus-visible {
   .confluence-panel { gap: 8px; }
   .confluence-score-badge { margin-left: 0; }
 }
+
+/* Phase 46: シグナル品質バッジ */
+.quality-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 50%;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  flex-shrink: 0;
+}
+.quality-s  { background: #166534; color: #4ade80; border: 2px solid #4ade80; }
+.quality-a  { background: #14532d; color: #86efac; border: 2px solid #86efac; }
+.quality-b  { background: #713f12; color: #fde68a; border: 2px solid #fde68a; }
+.quality-c  { background: #7c2d12; color: #fdba74; border: 2px solid #fdba74; }
+.quality-d  { background: #450a0a; color: #f87171; border: 2px solid #f87171; }
+.quality-n\/a { background: #1e1e2e; color: #888; border: 2px solid #444; }

@@ -93,6 +93,12 @@ from app.scripts.heatmap_calendar import (
     build_heatmap,
     get_heatmap_rows,
 )
+from app.scripts.signal_quality import (
+    QUALITY_CSS,
+    QUALITY_DESCRIPTIONS,
+    get_all_pattern_stats,
+    get_signal_quality,
+)
 from app.scripts.optimizer import VALID_METRICS, optimize
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
@@ -1597,3 +1603,69 @@ async def api_heatmap_calendar(
         "overall_win_rate": result.overall_win_rate,
         "assessment": result.assessment,
     }
+
+
+@router.get("/api/signal-quality")
+async def api_signal_quality(
+    symbol: str = "",
+    signal: str = "",
+    score: int | None = None,
+    rsi: float | None = None,
+    daily_trend: str = "",
+    h4_trend: str = "",
+):
+    """シグナル品質スコアを JSON で返す。
+
+    注文は発生しない。分析・集計のみ。
+    """
+    if not symbol or symbol not in SUPPORTED_SYMBOLS:
+        return {"ok": False, "error": f"未対応シンボル: {symbol}"}
+    if signal not in ("BUY", "SELL"):
+        return {"ok": False, "error": "signal は BUY または SELL を指定してください"}
+
+    try:
+        quality = get_signal_quality(
+            symbol=symbol,
+            signal=signal,
+            score=score,
+            rsi=rsi,
+            daily_trend=daily_trend or None,
+            h4_trend=h4_trend or None,
+        )
+    except Exception as exc:
+        logger.error("品質スコアエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": symbol,
+        "signal": signal,
+        "dimension": quality.dimension,
+        "trades": quality.trades,
+        "wins": quality.wins,
+        "win_rate": quality.win_rate,
+        "avg_pips": quality.avg_pips,
+        "quality_label": quality.quality_label,
+        "quality_level": quality.quality_level,
+        "quality_description": quality.quality_description,
+        "quality_css": QUALITY_CSS[quality.quality_level],
+        "score_bucket": quality.score_bucket,
+        "rsi_bucket": quality.rsi_bucket,
+        "trend_match": quality.trend_match,
+    }
+
+
+@router.get("/api/signal-quality/patterns")
+async def api_signal_quality_patterns(symbol: str = ""):
+    """全パターン統計一覧を JSON で返す（分析ページ用）。
+
+    注文は発生しない。集計のみ。
+    """
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        patterns = get_all_pattern_stats(symbol=sym)
+    except Exception as exc:
+        logger.error("パターン統計エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {"ok": True, "symbol": sym, "patterns": patterns}

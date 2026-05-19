@@ -118,6 +118,19 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 44：パラメータ感度分析（2026-05-19）
+
+- `app/scripts/sensitivity.py`：新規作成
+  - `run_sensitivity()` — ±10%/±20% の5×5マトリクスでバックテスト実行
+  - `_clamp_param()` — ma_short≥5、ma_long≤200、rsi 10〜90 に制限
+  - `ma_short >= ma_long` のセルは自動スキップ（無効な組み合わせを除外）
+  - `optimizer._run_one` と `OptimizeParams` を再利用（コード重複なし）
+- `app/web/routes.py`：`GET /api/sensitivity` エンドポイント追加
+- `app/web/templates/backtest.html`：感度分析セクション追加（ヒートマップ2枚）
+- `tests/test_sensitivity.py`：テスト35件新規作成（全700テスト通過）
+
+---
+
 ### Phase 43：モンテカルロ分析（2026-05-19）
 
 - `app/scripts/monte_carlo.py`：新規作成

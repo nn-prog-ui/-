@@ -82,6 +82,11 @@ from app.scripts.monte_carlo import (
     get_pnl_pips_from_db,
     run_monte_carlo,
 )
+from app.scripts.sensitivity import (
+    SENSITIVITY_PARAMS,
+    DEFAULT_STEPS,
+    run_sensitivity,
+)
 from app.scripts.optimizer import VALID_METRICS, optimize
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
@@ -1427,5 +1432,100 @@ async def api_monte_carlo(
         "profit_probability": result.profit_probability,
         "win_rate_ci_lower": result.win_rate_ci_lower,
         "win_rate_ci_upper": result.win_rate_ci_upper,
+        "assessment": result.assessment,
+    }
+
+
+# ============================================================
+# Phase 44: パラメータ感度分析 API
+# ============================================================
+
+@router.get("/api/sensitivity")
+async def api_sensitivity(
+    symbol: str = "",
+    param_x: str = "ma_short",
+    param_y: str = "ma_long",
+    base_ma_short: int = 20,
+    base_ma_long: int = 75,
+    base_rsi_buy_max: int = 70,
+    base_rsi_buy_min: int = 40,
+    base_rsi_sell_min: int = 30,
+    base_rsi_sell_max: int = 60,
+    window: int = 300,
+    step_bars: int = 24,
+    future_bars: int = 80,
+):
+    """パラメータ感度分析を実行して JSON で返す。
+
+    注文は発生しない。分析・集計のみ。
+    """
+    if not symbol or symbol not in SUPPORTED_SYMBOLS:
+        return {"ok": False, "error": f"未対応シンボル: {symbol}"}
+    if param_x not in SENSITIVITY_PARAMS:
+        return {"ok": False, "error": f"未対応パラメータ: {param_x}"}
+    if param_y not in SENSITIVITY_PARAMS:
+        return {"ok": False, "error": f"未対応パラメータ: {param_y}"}
+    if param_x == param_y:
+        return {"ok": False, "error": "param_x と param_y に同じパラメータは指定できません"}
+
+    from app.scripts.optimizer import OptimizeParams
+    base_params = OptimizeParams(
+        ma_short=max(5, min(200, base_ma_short)),
+        ma_long=max(5, min(200, base_ma_long)),
+        rsi_buy_max=max(10, min(90, base_rsi_buy_max)),
+        rsi_buy_min=max(10, min(90, base_rsi_buy_min)),
+        rsi_sell_min=max(10, min(90, base_rsi_sell_min)),
+        rsi_sell_max=max(10, min(90, base_rsi_sell_max)),
+    )
+    window = max(100, min(1000, window))
+    step_bars = max(1, min(168, step_bars))
+    future_bars = max(10, min(500, future_bars))
+
+    try:
+        result = run_sensitivity(
+            symbol=symbol,
+            param_x=param_x,
+            param_y=param_y,
+            base_params=base_params,
+            steps=DEFAULT_STEPS,
+            window=window,
+            step_bars=step_bars,
+            future_bars=future_bars,
+        )
+    except Exception as exc:
+        logger.error("感度分析エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    cells_data = [
+        [
+            {
+                "x_val": c.x_val,
+                "y_val": c.y_val,
+                "trades": c.trades,
+                "wins": c.wins,
+                "losses": c.losses,
+                "win_rate": c.win_rate,
+                "total_pips": c.total_pips,
+                "avg_pips": c.avg_pips,
+            }
+            for c in row
+        ]
+        for row in result.cells
+    ]
+
+    return {
+        "ok": True,
+        "symbol": result.symbol,
+        "param_x": result.param_x,
+        "param_x_label": SENSITIVITY_PARAMS[result.param_x],
+        "param_y": result.param_y,
+        "param_y_label": SENSITIVITY_PARAMS[result.param_y],
+        "base_x": result.base_x,
+        "base_y": result.base_y,
+        "x_values": result.x_values,
+        "y_values": result.y_values,
+        "cells": cells_data,
+        "base_win_rate": result.base_win_rate,
+        "base_total_pips": result.base_total_pips,
         "assessment": result.assessment,
     }

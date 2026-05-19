@@ -276,6 +276,25 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 44：パラメータ感度分析 ✅
+
+- [x] `app/scripts/sensitivity.py` — 感度分析エンジン
+  - `SENSITIVITY_PARAMS` — 対応パラメータ名→ラベルの辞書（6種類）
+  - `SensitivityCell` dataclass（x_val/y_val/trades/win_rate/total_pips）
+  - `SensitivityResult` dataclass（param_x/param_y/base値/cells 2Dリスト）
+  - `_clamp_param()` — パラメータ値を整数化・範囲クランプ
+  - `run_sensitivity()` — ±10%/±20% の5×5マトリクスでバックテストを実行
+  - `_assess()` — 勝率変動幅で感度（低/中/高）・改善余地を日本語評価
+  - `optimizer._run_one()` と `OptimizeParams` を再利用
+- [x] `app/web/routes.py` — `GET /api/sensitivity` エンドポイント追加
+  - symbol / param_x / param_y / 基準パラメータ6値 / window / step_bars / future_bars 対応
+  - X×Y のセルマトリクスと評価を JSON で返す
+- [x] `app/web/templates/backtest.html` — 感度分析セクション追加
+  - パラメータフォーム（通貨ペア・X軸・Y軸・基準MA・ウィンドウ）
+  - 勝率ヒートマップテーブル（緑→赤グラデーション・基準セル太枠）
+  - 合計損益マトリクステーブル（色分け）
+- [x] `tests/test_sensitivity.py` — テスト35件（全700テスト通過）
+
 ### Phase 43：モンテカルロ分析 ✅
 
 - [x] `app/scripts/monte_carlo.py` — モンテカルロ分析エンジン

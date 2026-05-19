@@ -373,6 +373,114 @@
 
   </main>
 
+  <!-- Phase 44: パラメータ感度分析 -->
+  <main class="main-content" style="border-top: 1px solid #333; padding-top: 1.5rem; margin-top: 1.5rem;">
+
+    <section class="card">
+      <h2 class="card-title">パラメータ感度分析</h2>
+      <p class="history-note">
+        基準パラメータを ±10%・±20% 変動させてバックテストを実行し、勝率・損益の変化をマトリクスで可視化します。
+        値が大きく変わらない（低感度）ほど、過最適化リスクが低いと判断できます。注文は一切発生しません。
+      </p>
+    </section>
+
+    <section class="card">
+      <h3 class="card-title">パラメータ設定</h3>
+      <div class="settings-grid">
+
+        <div class="settings-item">
+          <label class="settings-label" for="sa-symbol">通貨ペア</label>
+          <select id="sa-symbol" class="symbol-select">
+            <option value="">-- 選択してください --</option>
+            {% for sym in supported_symbols %}
+            <option value="{{ sym }}">{{ sym }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="sa-param-x">X軸パラメータ</label>
+          <select id="sa-param-x" class="symbol-select">
+            <option value="ma_short">短期MA期間</option>
+            <option value="ma_long">長期MA期間</option>
+            <option value="rsi_buy_max">RSI買い上限</option>
+            <option value="rsi_buy_min">RSI買い下限</option>
+            <option value="rsi_sell_min">RSI売り下限</option>
+            <option value="rsi_sell_max">RSI売り上限</option>
+          </select>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="sa-param-y">Y軸パラメータ</label>
+          <select id="sa-param-y" class="symbol-select">
+            <option value="ma_long" selected>長期MA期間</option>
+            <option value="ma_short">短期MA期間</option>
+            <option value="rsi_buy_max">RSI買い上限</option>
+            <option value="rsi_buy_min">RSI買い下限</option>
+            <option value="rsi_sell_min">RSI売り下限</option>
+            <option value="rsi_sell_max">RSI売り上限</option>
+          </select>
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="sa-ma-short">基準 短期MA</label>
+          <input type="number" id="sa-ma-short" value="20" min="5" max="100" class="settings-input">
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="sa-ma-long">基準 長期MA</label>
+          <input type="number" id="sa-ma-long" value="75" min="10" max="200" class="settings-input">
+        </div>
+
+        <div class="settings-item">
+          <label class="settings-label" for="sa-window">判定ウィンドウ（本数）</label>
+          <input type="number" id="sa-window" value="300" min="100" max="1000" class="settings-input">
+        </div>
+
+      </div>
+      <div style="margin-top:1rem;">
+        <button id="sa-run-btn" class="btn btn-buy" style="min-width:160px;" onclick="runSensitivity()">
+          分析実行
+        </button>
+      </div>
+    </section>
+
+    <div id="sa-loading" style="display:none;" class="card">
+      <p style="color:#888; text-align:center;">感度分析中... （25通りのバックテストを実行します）</p>
+    </div>
+
+    <div id="sa-error" style="display:none;" class="alert alert-error"></div>
+
+    <div id="sa-result" style="display:none;">
+
+      <!-- 総合評価 -->
+      <section class="card">
+        <h3 class="card-title">総合評価</h3>
+        <div id="sa-assessment" style="font-size:1.05rem; line-height:1.7;"></div>
+        <div class="indicators-grid" style="margin-top:1rem;" id="sa-base-stats"></div>
+      </section>
+
+      <!-- 感度マトリクス（勝率） -->
+      <section class="card">
+        <h3 class="card-title">勝率ヒートマップ（<span id="sa-wr-title"></span>）</h3>
+        <p class="history-note">緑 = 高勝率 / 赤 = 低勝率 / 太枠 = 基準値</p>
+        <div style="overflow-x:auto;" id="sa-wr-table-wrap"></div>
+      </section>
+
+      <!-- 感度マトリクス（合計pips） -->
+      <section class="card">
+        <h3 class="card-title">合計損益ヒートマップ（pips）</h3>
+        <div style="overflow-x:auto;" id="sa-pips-table-wrap"></div>
+      </section>
+
+      <div class="alert alert-warning" style="margin-top:1rem;">
+        <strong>注意：</strong> パラメータ感度分析は過去データのシミュレーションです。将来の成績を保証しません。
+      </div>
+
+    </div>
+
+  </main>
+
   <!-- Phase 43: モンテカルロ分析 -->
   <main class="main-content" style="border-top: 1px solid #333; padding-top: 1.5rem; margin-top: 1.5rem;">
 
@@ -492,6 +600,120 @@
         navigator.serviceWorker.register("/static/sw.js")
           .catch((err) => console.warn("SW registration failed:", err));
       });
+    }
+
+    async function runSensitivity() {
+      const symbol = document.getElementById("sa-symbol").value;
+      if (!symbol) { alert("通貨ペアを選択してください"); return; }
+      const paramX = document.getElementById("sa-param-x").value;
+      const paramY = document.getElementById("sa-param-y").value;
+      if (paramX === paramY) { alert("X軸とY軸に同じパラメータは指定できません"); return; }
+
+      const params = new URLSearchParams({
+        symbol,
+        param_x: paramX,
+        param_y: paramY,
+        base_ma_short: document.getElementById("sa-ma-short").value,
+        base_ma_long: document.getElementById("sa-ma-long").value,
+        window: document.getElementById("sa-window").value,
+        step_bars: 24,
+        future_bars: 80,
+      });
+
+      document.getElementById("sa-loading").style.display = "block";
+      document.getElementById("sa-result").style.display = "none";
+      document.getElementById("sa-error").style.display = "none";
+      document.getElementById("sa-run-btn").disabled = true;
+
+      try {
+        const res = await fetch(`/api/sensitivity?${params}`);
+        const data = await res.json();
+
+        if (!data.ok) {
+          document.getElementById("sa-error").textContent = "エラー: " + data.error;
+          document.getElementById("sa-error").style.display = "block";
+          return;
+        }
+
+        renderSensitivity(data);
+        document.getElementById("sa-result").style.display = "block";
+      } catch (e) {
+        document.getElementById("sa-error").textContent = "通信エラー: " + e;
+        document.getElementById("sa-error").style.display = "block";
+      } finally {
+        document.getElementById("sa-loading").style.display = "none";
+        document.getElementById("sa-run-btn").disabled = false;
+      }
+    }
+
+    function renderSensitivity(d) {
+      document.getElementById("sa-assessment").textContent = d.assessment || "評価なし";
+      document.getElementById("sa-wr-title").textContent = `${d.param_x_label} × ${d.param_y_label}`;
+
+      // 基準統計
+      document.getElementById("sa-base-stats").innerHTML = `
+        <div class="indicator-item">
+          <span class="ind-label">基準 ${d.param_x_label}</span>
+          <span class="ind-value">${d.base_x}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">基準 ${d.param_y_label}</span>
+          <span class="ind-value">${d.base_y}</span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">基準点 勝率</span>
+          <span class="ind-value" style="color:${d.base_win_rate>=55?'#4ade80':d.base_win_rate>=50?'#facc15':'#f87171'};">
+            ${d.base_win_rate !== null ? d.base_win_rate+'%' : '---'}
+          </span>
+        </div>
+        <div class="indicator-item">
+          <span class="ind-label">基準点 合計pips</span>
+          <span class="ind-value" style="color:${d.base_total_pips>0?'#4ade80':d.base_total_pips<0?'#f87171':'#888'};">
+            ${d.base_total_pips>0?'+':''}${d.base_total_pips.toFixed(1)}
+          </span>
+        </div>
+      `;
+
+      // 勝率ヒートマップ
+      const allWR = d.cells.flat().map(c => c.win_rate).filter(v => v !== null);
+      const wrMin = Math.min(...allWR);
+      const wrMax = Math.max(...allWR);
+
+      function wrColor(v) {
+        if (v === null) return '#333';
+        const t = wrMax > wrMin ? (v - wrMin) / (wrMax - wrMin) : 0.5;
+        const r = Math.round(248 * (1 - t) + 74 * t);
+        const g = Math.round(113 * (1 - t) + 222 * t);
+        const b = Math.round(113 * (1 - t) + 128 * t);
+        return `rgba(${r},${g},${b},0.25)`;
+      }
+
+      function buildTable(metric) {
+        const isBase = (xv, yv) => xv === d.base_x && yv === d.base_y;
+        let html = `<table class="report-table" style="min-width:${d.y_values.length * 90 + 120}px;">
+          <thead><tr>
+            <th>${d.param_x_label} \\ ${d.param_y_label}</th>
+            ${d.y_values.map(yv => `<th>${yv}</th>`).join('')}
+          </tr></thead><tbody>`;
+        d.cells.forEach((row, xi) => {
+          html += `<tr>`;
+          html += `<td style="font-weight:bold;color:#aaa;">${d.x_values[xi]}</td>`;
+          row.forEach((c, yi) => {
+            const val = metric === 'wr' ? c.win_rate : c.total_pips;
+            const bg = metric === 'wr' ? wrColor(val) : '';
+            const border = isBase(c.x_val, c.y_val) ? 'border: 2px solid #4ade80;' : '';
+            const color = metric === 'pips' ? (val > 0 ? '#4ade80' : val < 0 ? '#f87171' : '#888') : '#e0e0e0';
+            const disp = val !== null ? (metric === 'wr' ? val+'%' : (val>0?'+':'')+val.toFixed(1)) : '---';
+            html += `<td style="background:${bg};${border}color:${color};text-align:center;">${disp}</td>`;
+          });
+          html += `</tr>`;
+        });
+        html += '</tbody></table>';
+        return html;
+      }
+
+      document.getElementById("sa-wr-table-wrap").innerHTML = buildTable('wr');
+      document.getElementById("sa-pips-table-wrap").innerHTML = buildTable('pips');
     }
 
     async function runMonteCarlo() {

@@ -118,6 +118,23 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 47：ドローダウン分析（2026-05-19）
+
+- `app/scripts/drawdown.py`：新規作成
+  - `EquityPoint` dataclass（資産曲線の各点）
+  - `DrawdownStats` dataclass（最大DD・平均DD・継続期間・RF・PF・RR・勝率）
+  - `_build_equity_curve()` — 時系列 pnl_pips から累積資産曲線を生成
+  - `_compute_stats()` — EquityPoint リストから全指標を計算
+  - `get_drawdown_stats(symbol)` — 通貨ペア指定・全体集計の両方に対応
+  - `get_drawdown_by_symbol()` — 全通貨ペア別統計一覧
+  - `equity_curve_to_chart_data()` — Chart.js 用データ変換
+- `app/web/routes.py`：`GET /drawdown` ページ・`GET /api/drawdown` API 追加
+- `app/web/templates/drawdown.html`：新規作成（資産曲線・DDチャート・通貨ペア別比較表）
+- 全テンプレートのナビに「DD分析」リンク追加
+- `tests/test_drawdown.py`：テスト30件新規作成（全829テスト通過）
+
+---
+
 ### Phase 46：シグナル品質スコアリング（2026-05-19）
 
 - `app/scripts/signal_quality.py`：新規作成

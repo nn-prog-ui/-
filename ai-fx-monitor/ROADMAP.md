@@ -276,6 +276,16 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 47：ドローダウン分析 ✅
+
+- [x] `app/scripts/drawdown.py` — 資産曲線・ドローダウン計算エンジン
+  - EquityPoint / DrawdownStats dataclass
+  - 最大DD・平均DD・最大DD継続・リカバリーファクター・プロフィットファクター・RR比・勝率
+- [x] `app/web/routes.py` — `GET /drawdown` ページ・`GET /api/drawdown` API
+- [x] `app/web/templates/drawdown.html` — 資産曲線 + DDチャート（Chart.js）・通貨ペア別比較表
+- [x] 全テンプレートのナビに「DD分析」リンク追加
+- [x] `tests/test_drawdown.py` — テスト30件（全829テスト通過）
+
 ### Phase 46：シグナル品質スコアリング ✅
 
 - [x] `app/scripts/signal_quality.py` — 品質スコアリングエンジン

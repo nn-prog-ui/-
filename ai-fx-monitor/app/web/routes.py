@@ -93,6 +93,12 @@ from app.scripts.heatmap_calendar import (
     build_heatmap,
     get_heatmap_rows,
 )
+from app.scripts.drawdown import (
+    DrawdownStats,
+    equity_curve_to_chart_data,
+    get_drawdown_by_symbol,
+    get_drawdown_stats,
+)
 from app.scripts.signal_quality import (
     QUALITY_CSS,
     QUALITY_DESCRIPTIONS,
@@ -1669,3 +1675,53 @@ async def api_signal_quality_patterns(symbol: str = ""):
         return {"ok": False, "error": str(exc)}
 
     return {"ok": True, "symbol": sym, "patterns": patterns}
+
+
+@router.get("/drawdown")
+async def drawdown_page(request: Request, symbol: str = ""):
+    """ドローダウン分析ページ（Phase 47）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    stats = get_drawdown_stats(symbol=sym)
+    by_symbol = get_drawdown_by_symbol()
+    chart_data = equity_curve_to_chart_data(stats.equity_curve)
+    return templates.TemplateResponse(
+        "drawdown.html",
+        {
+            "request": request,
+            "symbol": sym,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "stats": stats,
+            "by_symbol": by_symbol,
+            "chart_data": chart_data,
+        },
+    )
+
+
+@router.get("/api/drawdown")
+async def api_drawdown(symbol: str = ""):
+    """ドローダウン統計を JSON で返す（Phase 47）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        stats = get_drawdown_stats(symbol=sym)
+        chart_data = equity_curve_to_chart_data(stats.equity_curve)
+    except Exception as exc:
+        logger.error("ドローダウンエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "trades": stats.trades,
+        "total_pips": stats.total_pips,
+        "max_drawdown": stats.max_drawdown,
+        "max_drawdown_pct": stats.max_drawdown_pct,
+        "avg_drawdown": stats.avg_drawdown,
+        "longest_drawdown_bars": stats.longest_drawdown_bars,
+        "recovery_factor": stats.recovery_factor,
+        "profit_factor": stats.profit_factor,
+        "avg_win_pips": stats.avg_win_pips,
+        "avg_loss_pips": stats.avg_loss_pips,
+        "risk_reward": stats.risk_reward,
+        "win_rate": stats.win_rate,
+        "chart_data": chart_data,
+    }

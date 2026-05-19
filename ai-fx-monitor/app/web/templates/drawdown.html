@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - ドローダウン分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link active">DD分析</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        ドローダウン分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">シミュレーション成績 / 自動注文なし</span>
+      </h2>
+
+      <!-- 通貨ペアフィルター -->
+      <form method="get" action="/drawdown" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      <!-- 主要指標カード -->
+      {% if stats.trades > 0 %}
+      <div class="dashboard-grid" style="margin-bottom:1.25rem;">
+        <div class="stat-card">
+          <div class="stat-label">合計損益</div>
+          <div class="stat-value {{ 'positive' if stats.total_pips >= 0 else 'negative' }}">
+            {{ '%+.1f'|format(stats.total_pips) }} pips
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大DD</div>
+          <div class="stat-value negative">
+            {{ '%.1f'|format(stats.max_drawdown) }} pips
+            <span style="font-size:0.75rem;color:#888;">({{ '%.1f'|format(stats.max_drawdown_pct) }}%)</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均DD</div>
+          <div class="stat-value" style="color:#fdba74;">
+            {{ '%.1f'|format(stats.avg_drawdown) }} pips
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大DD継続</div>
+          <div class="stat-value">{{ stats.longest_drawdown_bars }} トレード</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">リカバリーファクター</div>
+          <div class="stat-value {{ 'positive' if stats.recovery_factor > 1 else '' }}">
+            {% if stats.recovery_factor == stats.recovery_factor and stats.recovery_factor < 9999 %}
+              {{ '%.2f'|format(stats.recovery_factor) }}
+            {% else %}∞{% endif %}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">プロフィットファクター</div>
+          <div class="stat-value {{ 'positive' if stats.profit_factor > 1 else 'negative' }}">
+            {% if stats.profit_factor < 9999 %}{{ '%.2f'|format(stats.profit_factor) }}{% else %}∞{% endif %}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">勝率</div>
+          <div class="stat-value {{ 'positive' if stats.win_rate >= 50 else 'negative' }}">
+            {{ '%.1f'|format(stats.win_rate) }}%
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">リスクリワード比</div>
+          <div class="stat-value">
+            {% if stats.risk_reward < 9999 %}1:{{ '%.2f'|format(stats.risk_reward) }}{% else %}∞{% endif %}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均利益</div>
+          <div class="stat-value positive">+{{ '%.1f'|format(stats.avg_win_pips) }} pips</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均損失</div>
+          <div class="stat-value negative">-{{ '%.1f'|format(stats.avg_loss_pips) }} pips</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">対象トレード数</div>
+          <div class="stat-value">{{ stats.trades }} 件</div>
+        </div>
+      </div>
+
+      <!-- 資産曲線チャート -->
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">資産曲線 (累積 pips)</h3>
+      <div style="position:relative;height:280px;margin-bottom:1.5rem;">
+        <canvas id="equityChart"></canvas>
+      </div>
+
+      <!-- ドローダウンチャート -->
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">ドローダウン (pips)</h3>
+      <div style="position:relative;height:180px;margin-bottom:1rem;">
+        <canvas id="drawdownChart"></canvas>
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+
+      {% else %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズすると分析できます。
+      </p>
+      {% endif %}
+    </section>
+
+    <!-- 通貨ペア別比較 -->
+    {% if by_symbol %}
+    <section class="card">
+      <h3 class="card-title">通貨ペア別ドローダウン比較</h3>
+      <div style="overflow-x:auto;">
+        <table class="report-table" style="width:100%;min-width:600px;">
+          <thead>
+            <tr>
+              <th>通貨ペア</th>
+              <th>件数</th>
+              <th>合計(pips)</th>
+              <th>最大DD(pips)</th>
+              <th>最大DD(%)</th>
+              <th>PF</th>
+              <th>RR比</th>
+              <th>勝率</th>
+              <th>RF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in by_symbol %}
+            {% if s.trades > 0 %}
+            <tr>
+              <td><a href="/drawdown?symbol={{ s.symbol }}" style="color:var(--text-secondary);">{{ s.symbol }}</a></td>
+              <td>{{ s.trades }}</td>
+              <td class="{{ 'positive' if s.total_pips >= 0 else 'negative' }}">{{ '%+.1f'|format(s.total_pips) }}</td>
+              <td class="negative">{{ '%.1f'|format(s.max_drawdown) }}</td>
+              <td class="negative">{{ '%.1f'|format(s.max_drawdown_pct) }}%</td>
+              <td class="{{ 'positive' if s.profit_factor > 1 else 'negative' }}">
+                {% if s.profit_factor < 9999 %}{{ '%.2f'|format(s.profit_factor) }}{% else %}∞{% endif %}
+              </td>
+              <td>{% if s.risk_reward < 9999 %}1:{{ '%.2f'|format(s.risk_reward) }}{% else %}∞{% endif %}</td>
+              <td class="{{ 'positive' if s.win_rate >= 50 else 'negative' }}">{{ '%.1f'|format(s.win_rate) }}%</td>
+              <td class="{{ 'positive' if s.recovery_factor > 1 else '' }}">
+                {% if s.recovery_factor < 9999 %}{{ '%.2f'|format(s.recovery_factor) }}{% else %}∞{% endif %}
+              </td>
+            </tr>
+            {% endif %}
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </main>
+
+  <script>
+    const chartData = {{ chart_data | tojson }};
+
+    const commonOptions = {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: {
+          ticks: { color: '#888', maxTicksLimit: 10, maxRotation: 0 },
+          grid: { color: 'rgba(255,255,255,0.05)' },
+        },
+        y: {
+          ticks: { color: '#888' },
+          grid: { color: 'rgba(255,255,255,0.07)' },
+        },
+      },
+      elements: { point: { radius: chartData.labels.length > 50 ? 0 : 3 } },
+    };
+
+    // 資産曲線
+    if (chartData.labels.length > 0) {
+      const eqCtx = document.getElementById('equityChart').getContext('2d');
+      new Chart(eqCtx, {
+        type: 'line',
+        data: {
+          labels: chartData.labels,
+          datasets: [{
+            label: '累積損益(pips)',
+            data: chartData.equity,
+            borderColor: '#4ade80',
+            backgroundColor: 'rgba(74,222,128,0.08)',
+            borderWidth: 2,
+            fill: true,
+            tension: 0.2,
+          }],
+        },
+        options: {
+          ...commonOptions,
+          plugins: {
+            ...commonOptions.plugins,
+            tooltip: {
+              callbacks: { label: ctx => `${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(1)} pips` }
+            }
+          },
+          scales: {
+            ...commonOptions.scales,
+            y: { ...commonOptions.scales.y, title: { display: true, text: 'pips', color: '#888' } }
+          }
+        },
+      });
+
+      // ドローダウン
+      const ddCtx = document.getElementById('drawdownChart').getContext('2d');
+      new Chart(ddCtx, {
+        type: 'bar',
+        data: {
+          labels: chartData.labels,
+          datasets: [{
+            label: 'ドローダウン(pips)',
+            data: chartData.drawdown,
+            backgroundColor: 'rgba(248,113,113,0.5)',
+            borderColor: 'rgba(248,113,113,0.8)',
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          ...commonOptions,
+          plugins: {
+            ...commonOptions.plugins,
+            tooltip: {
+              callbacks: { label: ctx => `${ctx.parsed.y.toFixed(1)} pips` }
+            }
+          },
+          scales: {
+            ...commonOptions.scales,
+            y: {
+              ...commonOptions.scales.y,
+              max: 0,
+              title: { display: true, text: 'pips', color: '#888' }
+            }
+          }
+        },
+      });
+    }
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

@@ -93,6 +93,11 @@ from app.scripts.heatmap_calendar import (
     build_heatmap,
     get_heatmap_rows,
 )
+from app.scripts.streak import (
+    StreakStats,
+    get_streak_stats,
+    get_streak_stats_by_symbol,
+)
 from app.scripts.drawdown import (
     DrawdownStats,
     equity_curve_to_chart_data,
@@ -685,9 +690,23 @@ async def dashboard(request: Request):
         except Exception as exc:
             logger.warning("ダッシュボード分析エラー [%s]: %s", sym, exc)
 
+    # Phase 48: 連勝/連敗ストリーク統計
+    try:
+        streak_all = get_streak_stats(symbol=None)
+        streak_by_sym = get_streak_stats_by_symbol()
+    except Exception:
+        streak_all = None
+        streak_by_sym = []
+
     return templates.TemplateResponse(
         "dashboard.html",
-        {"request": request, "analyses": analyses, "supported_symbols": SUPPORTED_SYMBOLS},
+        {
+            "request": request,
+            "analyses": analyses,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "streak_all": streak_all,
+            "streak_by_sym": streak_by_sym,
+        },
     )
 
 
@@ -1724,4 +1743,40 @@ async def api_drawdown(symbol: str = ""):
         "risk_reward": stats.risk_reward,
         "win_rate": stats.win_rate,
         "chart_data": chart_data,
+    }
+
+
+@router.get("/api/streaks")
+async def api_streaks(symbol: str = ""):
+    """連勝/連敗ストリーク統計を JSON で返す（Phase 48）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        stats = get_streak_stats(symbol=sym)
+    except Exception as exc:
+        logger.error("ストリーク統計エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "trades": stats.trades,
+        "max_win_streak": stats.max_win_streak,
+        "max_loss_streak": stats.max_loss_streak,
+        "current_streak_type": stats.current_streak_type,
+        "current_streak_length": stats.current_streak_length,
+        "avg_win_streak": stats.avg_win_streak,
+        "avg_loss_streak": stats.avg_loss_streak,
+        "total_win_streaks": stats.total_win_streaks,
+        "total_loss_streaks": stats.total_loss_streaks,
+        "longest_win_streak_start": stats.longest_win_streak_start,
+        "longest_loss_streak_start": stats.longest_loss_streak_start,
+        "streaks": [
+            {
+                "type": e.type,
+                "length": e.length,
+                "start_at": e.start_at,
+                "end_at": e.end_at,
+            }
+            for e in stats.streaks
+        ],
     }

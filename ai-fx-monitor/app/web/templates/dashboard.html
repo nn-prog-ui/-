@@ -150,6 +150,86 @@
 
     <p id="refresh-status" style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:1rem;"></p>
 
+    <!-- Phase 48: 連勝/連敗ストリーク -->
+    {% if streak_all and streak_all.trades > 0 %}
+    <section class="card">
+      <h3 class="card-title">連勝/連敗ストリーク（全ペア合算）</h3>
+      <div class="history-grid" style="margin-bottom:0.75rem;">
+        <div style="text-align:center;">
+          <div class="h-label">最大連勝</div>
+          <div class="price-value" style="font-size:2rem;color:#4ade80;">
+            {{ streak_all.max_win_streak }}<span style="font-size:0.85rem;color:#888;">連勝</span>
+          </div>
+          {% if streak_all.longest_win_streak_start %}
+          <div class="h-label">{{ streak_all.longest_win_streak_start }} 〜</div>
+          {% endif %}
+        </div>
+        <div style="text-align:center;">
+          <div class="h-label">最大連敗</div>
+          <div class="price-value" style="font-size:2rem;color:#f87171;">
+            {{ streak_all.max_loss_streak }}<span style="font-size:0.85rem;color:#888;">連敗</span>
+          </div>
+          {% if streak_all.longest_loss_streak_start %}
+          <div class="h-label">{{ streak_all.longest_loss_streak_start }} 〜</div>
+          {% endif %}
+        </div>
+        <div style="text-align:center;">
+          <div class="h-label">現在のストリーク</div>
+          <div class="price-value" style="font-size:2rem;
+            {% if streak_all.current_streak_type == 'win' %}color:#4ade80;
+            {% elif streak_all.current_streak_type == 'loss' %}color:#f87171;
+            {% else %}color:#888;{% endif %}">
+            {{ streak_all.current_streak_length }}
+            <span style="font-size:0.85rem;color:#888;">
+              {{ '連勝中' if streak_all.current_streak_type == 'win' else '連敗中' if streak_all.current_streak_type == 'loss' else 'なし' }}
+            </span>
+          </div>
+        </div>
+        <div style="text-align:center;">
+          <div class="h-label">平均連勝 / 平均連敗</div>
+          <div class="price-value" style="font-size:1.3rem;">
+            <span style="color:#4ade80;">{{ '%.1f'|format(streak_all.avg_win_streak) }}</span>
+            <span style="color:#888; font-size:0.85rem;"> / </span>
+            <span style="color:#f87171;">{{ '%.1f'|format(streak_all.avg_loss_streak) }}</span>
+          </div>
+          <div class="h-label">{{ streak_all.trades }} 件 / {{ streak_all.total_win_streaks + streak_all.total_loss_streaks }} ストリーク</div>
+        </div>
+      </div>
+
+      {% if streak_by_sym %}
+      <table class="report-table" style="width:100%;margin-top:0.5rem;">
+        <thead>
+          <tr>
+            <th>通貨ペア</th><th>件数</th><th>最大連勝</th><th>最大連敗</th>
+            <th>平均連勝</th><th>平均連敗</th><th>現在</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in streak_by_sym %}
+          {% if s.trades > 0 %}
+          <tr>
+            <td>{{ s.symbol }}</td>
+            <td>{{ s.trades }}</td>
+            <td style="color:#4ade80;font-weight:bold;">{{ s.max_win_streak }}連勝</td>
+            <td style="color:#f87171;font-weight:bold;">{{ s.max_loss_streak }}連敗</td>
+            <td>{{ '%.1f'|format(s.avg_win_streak) }}</td>
+            <td>{{ '%.1f'|format(s.avg_loss_streak) }}</td>
+            <td style="{% if s.current_streak_type == 'win' %}color:#4ade80;{% elif s.current_streak_type == 'loss' %}color:#f87171;{% endif %}">
+              {{ s.current_streak_length }}{{ '連勝中' if s.current_streak_type == 'win' else '連敗中' if s.current_streak_type == 'loss' else '' }}
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+      {% endif %}
+
+      <small class="ai-disclaimer" style="display:block;margin-top:0.75rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+    </section>
+    {% endif %}
+
   </main>
 
   <footer class="app-footer">

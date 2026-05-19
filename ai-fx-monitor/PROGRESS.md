@@ -118,6 +118,20 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 48：連勝/連敗ストリーク分析（2026-05-19）
+
+- `app/scripts/streak.py`：新規作成
+  - `StreakEvent` dataclass（type/length/start_at/end_at）
+  - `StreakStats` dataclass（最大連勝/最大連敗/現在/平均/発生回数/開始日）
+  - `_compute_streaks_v2()` — 時系列 outcome から連続ストリークを抽出
+  - `get_streak_stats(symbol)` — 通貨ペア指定・全体集計対応
+  - `get_streak_stats_by_symbol()` — 全通貨ペア別統計一覧
+- `app/web/routes.py`：ダッシュボードルートにストリーク統計を追加、`GET /api/streaks` エンドポイント追加
+- `app/web/templates/dashboard.html`：連勝/連敗ストリークカード追加（最大・現在・平均・通貨ペア別テーブル）
+- `tests/test_streak.py`：テスト26件新規作成（全855テスト通過）
+
+---
+
 ### Phase 47：ドローダウン分析（2026-05-19）
 
 - `app/scripts/drawdown.py`：新規作成

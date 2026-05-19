@@ -276,6 +276,13 @@ AI FX市場監視システム 開発ロードマップ
 - [x] 全テンプレートのナビに「ジャーナル」リンク追加
 - [x] テスト16件（全327テスト通過）
 
+### Phase 48：連勝/連敗ストリーク分析 ✅
+
+- [x] `app/scripts/streak.py` — ストリーク検出エンジン（最大/現在/平均/発生回数）
+- [x] `app/web/routes.py` — dashboard に streak 統計追加 / `GET /api/streaks`
+- [x] `app/web/templates/dashboard.html` — ストリークカード（最大連勝/最大連敗/現在/通貨ペア別テーブル）
+- [x] `tests/test_streak.py` — テスト26件（全855テスト通過）
+
 ### Phase 47：ドローダウン分析 ✅
 
 - [x] `app/scripts/drawdown.py` — 資産曲線・ドローダウン計算エンジン

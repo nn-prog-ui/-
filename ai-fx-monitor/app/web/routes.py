@@ -111,6 +111,8 @@ from app.scripts.signal_quality import (
     get_signal_quality,
 )
 from app.scripts.optimizer import VALID_METRICS, optimize
+from app.scripts.multi_symbol import get_multi_symbol_report
+from app.scripts.pattern_recognition import get_pattern_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -1743,6 +1745,132 @@ async def api_drawdown(symbol: str = ""):
         "risk_reward": stats.risk_reward,
         "win_rate": stats.win_rate,
         "chart_data": chart_data,
+    }
+
+
+@router.get("/multi-symbol", response_class=HTMLResponse)
+async def multi_symbol_page(request: Request, sort_by: str = "total_pips"):
+    """マルチシンボル比較分析ページ（Phase 49）。注文は発生しない。"""
+    try:
+        report = get_multi_symbol_report(sort_by=sort_by)
+    except Exception as exc:
+        logger.error("マルチシンボル分析エラー: %s", exc)
+        report = None
+
+    return templates.TemplateResponse(
+        "multi_symbol.html",
+        {
+            "request": request,
+            "report": report,
+            "sort_by": sort_by,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "sort_options": [
+                ("total_pips", "合計損益"),
+                ("win_rate", "勝率"),
+                ("avg_pips", "平均損益"),
+                ("trades", "トレード数"),
+                ("profit_factor", "プロフィットファクター"),
+                ("avg_score", "平均スコア"),
+            ],
+        },
+    )
+
+
+@router.get("/api/multi-symbol")
+async def api_multi_symbol(sort_by: str = "total_pips"):
+    """マルチシンボル比較統計を JSON で返す（Phase 49）。注文は発生しない。"""
+    try:
+        report = get_multi_symbol_report(sort_by=sort_by)
+    except Exception as exc:
+        logger.error("マルチシンボル統計APIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "sort_by": report.sort_by,
+        "total_trades": report.total_trades,
+        "total_pips": report.total_pips,
+        "overall_win_rate": report.overall_win_rate,
+        "symbols": [
+            {
+                "rank": s.rank,
+                "symbol": s.symbol,
+                "trades": s.trades,
+                "win_count": s.win_count,
+                "loss_count": s.loss_count,
+                "open_count": s.open_count,
+                "win_rate": s.win_rate,
+                "total_pips": s.total_pips,
+                "avg_pips": s.avg_pips,
+                "avg_score": s.avg_score,
+                "avg_rsi": s.avg_rsi,
+                "profit_factor": s.profit_factor,
+                "max_win_pips": s.max_win_pips,
+                "max_loss_pips": s.max_loss_pips,
+                "buy_count": s.buy_count,
+                "sell_count": s.sell_count,
+            }
+            for s in report.symbols
+        ],
+    }
+
+
+@router.get("/pattern", response_class=HTMLResponse)
+async def pattern_page(request: Request, symbol: str = ""):
+    """トレードパターン認識ページ（Phase 49）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_pattern_report(symbol=sym)
+    except Exception as exc:
+        logger.error("パターン認識エラー: %s", exc)
+        report = None
+
+    return templates.TemplateResponse(
+        "pattern.html",
+        {
+            "request": request,
+            "report": report,
+            "selected_symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/pattern")
+async def api_pattern(symbol: str = ""):
+    """パターン認識統計を JSON で返す（Phase 49）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_pattern_report(symbol=sym)
+    except Exception as exc:
+        logger.error("パターン認識APIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    def _clusters(lst):
+        return [
+            {
+                "label": c.label,
+                "category": c.category,
+                "trades": c.trades,
+                "win_count": c.win_count,
+                "loss_count": c.loss_count,
+                "win_rate": c.win_rate,
+                "total_pips": c.total_pips,
+                "avg_pips": c.avg_pips,
+                "profit_factor": c.profit_factor,
+            }
+            for c in lst
+        ]
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_closed": report.total_closed,
+        "by_signal": _clusters(report.by_signal),
+        "by_rsi": _clusters(report.by_rsi),
+        "by_trend": _clusters(report.by_trend),
+        "by_score": _clusters(report.by_score),
+        "by_session": _clusters(report.by_session),
     }
 
 

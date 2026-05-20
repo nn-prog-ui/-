@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - マルチシンボル比較</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link active">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        マルチシンボル比較分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">複数通貨ペア横断比較 / 自動注文なし</span>
+      </h2>
+
+      <!-- ソートセレクター -->
+      <form method="get" action="/multi-symbol" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <select name="sort_by" class="form-input" style="max-width:220px;" onchange="this.form.submit()">
+          {% for key, label in sort_options %}
+            <option value="{{ key }}" {% if sort_by == key %}selected{% endif %}>{{ label }}順</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-secondary">並び替え</button>
+      </form>
+
+      {% if not report or report.symbols|length == 0 %}
+        <p style="color:#888;text-align:center;padding:2rem 0;">
+          トレード履歴がまだありません。トレードを記録すると比較が表示されます。
+        </p>
+      {% else %}
+
+      <!-- 全体サマリー -->
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+        <div class="stat-card">
+          <div class="stat-label">総トレード数</div>
+          <div class="stat-value">{{ report.total_trades }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">合計損益</div>
+          <div class="stat-value {% if report.total_pips >= 0 %}text-positive{% else %}text-negative{% endif %}">
+            {{ "%.1f"|format(report.total_pips) }} pips
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">全体勝率</div>
+          <div class="stat-value">
+            {% if report.overall_win_rate is not none %}
+              {{ "%.1f"|format(report.overall_win_rate) }}%
+            {% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">通貨ペア数</div>
+          <div class="stat-value">{{ report.symbols|length }}</div>
+        </div>
+      </div>
+
+      <!-- チャートエリア -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:2rem;">
+        <div style="background:#0d0d1a;border-radius:8px;padding:1rem;">
+          <h3 style="font-size:0.9rem;color:#aaa;margin-bottom:0.75rem;">合計損益比較 (pips)</h3>
+          <div style="position:relative;height:240px;">
+            <canvas id="pipsBySymbol"></canvas>
+          </div>
+        </div>
+        <div style="background:#0d0d1a;border-radius:8px;padding:1rem;">
+          <h3 style="font-size:0.9rem;color:#aaa;margin-bottom:0.75rem;">勝率比較 (%)</h3>
+          <div style="position:relative;height:240px;">
+            <canvas id="winRateBySymbol"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- ランキングテーブル -->
+      <div style="overflow-x:auto;">
+        <table class="data-table" style="min-width:900px;">
+          <thead>
+            <tr>
+              <th>順位</th>
+              <th>通貨ペア</th>
+              <th>取引数</th>
+              <th>勝/負</th>
+              <th>勝率</th>
+              <th>合計損益</th>
+              <th>平均損益</th>
+              <th>PF</th>
+              <th>最大勝ち</th>
+              <th>最大負け</th>
+              <th>BUY/SELL</th>
+              <th>平均スコア</th>
+              <th>平均RSI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in report.symbols %}
+            <tr {% if s.rank == 1 %}style="background:rgba(0,255,136,0.05);"{% endif %}>
+              <td style="text-align:center;font-weight:bold;">
+                {% if s.rank == 1 %}🥇{% elif s.rank == 2 %}🥈{% elif s.rank == 3 %}🥉{% else %}{{ s.rank }}{% endif %}
+              </td>
+              <td style="font-weight:bold;">{{ s.symbol }}</td>
+              <td style="text-align:center;">{{ s.trades }}{% if s.open_count > 0 %}<span style="color:#888;font-size:0.8rem;"> (+{{ s.open_count }})</span>{% endif %}</td>
+              <td style="text-align:center;">
+                <span class="text-positive">{{ s.win_count }}</span>
+                / <span class="text-negative">{{ s.loss_count }}</span>
+              </td>
+              <td style="text-align:center;">
+                {% if s.win_rate is not none %}
+                  <span class="{% if s.win_rate >= 60 %}text-positive{% elif s.win_rate < 40 %}text-negative{% endif %}">
+                    {{ "%.1f"|format(s.win_rate) }}%
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td style="text-align:right;" class="{% if s.total_pips >= 0 %}text-positive{% else %}text-negative{% endif %}">
+                {{ "%.1f"|format(s.total_pips) }}
+              </td>
+              <td style="text-align:right;" class="{% if s.avg_pips is not none and s.avg_pips >= 0 %}text-positive{% elif s.avg_pips is not none %}text-negative{% endif %}">
+                {% if s.avg_pips is not none %}{{ "%.2f"|format(s.avg_pips) }}{% else %}—{% endif %}
+              </td>
+              <td style="text-align:center;">
+                {% if s.profit_factor is not none %}
+                  <span class="{% if s.profit_factor >= 1.5 %}text-positive{% elif s.profit_factor < 1.0 %}text-negative{% endif %}">
+                    {{ "%.2f"|format(s.profit_factor) }}
+                  </span>
+                {% else %}—{% endif %}
+              </td>
+              <td style="text-align:right;color:#4caf50;">
+                {% if s.max_win_pips is not none %}+{{ "%.1f"|format(s.max_win_pips) }}{% else %}—{% endif %}
+              </td>
+              <td style="text-align:right;color:#f44336;">
+                {% if s.max_loss_pips is not none %}{{ "%.1f"|format(s.max_loss_pips) }}{% else %}—{% endif %}
+              </td>
+              <td style="text-align:center;font-size:0.85rem;">
+                <span style="color:#4fc3f7;">B:{{ s.buy_count }}</span>
+                / <span style="color:#ff8a65;">S:{{ s.sell_count }}</span>
+              </td>
+              <td style="text-align:center;">
+                {% if s.avg_score is not none %}{{ "%.1f"|format(s.avg_score) }}{% else %}—{% endif %}
+              </td>
+              <td style="text-align:center;">
+                {% if s.avg_rsi is not none %}{{ "%.1f"|format(s.avg_rsi) }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <p style="font-size:0.75rem;color:#666;margin-top:0.75rem;">
+        ※ 取引数の (+N) はオープン中のトレード数。PF = プロフィットファクター（勝ち合計 / 負け合計）。
+      </p>
+
+      {% endif %}
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      if (typeof Chart === 'undefined') return;
+
+      {% if report and report.symbols|length > 0 %}
+      const symbols = {{ report.symbols | map(attribute='symbol') | list | tojson }};
+      const pips    = {{ report.symbols | map(attribute='total_pips') | list | tojson }};
+      const winRate = {{ report.symbols | map(attribute='win_rate') | list | tojson }};
+
+      // 合計損益棒グラフ
+      new Chart(document.getElementById('pipsBySymbol'), {
+        type: 'bar',
+        data: {
+          labels: symbols,
+          datasets: [{
+            label: '合計損益 (pips)',
+            data: pips,
+            backgroundColor: pips.map(v => v >= 0 ? 'rgba(0,255,136,0.6)' : 'rgba(244,67,54,0.6)'),
+            borderColor:     pips.map(v => v >= 0 ? '#00ff88' : '#f44336'),
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#222' } },
+            y: { ticks: { color: '#aaa' }, grid: { color: '#222' } },
+          },
+        },
+      });
+
+      // 勝率棒グラフ
+      const validWinRate = winRate.map(v => v !== null ? v : 0);
+      new Chart(document.getElementById('winRateBySymbol'), {
+        type: 'bar',
+        data: {
+          labels: symbols,
+          datasets: [{
+            label: '勝率 (%)',
+            data: validWinRate,
+            backgroundColor: validWinRate.map(v => v >= 60 ? 'rgba(0,255,136,0.6)' : v >= 50 ? 'rgba(255,193,7,0.6)' : 'rgba(244,67,54,0.6)'),
+            borderColor:     validWinRate.map(v => v >= 60 ? '#00ff88' : v >= 50 ? '#ffc107' : '#f44336'),
+            borderWidth: 1,
+          }],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#222' } },
+            y: {
+              min: 0, max: 100,
+              ticks: { color: '#aaa', callback: v => v + '%' },
+              grid: { color: '#222' },
+            },
+          },
+        },
+      });
+      {% endif %}
+    })();
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

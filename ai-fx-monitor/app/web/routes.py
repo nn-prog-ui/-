@@ -113,6 +113,7 @@ from app.scripts.signal_quality import (
 from app.scripts.optimizer import VALID_METRICS, optimize
 from app.scripts.multi_symbol import get_multi_symbol_report
 from app.scripts.pattern_recognition import get_pattern_report
+from app.scripts.r_multiple import get_r_multiple_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -1906,5 +1907,68 @@ async def api_streaks(symbol: str = ""):
                 "end_at": e.end_at,
             }
             for e in stats.streaks
+        ],
+    }
+
+
+@router.get("/r-multiple", response_class=HTMLResponse)
+async def r_multiple_page(request: Request, symbol: str = ""):
+    """R倍数・期待値分析ページ（Phase 50）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_r_multiple_report(symbol=sym)
+    except Exception as exc:
+        logger.error("R倍数レポートエラー: %s", exc)
+        report = get_r_multiple_report.__wrapped__(symbol=None) if False else None
+
+    return templates.TemplateResponse(
+        "r_multiple.html",
+        {
+            "request": request,
+            "report": report,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/r-multiple")
+async def api_r_multiple(symbol: str = ""):
+    """R倍数・期待値・SQN を JSON で返す（Phase 50）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_r_multiple_report(symbol=sym)
+    except Exception as exc:
+        logger.error("R倍数APIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "trades": report.trades,
+        "avg_loss_pips": report.avg_loss_pips,
+        "mean_r": report.mean_r,
+        "median_r": report.median_r,
+        "std_r": report.std_r,
+        "min_r": report.min_r,
+        "max_r": report.max_r,
+        "expectancy": report.expectancy,
+        "sqn": report.sqn,
+        "sqn_grade": report.sqn_grade,
+        "positive_r_count": report.positive_r_count,
+        "negative_r_count": report.negative_r_count,
+        "histogram_labels": report.histogram_labels,
+        "histogram_counts": report.histogram_counts,
+        "by_symbol": report.by_symbol,
+        "series": [
+            {
+                "record_id": t.record_id,
+                "symbol": t.symbol,
+                "outcome": t.outcome,
+                "pnl_pips": t.pnl_pips,
+                "r_value": t.r_value,
+                "created_at": t.created_at,
+            }
+            for t in report.series
         ],
     }

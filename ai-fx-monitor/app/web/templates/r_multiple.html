@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - R倍数・期待値分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link active">R倍数</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        R倍数・期待値分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">シミュレーション成績 / 自動注文なし</span>
+      </h2>
+
+      <p class="history-note" style="margin-bottom:1rem;">
+        各トレードの損益を「リスク単位（R）」で正規化します。
+        1R ＝ 過去の<strong>平均実損失 pips</strong>（{{ '%.1f'|format(report.avg_loss_pips) }} pips）。
+        期待値がプラスであれば長期的に有利なシステムです。
+      </p>
+
+      <!-- 通貨ペアフィルター -->
+      <form method="get" action="/r-multiple" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if report.trades > 0 %}
+
+      <!-- 主要指標カード -->
+      <div class="dashboard-grid" style="margin-bottom:1.25rem;">
+        <div class="stat-card">
+          <div class="stat-label">期待値 (Expectancy)</div>
+          <div class="stat-value {{ 'positive' if report.expectancy > 0 else 'negative' }}">
+            {{ '%+.4f'|format(report.expectancy) }} R
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">SQN</div>
+          <div class="stat-value {{ 'positive' if report.sqn and report.sqn > 0 else '' }}">
+            {% if report.sqn is not none %}{{ '%.2f'|format(report.sqn) }}{% else %}—{% endif %}
+          </div>
+          <div style="font-size:0.75rem;color:#aaa;margin-top:0.25rem;">{{ report.sqn_grade }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">平均 R</div>
+          <div class="stat-value {{ 'positive' if report.mean_r > 0 else 'negative' }}">
+            {{ '%+.4f'|format(report.mean_r) }} R
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">中央値 R</div>
+          <div class="stat-value {{ 'positive' if report.median_r > 0 else 'negative' }}">
+            {{ '%+.4f'|format(report.median_r) }} R
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">R 標準偏差</div>
+          <div class="stat-value">
+            {% if report.std_r is not none %}{{ '%.4f'|format(report.std_r) }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最大 R / 最小 R</div>
+          <div class="stat-value" style="font-size:1rem;">
+            <span class="positive">{{ '%+.2f'|format(report.max_r) }}</span>
+            /
+            <span class="negative">{{ '%+.2f'|format(report.min_r) }}</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">1R 基準値</div>
+          <div class="stat-value">{{ '%.1f'|format(report.avg_loss_pips) }} pips</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">+R / −R トレード</div>
+          <div class="stat-value">
+            <span class="positive">{{ report.positive_r_count }}</span>
+            /
+            <span class="negative">{{ report.negative_r_count }}</span>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">対象件数</div>
+          <div class="stat-value">{{ report.trades }} 件</div>
+        </div>
+      </div>
+
+      <!-- SQN 評価基準 -->
+      <div style="background:#1a1a2e;border-radius:0.5rem;padding:0.75rem 1rem;margin-bottom:1.5rem;font-size:0.8rem;color:#aaa;">
+        <strong style="color:#ccc;">SQN 評価基準</strong>（Van Tharp）：
+        &lt;1.6 Poor ／ 1.6–2.0 Average ／ 2.0–3.0 Good ／ 3.0–5.0 Excellent ／ 5.0+ Holy Grail
+      </div>
+
+      <!-- R分布ヒストグラム -->
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">R 分布ヒストグラム</h3>
+      <div style="position:relative;height:260px;margin-bottom:1.5rem;">
+        <canvas id="histChart"></canvas>
+      </div>
+
+      <!-- 累積 R 曲線 -->
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">累積 R 曲線</h3>
+      <div style="position:relative;height:220px;margin-bottom:1rem;">
+        <canvas id="cumulativeChart"></canvas>
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+
+      {% else %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズすると分析できます。
+      </p>
+      {% endif %}
+    </section>
+
+    <!-- 通貨ペア別 SQN 比較 -->
+    {% if report.by_symbol %}
+    <section class="card">
+      <h3 class="card-title">通貨ペア別 R 倍数サマリー</h3>
+      <div style="overflow-x:auto;">
+        <table class="report-table" style="width:100%;min-width:480px;">
+          <thead>
+            <tr>
+              <th>通貨ペア</th>
+              <th>件数</th>
+              <th>平均 R</th>
+              <th>SQN</th>
+              <th>評価</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in report.by_symbol %}
+            <tr>
+              <td><a href="/r-multiple?symbol={{ s.symbol }}" style="color:var(--text-secondary);">{{ s.symbol }}</a></td>
+              <td>{{ s.trades }}</td>
+              <td class="{{ 'positive' if s.mean_r > 0 else 'negative' }}">{{ '%+.4f'|format(s.mean_r) }} R</td>
+              <td class="{{ 'positive' if s.sqn and s.sqn > 0 else '' }}">
+                {% if s.sqn is not none %}{{ '%.2f'|format(s.sqn) }}{% else %}—{% endif %}
+              </td>
+              <td>
+                <span style="padding:0.1rem 0.5rem;border-radius:0.25rem;font-size:0.78rem;
+                  {% if s.sqn_grade == 'Excellent' or s.sqn_grade == 'Holy Grail' %}background:#1a3a1a;color:#4ade80;
+                  {% elif s.sqn_grade == 'Good' %}background:#1a2a3a;color:#60a5fa;
+                  {% elif s.sqn_grade == 'Average' %}background:#2a2a1a;color:#fbbf24;
+                  {% else %}background:#2a1a1a;color:#f87171;{% endif %}">
+                  {{ s.sqn_grade }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- 個別トレード一覧 -->
+    {% if report.series %}
+    <section class="card">
+      <h3 class="card-title">個別トレード R 倍数（直近50件）</h3>
+      <div style="overflow-x:auto;">
+        <table class="report-table" style="width:100%;min-width:480px;">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>日時</th>
+              <th>通貨ペア</th>
+              <th>結果</th>
+              <th>pnl (pips)</th>
+              <th>R 倍数</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in report.series[-50:]|reverse %}
+            <tr>
+              <td style="color:#666;">{{ t.record_id }}</td>
+              <td style="color:#888;font-size:0.82rem;">{{ t.created_at[:16] }}</td>
+              <td>{{ t.symbol }}</td>
+              <td class="{{ 'positive' if t.outcome == 'win' else 'negative' }}">
+                {{ '勝' if t.outcome == 'win' else '負' }}
+              </td>
+              <td class="{{ 'positive' if t.pnl_pips >= 0 else 'negative' }}">
+                {{ '%+.1f'|format(t.pnl_pips) }}
+              </td>
+              <td class="{{ 'positive' if t.r_value > 0 else 'negative' }}" style="font-weight:600;">
+                {{ '%+.2f'|format(t.r_value) }} R
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if report.trades > 0 %}
+  <script>
+  (function() {
+    const histLabels = {{ report.histogram_labels | tojson }};
+    const histCounts = {{ report.histogram_counts | tojson }};
+    const series = {{ report.series | map(attribute='r_value') | list | tojson }};
+
+    // ヒストグラム
+    const histColors = histLabels.map(l => parseFloat(l) >= 0 ? 'rgba(74,222,128,0.6)' : 'rgba(248,113,113,0.6)');
+    new Chart(document.getElementById('histChart'), {
+      type: 'bar',
+      data: {
+        labels: histLabels,
+        datasets: [{
+          label: 'トレード数',
+          data: histCounts,
+          backgroundColor: histColors,
+          borderColor: histColors.map(c => c.replace('0.6','1')),
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#333' } },
+          y: { ticks: { color: '#aaa' }, grid: { color: '#333' }, beginAtZero: true },
+        }
+      }
+    });
+
+    // 累積 R 曲線
+    let cum = 0;
+    const cumData = series.map((r, i) => { cum += r; return { x: i + 1, y: parseFloat(cum.toFixed(4)) }; });
+    new Chart(document.getElementById('cumulativeChart'), {
+      type: 'line',
+      data: {
+        datasets: [{
+          label: '累積 R',
+          data: cumData,
+          borderColor: '#60a5fa',
+          backgroundColor: 'rgba(96,165,250,0.08)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 0,
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { type: 'linear', ticks: { color: '#aaa' }, grid: { color: '#333' }, title: { display: true, text: 'トレード番号', color: '#888' } },
+          y: { ticks: { color: '#aaa' }, grid: { color: '#333' } },
+        }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

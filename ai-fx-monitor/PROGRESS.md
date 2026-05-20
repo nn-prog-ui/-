@@ -118,6 +118,26 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 50：R倍数・期待値分析（2026-05-20）
+
+- `app/scripts/r_multiple.py`：新規作成
+  - `RMultipleTrade` dataclass（record_id/symbol/outcome/pnl_pips/r_value/created_at）
+  - `RMultipleReport` dataclass（期待値/SQN/平均R/中央値R/標準偏差/ヒストグラム/通貨別）
+  - `get_r_multiple_report(symbol, db_path)`：1R基準＝平均実損失pips、R正規化・SQN計算
+  - `_build_histogram()`：バケット幅0.5Rのヒストグラムデータ生成
+  - `_sqn_grade()`：Van Tharp基準の5段階評価（Poor〜Holy Grail）
+- `app/web/routes.py`：`GET /r-multiple` + `GET /api/r-multiple` 追加、インポート追加
+- `app/web/templates/r_multiple.html`：新規作成
+  - 指標カード9枚（期待値/SQN/平均R/中央値R/標準偏差/最大最小R/1R基準/±Rカウント/件数）
+  - R分布ヒストグラム（Chart.js bar）
+  - 累積R曲線（Chart.js line）
+  - 通貨別SQNサマリーテーブル（グレードバッジ付き）
+  - 個別トレード一覧（直近50件）
+- 全テンプレートのナビに「R倍数」リンク追加（17テンプレート）
+- `tests/test_r_multiple.py`：テスト26件新規作成（全932テスト通過）
+
+---
+
 ### Phase 48：連勝/連敗ストリーク分析（2026-05-19）
 
 - `app/scripts/streak.py`：新規作成

@@ -163,3 +163,18 @@ CREATE TABLE IF NOT EXISTS trade_goals (
     UNIQUE(period_type, period_label, symbol)
 );
 """
+
+# Phase 62: 世界経済イベントログ
+CREATE_MACRO_EVENT_LOG_TABLE = """
+CREATE TABLE IF NOT EXISTS macro_event_log (
+    id             INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at     TEXT NOT NULL,
+    event_date     TEXT NOT NULL,
+    event_type     TEXT NOT NULL,   -- FOMC / NFP / CPI / 政策発表 / 地政学リスク / その他
+    title          TEXT NOT NULL,
+    description    TEXT,
+    usd_forecast   TEXT NOT NULL DEFAULT 'neutral',  -- bullish / bearish / neutral
+    actual_result  TEXT,            -- 実際に起きたこと（後から記録）
+    notes          TEXT
+);
+"""

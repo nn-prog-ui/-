@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 世界イベントログ</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link active">世界イベント</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- イベント登録フォーム -->
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        世界経済イベントログ
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">FOMC・雇用統計・地政学リスクなど / 自動注文なし</span>
+      </h2>
+
+      <p style="font-size:0.75rem;color:#666;margin-bottom:1.25rem;">
+        ※ 世界の経済イベントを記録し、ドル円への影響を色分けで管理します。<br>
+        <span style="color:#4ade80;font-weight:600;">■ 緑 = ドル高予想</span>
+        <span style="color:#f87171;font-weight:600;">■ 赤 = ドル安予想</span>
+        <span style="color:#fbbf24;font-weight:600;">■ 黄 = 中立・不明</span>
+      </p>
+
+      <form method="post" action="/macro-events/add"
+            style="display:grid;gap:0.75rem;max-width:700px;">
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+          <div>
+            <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">イベント日時 *</label>
+            <input type="datetime-local" name="event_date" required
+                   class="form-input" style="width:100%;">
+          </div>
+          <div>
+            <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">イベント種別 *</label>
+            <select name="event_type" class="form-input" style="width:100%;">
+              {% for t in event_types %}
+              <option value="{{ t }}">{{ t }}</option>
+              {% endfor %}
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">タイトル *（例：FOMC 金利0.25%引き上げ）</label>
+          <input type="text" name="title" required placeholder="イベントの内容を簡潔に"
+                 class="form-input" style="width:100%;">
+        </div>
+
+        <div>
+          <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">
+            ドル円への影響予測 *
+          </label>
+          <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;
+                          background:#0a1a0a;border:1px solid #4ade8055;border-radius:0.4rem;
+                          padding:0.5rem 0.9rem;font-size:0.85rem;">
+              <input type="radio" name="usd_forecast" value="bullish" style="accent-color:#4ade80;">
+              <span style="color:#4ade80;font-weight:600;">📈 ドル高予想</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;
+                          background:#1a0a0a;border:1px solid #f8717155;border-radius:0.4rem;
+                          padding:0.5rem 0.9rem;font-size:0.85rem;">
+              <input type="radio" name="usd_forecast" value="bearish" style="accent-color:#f87171;">
+              <span style="color:#f87171;font-weight:600;">📉 ドル安予想</span>
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;
+                          background:#1a1a0a;border:1px solid #fbbf2455;border-radius:0.4rem;
+                          padding:0.5rem 0.9rem;font-size:0.85rem;">
+              <input type="radio" name="usd_forecast" value="neutral" checked style="accent-color:#fbbf24;">
+              <span style="color:#fbbf24;font-weight:600;">➡️ 中立・不明</span>
+            </label>
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">詳細説明（任意）</label>
+          <textarea name="description" rows="2" placeholder="例：前回比 +0.25% の利上げ。インフレ対策継続を示唆。"
+                    class="form-input" style="width:100%;resize:vertical;"></textarea>
+        </div>
+
+        <div>
+          <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">実際の結果（後から記録）</label>
+          <input type="text" name="actual_result" placeholder="例：発表後ドル円が1円上昇、その後反落"
+                 class="form-input" style="width:100%;">
+        </div>
+
+        <div>
+          <label style="font-size:0.8rem;color:#888;display:block;margin-bottom:0.25rem;">メモ</label>
+          <input type="text" name="notes" placeholder="自由記述"
+                 class="form-input" style="width:100%;">
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="max-width:160px;">
+          ＋ イベントを記録
+        </button>
+      </form>
+    </section>
+
+    <!-- イベント一覧 -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        記録済みイベント
+        <span style="font-size:0.75rem;color:#666;font-weight:normal;margin-left:0.5rem;">
+          全 {{ events | length }} 件
+        </span>
+      </h3>
+
+      {% if events | length == 0 %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        まだイベントが記録されていません。<br>
+        上のフォームから FOMC・雇用統計などを記録してください。
+      </p>
+      {% else %}
+      <div style="display:flex;flex-direction:column;gap:0.6rem;">
+        {% for ev in events %}
+        {% set fc = ev.usd_forecast %}
+        {% if fc == 'bullish' %}
+          {% set fc_color = '#4ade80' %}
+          {% set fc_bg = '#0a1a0a' %}
+          {% set fc_border = '#4ade8044' %}
+          {% set fc_label = '📈 ドル高予想' %}
+        {% elif fc == 'bearish' %}
+          {% set fc_color = '#f87171' %}
+          {% set fc_bg = '#1a0a0a' %}
+          {% set fc_border = '#f8717144' %}
+          {% set fc_label = '📉 ドル安予想' %}
+        {% else %}
+          {% set fc_color = '#fbbf24' %}
+          {% set fc_bg = '#1a1a0a' %}
+          {% set fc_border = '#fbbf2444' %}
+          {% set fc_label = '➡️ 中立' %}
+        {% endif %}
+
+        <div style="background:{{ fc_bg }};border:1px solid {{ fc_border }};
+                    border-left:4px solid {{ fc_color }};border-radius:0.5rem;
+                    padding:0.75rem 1rem;">
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+            <div style="flex:1;min-width:0;">
+              <!-- ヘッダー行 -->
+              <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;margin-bottom:0.3rem;">
+                <span style="font-size:0.7rem;background:#ffffff11;color:#888;
+                             border-radius:0.3rem;padding:0.1rem 0.4rem;">
+                  {{ ev.event_type }}
+                </span>
+                <span style="font-size:0.75rem;color:#666;">{{ ev.event_date[:16] }}</span>
+                <span style="font-size:0.75rem;font-weight:700;color:{{ fc_color }};">
+                  {{ fc_label }}
+                </span>
+              </div>
+              <!-- タイトル -->
+              <div style="font-size:0.95rem;font-weight:600;color:#e2e8f0;margin-bottom:0.2rem;">
+                {{ ev.title }}
+              </div>
+              <!-- 詳細 -->
+              {% if ev.description %}
+              <div style="font-size:0.8rem;color:#aaa;margin-bottom:0.2rem;">{{ ev.description }}</div>
+              {% endif %}
+              <!-- 実際の結果 -->
+              {% if ev.actual_result %}
+              <div style="font-size:0.8rem;color:#60a5fa;margin-top:0.3rem;">
+                <span style="color:#666;">実際の結果：</span>{{ ev.actual_result }}
+              </div>
+              {% endif %}
+              <!-- メモ -->
+              {% if ev.notes %}
+              <div style="font-size:0.75rem;color:#666;margin-top:0.15rem;">メモ：{{ ev.notes }}</div>
+              {% endif %}
+            </div>
+            <!-- 削除ボタン -->
+            <form method="post" action="/macro-events/{{ ev.id }}/delete"
+                  onsubmit="return confirm('このイベントを削除しますか？');"
+                  style="flex-shrink:0;">
+              <button type="submit" class="btn"
+                      style="font-size:0.7rem;padding:0.2rem 0.5rem;
+                             background:#1a1a1a;color:#666;border:1px solid #333;">
+                削除
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+
+      <small class="ai-disclaimer" style="display:block;margin-top:1rem;">
+        ※ このログはあなたの判断材料の記録です。将来の価格動向を保証するものではありません。
+      </small>
+    </section>
+
+  </main>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

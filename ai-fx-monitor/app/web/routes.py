@@ -2594,3 +2594,116 @@ async def api_streak_stats(symbol: str = ""):
         "streak_timeline": report.streak_timeline,
         "timeline_labels": report.timeline_labels,
     }
+
+
+# ── Phase 62: 世界経済イベントログ ─────────────────────────────────
+
+MACRO_EVENT_TYPES = ["FOMC", "NFP", "CPI", "政策発表", "地政学リスク", "その他"]
+MACRO_USD_FORECASTS = {
+    "bullish": {"label": "📈 ドル高予想", "color": "#4ade80"},
+    "bearish": {"label": "📉 ドル安予想", "color": "#f87171"},
+    "neutral": {"label": "➡️ 中立", "color": "#fbbf24"},
+}
+
+
+def _get_macro_events(db_path=None) -> list:
+    from app.config import DB_PATH as _DB_PATH
+    path = db_path or _DB_PATH
+    with get_db(path) as conn:
+        # Migrate: create table if not exists (in case old DB)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS macro_event_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                event_date TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                usd_forecast TEXT NOT NULL DEFAULT 'neutral',
+                actual_result TEXT,
+                notes TEXT
+            )
+        """)
+        rows = conn.execute(
+            "SELECT * FROM macro_event_log ORDER BY event_date DESC"
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+@router.get("/macro-events", response_class=HTMLResponse)
+async def macro_events_page(request: Request):
+    """世界経済イベントログページ（Phase 62）。注文は発生しない。"""
+    events = _get_macro_events()
+    return templates.TemplateResponse(
+        "macro_events.html",
+        {
+            "request": request,
+            "events": events,
+            "event_types": MACRO_EVENT_TYPES,
+            "usd_forecasts": MACRO_USD_FORECASTS,
+        },
+    )
+
+
+@router.post("/macro-events/add", response_class=RedirectResponse)
+async def macro_events_add(
+    request: Request,
+    event_date: str = Form(...),
+    event_type: str = Form(...),
+    title: str = Form(...),
+    description: str = Form(""),
+    usd_forecast: str = Form("neutral"),
+    actual_result: str = Form(""),
+    notes: str = Form(""),
+):
+    """イベントを登録する（Phase 62）。注文は発生しない。"""
+    if usd_forecast not in MACRO_USD_FORECASTS:
+        usd_forecast = "neutral"
+    if event_type not in MACRO_EVENT_TYPES:
+        event_type = "その他"
+    from datetime import datetime as _dt
+    from app.config import DB_PATH as _DB_PATH
+    now = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
+    with get_db(_DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS macro_event_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                created_at TEXT NOT NULL,
+                event_date TEXT NOT NULL,
+                event_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                usd_forecast TEXT NOT NULL DEFAULT 'neutral',
+                actual_result TEXT,
+                notes TEXT
+            )
+        """)
+        conn.execute(
+            """INSERT INTO macro_event_log
+               (created_at, event_date, event_type, title, description,
+                usd_forecast, actual_result, notes)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (now, event_date, event_type, title.strip(),
+             description.strip(), usd_forecast,
+             actual_result.strip(), notes.strip()),
+        )
+    return RedirectResponse("/macro-events", status_code=303)
+
+
+@router.post("/macro-events/{event_id}/delete", response_class=RedirectResponse)
+async def macro_events_delete(event_id: int):
+    """イベントを削除する（Phase 62）。注文は発生しない。"""
+    from app.config import DB_PATH as _DB_PATH
+    with get_db(_DB_PATH) as conn:
+        conn.execute("DELETE FROM macro_event_log WHERE id = ?", (event_id,))
+    return RedirectResponse("/macro-events", status_code=303)
+
+
+@router.get("/api/macro-events")
+async def api_macro_events():
+    """世界経済イベントログを JSON で返す（Phase 62）。注文は発生しない。"""
+    try:
+        events = _get_macro_events()
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    return {"ok": True, "events": events}

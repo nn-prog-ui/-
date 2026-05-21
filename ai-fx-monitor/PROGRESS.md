@@ -118,6 +118,27 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 51：ポジションサイジング計算機（2026-05-21）
+
+- `app/scripts/position_sizing.py`：新規作成
+  - `SizingInput` dataclass（残高/リスク%/SL pips/pip価値/勝率/平均損益）
+  - `SizingResult` dataclass（固定リスクlot/ケリー比率/半ケリーlot/期待値/警告）
+  - `calculate_sizing()`：固定リスク法・ケリー基準（f*=p-q/R）・半ケリー推奨の3手法
+  - `get_historical_stats()`：DBから勝率/平均損益を事前取得（フォーム自動補完用）
+  - `_round_lot()`：ロットをステップ単位に切り捨て
+  - Van Tharp 基準の警告生成（ケリー過大 >25%、リスク過大 >5%）
+- `app/web/routes.py`：`GET /position-sizing` + `GET /api/position-sizing` 追加
+- `app/web/templates/position_sizing.html`：新規作成
+  - 入力フォーム（7項目 + ページ読み込み時に自動計算）
+  - 期待値・ペイオフ比・ケリー評価カード
+  - 固定リスク法・半ケリーのロット表示
+  - 警告ボックス（問題がある場合のみ表示）
+  - 手法解説パネル
+- 全18テンプレートのナビに「ロット計算」リンク追加
+- `tests/test_position_sizing.py`：テスト20件新規作成（全956件通過）
+
+---
+
 ### Phase 50：R倍数・期待値分析（2026-05-20）
 
 - `app/scripts/r_multiple.py`：新規作成

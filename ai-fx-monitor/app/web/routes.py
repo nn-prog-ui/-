@@ -114,6 +114,9 @@ from app.scripts.optimizer import VALID_METRICS, optimize
 from app.scripts.multi_symbol import get_multi_symbol_report
 from app.scripts.pattern_recognition import get_pattern_report
 from app.scripts.r_multiple import get_r_multiple_report
+from app.scripts.position_sizing import (
+    SizingInput, calculate_sizing, get_historical_stats,
+)
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -1971,4 +1974,69 @@ async def api_r_multiple(symbol: str = ""):
             }
             for t in report.series
         ],
+    }
+
+
+@router.get("/position-sizing", response_class=HTMLResponse)
+async def position_sizing_page(request: Request, symbol: str = ""):
+    """ポジションサイジング計算ページ（Phase 51）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        hist = get_historical_stats(symbol=sym)
+    except Exception as exc:
+        logger.error("ポジションサイジング成績取得エラー: %s", exc)
+        hist = {"win_rate": None, "avg_win_pips": None, "avg_loss_pips": None, "trades": 0}
+
+    return templates.TemplateResponse(
+        "position_sizing.html",
+        {
+            "request": request,
+            "hist": hist,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/position-sizing")
+async def api_position_sizing(
+    balance: float = 100000,
+    risk_pct: float = 1.0,
+    stop_pips: float = 20,
+    pip_value: float = 1000,
+    win_rate: float = 55,
+    avg_win_pips: float = 20,
+    avg_loss_pips: float = 10,
+    min_lot: float = 0.01,
+    lot_step: float = 0.01,
+):
+    """ポジションサイズを計算して JSON で返す（Phase 51）。注文は発生しない。"""
+    try:
+        inp = SizingInput(
+            balance=balance,
+            risk_pct=risk_pct,
+            stop_pips=stop_pips,
+            pip_value=pip_value,
+            win_rate=win_rate,
+            avg_win_pips=avg_win_pips,
+            avg_loss_pips=avg_loss_pips,
+            min_lot=min_lot,
+            lot_step=lot_step,
+        )
+        result = calculate_sizing(inp)
+    except Exception as exc:
+        logger.error("ポジションサイジング計算エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "fixed_risk_lot": result.fixed_risk_lot,
+        "fixed_risk_amount": result.fixed_risk_amount,
+        "kelly_fraction": result.kelly_fraction,
+        "kelly_lot": result.kelly_lot,
+        "half_kelly_lot": result.half_kelly_lot,
+        "kelly_grade": result.kelly_grade,
+        "expectancy_pips": result.expectancy_pips,
+        "payoff_ratio": result.payoff_ratio,
+        "warnings": result.warnings,
     }

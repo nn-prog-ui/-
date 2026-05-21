@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - ポジションサイジング計算機</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link active">ロット計算</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- 入力フォーム -->
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        ポジションサイジング計算機
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">シミュレーション / 自動注文なし</span>
+      </h2>
+      <p class="history-note" style="margin-bottom:1rem;">
+        口座残高・リスク設定・過去成績から適正ロットサイズを3手法で算出します。
+        {% if hist.trades > 0 %}
+        過去 <strong>{{ hist.trades }}件</strong>の成績を自動取得しました。
+        {% endif %}
+      </p>
+
+      <form id="sizingForm" style="display:grid;gap:1rem;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:0.75rem;">
+
+          <div>
+            <label class="form-label">口座残高</label>
+            <div style="display:flex;gap:0.4rem;">
+              <input id="balance" type="number" class="form-input" value="100000" min="1" step="1000" style="flex:1;">
+              <select id="currency" class="form-input" style="width:70px;">
+                <option>JPY</option>
+                <option>USD</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label class="form-label">リスク割合 (%)</label>
+            <input id="risk_pct" type="number" class="form-input" value="1" min="0.1" max="100" step="0.1">
+            <small style="color:#888;">推奨: 1〜2%</small>
+          </div>
+
+          <div>
+            <label class="form-label">ストップロス (pips)</label>
+            <input id="stop_pips" type="number" class="form-input" value="20" min="1" step="1">
+          </div>
+
+          <div>
+            <label class="form-label">1pip 価値 (通貨単位/lot)</label>
+            <input id="pip_value" type="number" class="form-input" value="1000" min="1" step="100">
+            <small style="color:#888;">USD/JPY 標準: 約1,000 JPY/lot</small>
+          </div>
+
+          <div>
+            <label class="form-label">勝率 (%)</label>
+            <input id="win_rate" type="number" class="form-input"
+              value="{{ '%.1f'|format(hist.win_rate) if hist.win_rate is not none else 55 }}"
+              min="1" max="99" step="0.1">
+          </div>
+
+          <div>
+            <label class="form-label">平均利益 (pips)</label>
+            <input id="avg_win_pips" type="number" class="form-input"
+              value="{{ '%.1f'|format(hist.avg_win_pips) if hist.avg_win_pips is not none else 20 }}"
+              min="1" step="0.1">
+          </div>
+
+          <div>
+            <label class="form-label">平均損失 (pips)</label>
+            <input id="avg_loss_pips" type="number" class="form-input"
+              value="{{ '%.1f'|format(hist.avg_loss_pips) if hist.avg_loss_pips is not none else 10 }}"
+              min="1" step="0.1">
+          </div>
+
+        </div>
+
+        <div>
+          <button type="button" id="calcBtn" class="btn btn-primary" style="min-width:120px;">計算</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 結果パネル -->
+    <div id="resultPanel" style="display:none;">
+
+      <!-- 期待値カード -->
+      <section class="card">
+        <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">システム評価</h3>
+        <div class="dashboard-grid">
+          <div class="stat-card">
+            <div class="stat-label">期待値</div>
+            <div class="stat-value" id="rv_expectancy">—</div>
+            <div style="font-size:0.75rem;color:#aaa;">pips/トレード</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ペイオフ比（RR比）</div>
+            <div class="stat-value" id="rv_payoff">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ケリー評価</div>
+            <div class="stat-value" id="rv_kelly_grade">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">ケリー比率</div>
+            <div class="stat-value" id="rv_kelly_fraction">—</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ロット推奨 -->
+      <section class="card">
+        <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">推奨ロットサイズ</h3>
+
+        <div style="display:grid;gap:1rem;">
+
+          <!-- 固定リスク法 -->
+          <div style="border:1px solid #2a3a4a;border-radius:0.5rem;padding:1rem;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;color:#60a5fa;margin-bottom:0.25rem;">固定リスク法（推奨）</div>
+                <div style="font-size:0.82rem;color:#aaa;">
+                  口座残高の <span id="rv_risk_pct">—</span>% をリスクにさらす
+                  （リスク額: <span id="rv_risk_amount">—</span>）
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:2rem;font-weight:700;color:#fff;" id="rv_fixed_lot">—</div>
+                <div style="font-size:0.8rem;color:#aaa;">lot</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 半ケリー -->
+          <div style="border:1px solid #2a3a4a;border-radius:0.5rem;padding:1rem;">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;color:#4ade80;margin-bottom:0.25rem;">半ケリー基準（参考）</div>
+                <div style="font-size:0.82rem;color:#aaa;">
+                  ケリー比率の 1/2 を使用（フルケリー: <span id="rv_full_kelly">—</span> lot）
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:2rem;font-weight:700;color:#fff;" id="rv_half_kelly_lot">—</div>
+                <div style="font-size:0.8rem;color:#aaa;">lot</div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 注意事項 -->
+        <div id="warningBox" style="display:none;margin-top:1rem;background:#2a1a1a;border-radius:0.5rem;padding:0.75rem 1rem;">
+          <div style="color:#fca5a5;font-weight:600;font-size:0.85rem;margin-bottom:0.4rem;">注意事項</div>
+          <ul id="warningList" style="margin:0;padding-left:1.25rem;color:#f87171;font-size:0.82rem;line-height:1.7;"></ul>
+        </div>
+      </section>
+
+      <!-- 手法説明 -->
+      <section class="card">
+        <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">手法の説明</h3>
+        <div style="display:grid;gap:0.75rem;font-size:0.82rem;color:#aaa;">
+          <div>
+            <strong style="color:#ccc;">固定リスク法（Fixed Fractional）</strong><br>
+            口座残高の一定割合をリスクにさらす方法。
+            lot = (残高 × リスク%) / (SL pips × 1pip価値)。
+            最も広く使われる実践的な手法です。
+          </div>
+          <div>
+            <strong style="color:#ccc;">ケリー基準（Kelly Criterion）</strong><br>
+            理論的に最適な賭け比率を計算します。
+            f* = p − (1−p)/R（p=勝率, R=ペイオフ比）。
+            フルケリーは変動が大きいため、半ケリー（1/2）の使用を推奨します。
+          </div>
+        </div>
+        <small class="ai-disclaimer" style="display:block;margin-top:0.75rem;">
+          ※ 計算結果はシミュレーションです。実際の取引では市場環境・スプレッド・スリッページ等を考慮してください。
+        </small>
+      </section>
+    </div>
+
+  </main>
+
+  <script>
+  document.getElementById('calcBtn').addEventListener('click', async () => {
+    const params = new URLSearchParams({
+      balance:       document.getElementById('balance').value,
+      risk_pct:      document.getElementById('risk_pct').value,
+      stop_pips:     document.getElementById('stop_pips').value,
+      pip_value:     document.getElementById('pip_value').value,
+      win_rate:      document.getElementById('win_rate').value,
+      avg_win_pips:  document.getElementById('avg_win_pips').value,
+      avg_loss_pips: document.getElementById('avg_loss_pips').value,
+    });
+
+    try {
+      const resp = await fetch('/api/position-sizing?' + params);
+      const d = await resp.json();
+      if (!d.ok) { alert('計算エラー: ' + (d.error || '不明')); return; }
+
+      // 期待値カード
+      const expEl = document.getElementById('rv_expectancy');
+      if (d.expectancy_pips !== null) {
+        expEl.textContent = (d.expectancy_pips >= 0 ? '+' : '') + d.expectancy_pips.toFixed(2);
+        expEl.className = 'stat-value ' + (d.expectancy_pips >= 0 ? 'positive' : 'negative');
+      } else {
+        expEl.textContent = '—';
+        expEl.className = 'stat-value';
+      }
+      document.getElementById('rv_payoff').textContent = d.payoff_ratio !== null ? d.payoff_ratio.toFixed(3) : '—';
+
+      const kg = document.getElementById('rv_kelly_grade');
+      kg.textContent = d.kelly_grade;
+      kg.className = 'stat-value ' + ({'適正':'positive','低':'','過大':'negative','負の期待値':'negative','N/A':''}[d.kelly_grade] || '');
+
+      document.getElementById('rv_kelly_fraction').textContent =
+        d.kelly_fraction !== null ? (d.kelly_fraction * 100).toFixed(2) + '%' : '—';
+
+      // ロット
+      document.getElementById('rv_risk_pct').textContent = params.get('risk_pct');
+      document.getElementById('rv_risk_amount').textContent =
+        d.fixed_risk_amount.toLocaleString() + ' ' + document.getElementById('currency').value;
+      document.getElementById('rv_fixed_lot').textContent = d.fixed_risk_lot.toFixed(2);
+
+      document.getElementById('rv_full_kelly').textContent =
+        d.kelly_lot !== null ? d.kelly_lot.toFixed(2) : '—';
+      document.getElementById('rv_half_kelly_lot').textContent =
+        d.half_kelly_lot !== null ? d.half_kelly_lot.toFixed(2) : '—';
+
+      // 警告
+      const wBox = document.getElementById('warningBox');
+      const wList = document.getElementById('warningList');
+      wList.innerHTML = '';
+      if (d.warnings && d.warnings.length > 0) {
+        d.warnings.forEach(w => {
+          const li = document.createElement('li');
+          li.textContent = w;
+          wList.appendChild(li);
+        });
+        wBox.style.display = 'block';
+      } else {
+        wBox.style.display = 'none';
+      }
+
+      document.getElementById('resultPanel').style.display = 'block';
+    } catch (e) {
+      alert('通信エラー: ' + e.message);
+    }
+  });
+
+  // 初回自動計算
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('calcBtn').click();
+  });
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

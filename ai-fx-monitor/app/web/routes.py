@@ -130,6 +130,7 @@ from app.scripts.rolling_stats import (
     get_rolling_report,
 )
 from app.scripts.signal_score import get_score_report
+from app.scripts.rr_analysis import get_rr_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2333,4 +2334,53 @@ async def api_signal_score(symbol: str = ""):
             }
             for b in report.buckets
         ],
+    }
+
+
+@router.get("/rr-analysis", response_class=HTMLResponse)
+async def rr_analysis_page(request: Request, symbol: str = ""):
+    """R:R実績分析ページ（Phase 57）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_rr_report(symbol=sym)
+    except Exception as exc:
+        logger.error("R:R分析エラー: %s", exc)
+        from app.scripts.rr_analysis import RRReport
+        report = RRReport(symbol=sym, total_trades=0)
+
+    return templates.TemplateResponse(
+        "rr_analysis.html",
+        {
+            "request": request,
+            "report": report,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/rr-analysis")
+async def api_rr_analysis(symbol: str = ""):
+    """R:R実績分析を JSON で返す（Phase 57）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_rr_report(symbol=sym)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "tp_count": report.tp_count,
+        "sl_count": report.sl_count,
+        "early_count": report.early_count,
+        "unknown_count": report.unknown_count,
+        "avg_planned_rr": report.avg_planned_rr,
+        "avg_actual_r": report.avg_actual_r,
+        "avg_planned_rr_wins": report.avg_planned_rr_wins,
+        "avg_planned_rr_losses": report.avg_planned_rr_losses,
+        "assessment": report.assessment,
+        "hist_labels": report.hist_labels,
+        "hist_counts": report.hist_counts,
     }

@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - R:R実績分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link active">R:R分析</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        R:R実績分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">計画損切・利確と実結果を比較 / 自動注文なし</span>
+      </h2>
+
+      <!-- フィルター -->
+      <form method="get" action="/rr-analysis"
+            style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if report.total_trades == 0 %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        エントリー・SL・TP・決済価格がすべて記録されたトレードがありません。<br>
+        バックテストまたはトレードのクローズデータが必要です。
+      </p>
+      {% else %}
+
+      <!-- 評価バナー -->
+      <div style="background:#0f0f1a;border-left:4px solid #60a5fa;
+                  border-radius:0 0.5rem 0.5rem 0;padding:0.75rem 1rem;margin-bottom:1.25rem;">
+        <div style="font-size:0.8rem;color:#aaa;">{{ report.assessment }}</div>
+      </div>
+
+      <!-- サマリーカード -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;margin-bottom:1.5rem;">
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">対象件数</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">平均計画R:R</div>
+          <div style="font-size:1.4rem;font-weight:700;
+            color:{% if report.avg_planned_rr and report.avg_planned_rr >= 1.5 %}#4ade80{% elif report.avg_planned_rr %}#fbbf24{% else %}#888{% endif %};">
+            {% if report.avg_planned_rr is not none %}{{ '%.2f'|format(report.avg_planned_rr) }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">平均実績R</div>
+          <div style="font-size:1.4rem;font-weight:700;
+            color:{% if report.avg_actual_r and report.avg_actual_r >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+            {% if report.avg_actual_r is not none %}{{ '%+.2f'|format(report.avg_actual_r) }}R{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">TP命中率</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#4ade80;">
+            {% if report.total_trades > 0 %}{{ '%.1f'|format(report.tp_count / report.total_trades * 100) }}%{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">SL命中率</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#f87171;">
+            {% if report.total_trades > 0 %}{{ '%.1f'|format(report.sl_count / report.total_trades * 100) }}%{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">途中決済率</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#fbbf24;">
+            {% if report.total_trades > 0 %}{{ '%.1f'|format(report.early_count / report.total_trades * 100) }}%{% else %}—{% endif %}
+          </div>
+        </div>
+        {% if report.avg_planned_rr_wins is not none %}
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">勝ちの計画R:R</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#4ade80;">{{ '%.2f'|format(report.avg_planned_rr_wins) }}</div>
+        </div>
+        {% endif %}
+        {% if report.avg_planned_rr_losses is not none %}
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">負けの計画R:R</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#f87171;">{{ '%.2f'|format(report.avg_planned_rr_losses) }}</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;margin-bottom:0.5rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+      {% endif %}
+    </section>
+
+    {% if report.total_trades > 0 %}
+    <!-- 出口タイプ円グラフ -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">決済タイプ内訳</h3>
+      <div style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:center;">
+        <div style="position:relative;height:200px;width:200px;flex-shrink:0;">
+          <canvas id="exitTypeChart"></canvas>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:0.5rem;font-size:0.83rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#4ade80;"></span>
+            TP命中: {{ report.tp_count }}件
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#f87171;"></span>
+            SL命中: {{ report.sl_count }}件
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#fbbf24;"></span>
+            途中決済: {{ report.early_count }}件
+          </div>
+          {% if report.unknown_count > 0 %}
+          <div style="display:flex;align-items:center;gap:0.5rem;">
+            <span style="display:inline-block;width:12px;height:12px;border-radius:2px;background:#555;"></span>
+            不明: {{ report.unknown_count }}件
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </section>
+
+    <!-- 実績R分布ヒストグラム -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">実績R倍数 分布</h3>
+      <div style="position:relative;height:240px;">
+        <canvas id="histChart"></canvas>
+      </div>
+      <p style="font-size:0.75rem;color:#666;margin-top:0.4rem;text-align:center;">
+        実績R = 損益pips ÷ 計画リスクpips（+1R = リスクと同額の利益）
+      </p>
+    </section>
+
+    <!-- 直近トレード一覧 -->
+    {% if report.trades %}
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        直近トレード詳細（最新{{ report.trades|length }}件）
+      </h3>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.8rem;">
+          <thead>
+            <tr style="border-bottom:1px solid #333;">
+              <th style="padding:0.4rem;text-align:left;color:#888;font-weight:500;">日付</th>
+              <th style="padding:0.4rem;text-align:center;color:#888;font-weight:500;">通貨</th>
+              <th style="padding:0.4rem;text-align:center;color:#888;font-weight:500;">方向</th>
+              <th style="padding:0.4rem;text-align:right;color:#888;font-weight:500;">計画R:R</th>
+              <th style="padding:0.4rem;text-align:right;color:#888;font-weight:500;">実績R</th>
+              <th style="padding:0.4rem;text-align:right;color:#888;font-weight:500;">損益(pips)</th>
+              <th style="padding:0.4rem;text-align:center;color:#888;font-weight:500;">決済</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for t in report.trades %}
+            <tr style="border-bottom:1px solid #1e1e2e;">
+              <td style="padding:0.4rem;color:#aaa;">{{ t.created_at }}</td>
+              <td style="padding:0.4rem;text-align:center;color:#ccc;">{{ t.symbol }}</td>
+              <td style="padding:0.4rem;text-align:center;">
+                <span style="color:{% if t.signal == 'BUY' %}#4ade80{% else %}#f87171{% endif %};font-weight:600;">
+                  {{ t.signal }}
+                </span>
+              </td>
+              <td style="padding:0.4rem;text-align:right;color:#ccc;">{{ '%.2f'|format(t.planned_rr) }}</td>
+              <td style="padding:0.4rem;text-align:right;
+                color:{% if t.actual_r >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+                {{ '%+.2f'|format(t.actual_r) }}R
+              </td>
+              <td style="padding:0.4rem;text-align:right;
+                color:{% if t.pnl_pips >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+                {{ '%+.1f'|format(t.pnl_pips) }}
+              </td>
+              <td style="padding:0.4rem;text-align:center;font-size:0.72rem;">
+                {% if t.exit_type == "hit_tp" %}
+                  <span style="color:#4ade80;">TP</span>
+                {% elif t.exit_type == "hit_sl" %}
+                  <span style="color:#f87171;">SL</span>
+                {% elif t.exit_type == "early_exit" %}
+                  <span style="color:#fbbf24;">途中</span>
+                {% else %}
+                  <span style="color:#555;">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+    {% endif %}
+  </main>
+
+  {% if report.total_trades > 0 %}
+  <script>
+  (function() {
+    // Exit type donut
+    new Chart(document.getElementById('exitTypeChart'), {
+      type: 'doughnut',
+      data: {
+        labels: ['TP命中', 'SL命中', '途中決済', '不明'],
+        datasets: [{
+          data: [{{ report.tp_count }}, {{ report.sl_count }},
+                 {{ report.early_count }}, {{ report.unknown_count }}],
+          backgroundColor: ['#4ade8077', '#f8717177', '#fbbf2477', '#55555577'],
+          borderColor:     ['#4ade80',   '#f87171',   '#fbbf24',   '#555555'],
+          borderWidth: 2,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: '60%',
+      }
+    });
+
+    // R distribution histogram
+    const histLabels = {{ report.hist_labels | tojson }};
+    const histCounts = {{ report.hist_counts | tojson }};
+    new Chart(document.getElementById('histChart'), {
+      type: 'bar',
+      data: {
+        labels: histLabels,
+        datasets: [{
+          data: histCounts,
+          backgroundColor: histLabels.map(l =>
+            parseFloat(l) >= 0 ? '#4ade8055' : '#f8717155'),
+          borderColor: histLabels.map(l =>
+            parseFloat(l) >= 0 ? '#4ade80' : '#f87171'),
+          borderWidth: 1,
+          borderRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#666', font: { size: 9 }, maxRotation: 0 }, grid: { color: '#1a1a1a' } },
+          y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' },
+               beginAtZero: true, title: { display: true, text: '件数', color: '#666' } },
+        }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

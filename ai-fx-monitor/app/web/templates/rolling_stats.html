@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - ローリング成績</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link active">ローリング</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        ローリング成績分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">直近 N トレードの移動窓で成績推移を確認 / 自動注文なし</span>
+      </h2>
+
+      <!-- フィルター -->
+      <form method="get" action="/rolling-stats"
+            style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <select name="window" class="form-input" style="max-width:120px;" onchange="this.form.submit()">
+          {% for w in valid_windows %}
+          <option value="{{ w }}" {% if w == report.window %}selected{% endif %}>直近{{ w }}件</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if report.total_trades == 0 %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズするとローリング成績が表示されます。
+      </p>
+      {% else %}
+
+      <!-- トレンドバナー -->
+      {% set trend_colors = {"improving": "#4ade80", "stable": "#60a5fa", "declining": "#f87171", "insufficient": "#888"} %}
+      <div style="background:#0f0f1a;border-left:4px solid {{ trend_colors[report.trend] }};
+                  border-radius:0 0.5rem 0.5rem 0;padding:0.75rem 1rem;margin-bottom:1.25rem;
+                  display:flex;gap:1rem;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:1.5rem;">
+          {% if report.trend == "improving" %}📈
+          {% elif report.trend == "declining" %}📉
+          {% elif report.trend == "stable" %}➡️
+          {% else %}❓{% endif %}
+        </span>
+        <div>
+          <div style="font-size:0.85rem;font-weight:600;color:{{ trend_colors[report.trend] }};">
+            {% if report.trend == "improving" %}改善傾向
+            {% elif report.trend == "declining" %}悪化傾向
+            {% elif report.trend == "stable" %}安定
+            {% else %}判定不足{% endif %}
+          </div>
+          <div style="font-size:0.78rem;color:#aaa;">{{ report.trend_label }}</div>
+        </div>
+      </div>
+
+      <!-- 概要カード -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;margin-bottom:1.5rem;">
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">総トレード数</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">全体勝率</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0;">
+            {% if report.overall_win_rate is not none %}{{ '%.1f'|format(report.overall_win_rate) }}%{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">全体期待値</div>
+          <div style="font-size:1.4rem;font-weight:700;
+                color:{% if report.overall_expectancy and report.overall_expectancy >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+            {% if report.overall_expectancy is not none %}{{ '%+.2f'|format(report.overall_expectancy) }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">直近{{ report.window }}件 勝率</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#e2e8f0;">
+            {% if report.last_win_rate is not none %}{{ '%.1f'|format(report.last_win_rate) }}%{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">直近{{ report.window }}件 期待値</div>
+          <div style="font-size:1.4rem;font-weight:700;
+                color:{% if report.last_expectancy and report.last_expectancy >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+            {% if report.last_expectancy is not none %}{{ '%+.2f'|format(report.last_expectancy) }}{% else %}—{% endif %}
+          </div>
+        </div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">直近{{ report.window }}件 PF</div>
+          <div style="font-size:1.4rem;font-weight:700;
+                color:{% if report.last_profit_factor and report.last_profit_factor >= 1.0 %}#4ade80{% else %}#f87171{% endif %};">
+            {% if report.last_profit_factor is not none %}{{ '%.2f'|format(report.last_profit_factor) }}{% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;margin-bottom:1rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+      {% endif %}
+    </section>
+
+    {% if report.total_trades >= report.window %}
+    <!-- 累積損益チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">累積損益（pips）</h3>
+      <div style="position:relative;height:220px;">
+        <canvas id="cumulativeChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ローリング勝率チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        ローリング勝率（直近{{ report.window }}件）
+      </h3>
+      <div style="position:relative;height:220px;">
+        <canvas id="winRateChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ローリング期待値チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        ローリング期待値（直近{{ report.window }}件、pips）
+      </h3>
+      <div style="position:relative;height:220px;">
+        <canvas id="expectancyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ローリングプロフィットファクターチャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        ローリングプロフィットファクター（直近{{ report.window }}件）
+      </h3>
+      <div style="position:relative;height:220px;">
+        <canvas id="pfChart"></canvas>
+      </div>
+    </section>
+    {% elif report.total_trades > 0 %}
+    <section class="card">
+      <p style="color:#aaa;text-align:center;padding:1.5rem 0;font-size:0.9rem;">
+        チャート表示には最低 {{ report.window }} 件のトレードが必要です
+        （現在 {{ report.total_trades }} 件）。
+      </p>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if report.total_trades >= report.window %}
+  <script>
+  (function() {
+    const labels = {{ report.labels | tojson }};
+    const cumulative = {{ report.cumulative_series | tojson }};
+    const winRates = {{ report.win_rate_series | tojson }};
+    const expectancies = {{ report.expectancy_series | tojson }};
+    const pfs = {{ report.profit_factor_series | tojson }};
+
+    const commonOpts = {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: { legend: { display: false } },
+      elements: { point: { radius: 0 } },
+      scales: {
+        x: { ticks: { color: '#666', maxTicksLimit: 12, font: { size: 10 } }, grid: { color: '#222' } },
+        y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' } },
+      },
+    };
+
+    // Cumulative
+    new Chart(document.getElementById('cumulativeChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          data: cumulative,
+          borderColor: '#60a5fa',
+          backgroundColor: (ctx) => {
+            const chart = ctx.chart;
+            const { ctx: c, chartArea } = chart;
+            if (!chartArea) return 'transparent';
+            const grad = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+            grad.addColorStop(0, 'rgba(96,165,250,0.25)');
+            grad.addColorStop(1, 'rgba(96,165,250,0.01)');
+            return grad;
+          },
+          fill: true,
+          borderWidth: 2,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        ...commonOpts,
+        scales: {
+          ...commonOpts.scales,
+          y: { ...commonOpts.scales.y, title: { display: true, text: 'pips', color: '#666' } }
+        }
+      }
+    });
+
+    // Win rate — sparse data (null where window not full)
+    new Chart(document.getElementById('winRateChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: winRates,
+            borderColor: '#4ade80',
+            borderWidth: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            data: labels.map(() => 50),
+            borderColor: '#444',
+            borderWidth: 1,
+            borderDash: [4, 4],
+            pointRadius: 0,
+          }
+        ]
+      },
+      options: {
+        ...commonOpts,
+        plugins: { legend: { display: false } },
+        scales: {
+          ...commonOpts.scales,
+          y: { ...commonOpts.scales.y, min: 0, max: 100, title: { display: true, text: '%', color: '#666' } }
+        }
+      }
+    });
+
+    // Expectancy
+    new Chart(document.getElementById('expectancyChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: expectancies,
+            borderColor: '#fbbf24',
+            borderWidth: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            data: labels.map(() => 0),
+            borderColor: '#444',
+            borderWidth: 1,
+            borderDash: [4, 4],
+            pointRadius: 0,
+          }
+        ]
+      },
+      options: {
+        ...commonOpts,
+        plugins: { legend: { display: false } },
+        scales: {
+          ...commonOpts.scales,
+          y: { ...commonOpts.scales.y, title: { display: true, text: 'pips', color: '#666' } }
+        }
+      }
+    });
+
+    // Profit Factor
+    new Chart(document.getElementById('pfChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            data: pfs,
+            borderColor: '#c084fc',
+            borderWidth: 2,
+            tension: 0.3,
+            spanGaps: false,
+          },
+          {
+            data: labels.map(() => 1.0),
+            borderColor: '#444',
+            borderWidth: 1,
+            borderDash: [4, 4],
+            pointRadius: 0,
+          }
+        ]
+      },
+      options: {
+        ...commonOpts,
+        plugins: { legend: { display: false } },
+        scales: {
+          ...commonOpts.scales,
+          y: { ...commonOpts.scales.y, min: 0, title: { display: true, text: 'PF', color: '#666' } }
+        }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

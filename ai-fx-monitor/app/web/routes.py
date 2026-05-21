@@ -124,6 +124,11 @@ from app.scripts.goal_tracker import (
     current_month_label, current_week_label,
     VALID_PERIOD_TYPES,
 )
+from app.scripts.rolling_stats import (
+    DEFAULT_WINDOW as ROLLING_DEFAULT_WINDOW,
+    VALID_WINDOWS as ROLLING_VALID_WINDOWS,
+    get_rolling_report,
+)
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2215,3 +2220,61 @@ async def goals_delete(request: Request, goal_id: int):
     except Exception as exc:
         logger.error("目標削除エラー: %s", exc)
     return RedirectResponse(url="/goals", status_code=303)
+
+
+@router.get("/rolling-stats", response_class=HTMLResponse)
+async def rolling_stats_page(
+    request: Request,
+    symbol: str = "",
+    window: int = ROLLING_DEFAULT_WINDOW,
+):
+    """ローリング成績分析ページ（Phase 55）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    win = window if window in ROLLING_VALID_WINDOWS else ROLLING_DEFAULT_WINDOW
+    try:
+        report = get_rolling_report(symbol=sym, window=win)
+    except Exception as exc:
+        logger.error("ローリング成績エラー: %s", exc)
+        from app.scripts.rolling_stats import RollingReport
+        report = RollingReport(window=win, symbol=sym, total_trades=0)
+
+    return templates.TemplateResponse(
+        "rolling_stats.html",
+        {
+            "request": request,
+            "report": report,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "valid_windows": sorted(ROLLING_VALID_WINDOWS),
+        },
+    )
+
+
+@router.get("/api/rolling-stats")
+async def api_rolling_stats(symbol: str = "", window: int = ROLLING_DEFAULT_WINDOW):
+    """ローリング成績を JSON で返す（Phase 55）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    win = window if window in ROLLING_VALID_WINDOWS else ROLLING_DEFAULT_WINDOW
+    try:
+        report = get_rolling_report(symbol=sym, window=win)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "window": report.window,
+        "total_trades": report.total_trades,
+        "trend": report.trend,
+        "trend_label": report.trend_label,
+        "overall_win_rate": report.overall_win_rate,
+        "overall_expectancy": report.overall_expectancy,
+        "last_win_rate": report.last_win_rate,
+        "last_expectancy": report.last_expectancy,
+        "last_profit_factor": report.last_profit_factor,
+        "labels": report.labels,
+        "win_rate_series": report.win_rate_series,
+        "expectancy_series": report.expectancy_series,
+        "profit_factor_series": report.profit_factor_series,
+        "cumulative_series": report.cumulative_series,
+    }

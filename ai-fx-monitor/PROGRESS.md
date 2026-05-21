@@ -118,6 +118,26 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 53：システムスコアカード（2026-05-21）
+
+- `app/scripts/scorecard.py`：新規作成
+  - `MetricGrade` dataclass（name/key/value/unit/grade/comment）
+  - `Scorecard` dataclass（総合グレード/スコア/推奨改善案/レーダーデータ）
+  - `get_scorecard(symbol, db_path)`：9指標を一括グレーディング
+  - 9指標：勝率/期待値/PF/最大DD/SQN/リカバリーF/最大連勝/平均損益/プラス月率
+  - `_overall_grade()`：N/A を除く指標の加重平均グレード計算
+  - `_make_recommendation()`：最低グレード指標の改善提案を自動生成
+- `app/web/routes.py`：`GET /scorecard` + `GET /api/scorecard` 追加
+- `app/web/templates/scorecard.html`：新規作成
+  - 総合グレード表示（A〜F、スコア表示）+ 改善提案バナー
+  - 9指標グレードカード（グレード色ボーダー付き）
+  - グレード基準 details 折りたたみ
+  - レーダーチャート（Chart.js radar、5軸=A〜F対応）
+- 全20テンプレートのナビに「スコアカード」リンク追加
+- `tests/test_scorecard.py`：テスト30件新規作成（全1016件通過）
+
+---
+
 ### Phase 52：月次・週次パフォーマンスサマリー（2026-05-21）
 
 - `app/scripts/period_stats.py`：新規作成

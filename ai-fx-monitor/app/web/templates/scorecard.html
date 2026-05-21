@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - システムスコアカード</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link active">スコアカード</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        システムスコアカード
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">シミュレーション成績 / 自動注文なし</span>
+      </h2>
+
+      <!-- 通貨ペアフィルター -->
+      <form method="get" action="/scorecard" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if scorecard.total_trades > 0 %}
+
+      <!-- 総合グレード -->
+      <div style="display:flex;align-items:center;gap:2rem;flex-wrap:wrap;margin-bottom:1.5rem;
+                  background:#0f0f1a;border-radius:0.75rem;padding:1.25rem 1.5rem;">
+        <div style="text-align:center;">
+          <div style="font-size:0.8rem;color:#888;margin-bottom:0.25rem;">総合グレード</div>
+          <div style="font-size:4rem;font-weight:900;line-height:1;
+            color:{{ grade_colors[scorecard.overall_grade] }};">
+            {{ scorecard.overall_grade }}
+          </div>
+          <div style="font-size:0.8rem;color:#aaa;margin-top:0.25rem;">
+            スコア {{ '%.1f'|format(scorecard.overall_score) }} / 5.0
+          </div>
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:0.82rem;color:#aaa;margin-bottom:0.5rem;">
+            対象トレード数: <strong style="color:#ccc;">{{ scorecard.total_trades }} 件</strong>
+          </div>
+          <div style="background:#1a2a3a;border-left:3px solid {{ grade_colors[scorecard.overall_grade] }};
+                      border-radius:0 0.4rem 0.4rem 0;padding:0.6rem 0.8rem;
+                      font-size:0.85rem;color:#ddd;line-height:1.5;">
+            <strong style="color:#fff;">改善提案：</strong>{{ scorecard.recommendation }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 指標グレードカード -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:0.75rem;margin-bottom:1.5rem;">
+        {% for m in scorecard.metrics %}
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;
+                    border:1px solid {{ grade_colors[m.grade] }}33;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.4rem;">
+            <span style="font-size:0.78rem;color:#aaa;">{{ m.name }}</span>
+            <span style="font-size:1.1rem;font-weight:700;color:{{ grade_colors[m.grade] }};">
+              {{ m.grade }}
+            </span>
+          </div>
+          <div style="font-size:1.2rem;font-weight:600;color:#fff;">
+            {% if m.value is not none %}
+              {{ '%.2f'|format(m.value) }}{{ m.unit }}
+            {% else %}—{% endif %}
+          </div>
+          <div style="font-size:0.72rem;color:#888;margin-top:0.2rem;">{{ m.comment }}</div>
+        </div>
+        {% endfor %}
+      </div>
+
+      <!-- グレード基準表 -->
+      <details style="margin-bottom:1rem;">
+        <summary style="cursor:pointer;color:#888;font-size:0.82rem;padding:0.4rem 0;">
+          グレード基準を確認
+        </summary>
+        <div style="margin-top:0.5rem;background:#0f0f1a;border-radius:0.5rem;padding:0.75rem;
+                    font-size:0.78rem;color:#aaa;line-height:1.8;">
+          <span style="color:#4ade80;font-weight:700;">A</span>: 最優秀 ／
+          <span style="color:#60a5fa;font-weight:700;">B</span>: 良好 ／
+          <span style="color:#fbbf24;font-weight:700;">C</span>: 普通 ／
+          <span style="color:#fb923c;font-weight:700;">D</span>: 要改善 ／
+          <span style="color:#f87171;font-weight:700;">F</span>: 問題あり<br>
+          勝率: F&lt;38% D&lt;45% C&lt;52% B&lt;60% A≥60% ／
+          期待値(pips): F&lt;0 D≈0 C&gt;0 B≥2 A≥5 ／
+          最大DD: A≤5% B≤10% C≤20% D≤30% F&gt;30% ／
+          SQN: F≤0 D≤1.6 C≤2.0 B≤3.0 A&gt;3.0
+        </div>
+      </details>
+
+      <small class="ai-disclaimer" style="display:block;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+
+      {% else %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズするとスコアカードが表示されます。
+      </p>
+      {% endif %}
+    </section>
+
+    <!-- レーダーチャート -->
+    {% if scorecard.total_trades > 0 %}
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">指標レーダーチャート</h3>
+      <div style="position:relative;height:320px;max-width:420px;margin:0 auto;">
+        <canvas id="radarChart"></canvas>
+      </div>
+      <p style="text-align:center;font-size:0.75rem;color:#666;margin-top:0.5rem;">
+        各軸: 5=A / 4=B / 3=C / 2=D / 1=F
+      </p>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if scorecard.total_trades > 0 %}
+  <script>
+  (function() {
+    const labels = {{ scorecard.radar_labels | tojson }};
+    const values = {{ scorecard.radar_values | tojson }};
+    new Chart(document.getElementById('radarChart'), {
+      type: 'radar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: 'スコア',
+          data: values,
+          backgroundColor: 'rgba(96,165,250,0.15)',
+          borderColor: '#60a5fa',
+          borderWidth: 2,
+          pointBackgroundColor: '#60a5fa',
+          pointRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          r: {
+            min: 0, max: 5,
+            ticks: { stepSize: 1, color: '#666', backdropColor: 'transparent' },
+            grid: { color: '#333' },
+            angleLines: { color: '#333' },
+            pointLabels: { color: '#aaa', font: { size: 11 } },
+          }
+        }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

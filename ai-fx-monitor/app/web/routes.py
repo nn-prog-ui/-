@@ -118,6 +118,7 @@ from app.scripts.position_sizing import (
     SizingInput, calculate_sizing, get_historical_stats,
 )
 from app.scripts.period_stats import get_period_report
+from app.scripts.scorecard import GRADE_COLORS, get_scorecard
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2096,4 +2097,59 @@ async def api_period_stats(symbol: str = ""):
         "worst_month": _stat(report.worst_month) if report.worst_month else None,
         "monthly": [_stat(s) for s in report.monthly],
         "weekly": [_stat(s) for s in report.weekly],
+    }
+
+
+@router.get("/scorecard", response_class=HTMLResponse)
+async def scorecard_page(request: Request, symbol: str = ""):
+    """システムスコアカードページ（Phase 53）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        sc = get_scorecard(symbol=sym)
+    except Exception as exc:
+        logger.error("スコアカードエラー: %s", exc)
+        sc = get_scorecard.__wrapped__(symbol=None) if False else None
+
+    return templates.TemplateResponse(
+        "scorecard.html",
+        {
+            "request": request,
+            "scorecard": sc,
+            "grade_colors": GRADE_COLORS,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/scorecard")
+async def api_scorecard(symbol: str = ""):
+    """システムスコアカードを JSON で返す（Phase 53）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        sc = get_scorecard(symbol=sym)
+    except Exception as exc:
+        logger.error("スコアカードAPIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": sc.total_trades,
+        "overall_grade": sc.overall_grade,
+        "overall_score": sc.overall_score,
+        "recommendation": sc.recommendation,
+        "metrics": [
+            {
+                "name": m.name,
+                "key": m.key,
+                "value": m.value,
+                "unit": m.unit,
+                "grade": m.grade,
+                "comment": m.comment,
+            }
+            for m in sc.metrics
+        ],
+        "radar_labels": sc.radar_labels,
+        "radar_values": sc.radar_values,
     }

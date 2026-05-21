@@ -2608,8 +2608,9 @@ MACRO_USD_FORECASTS = {
 
 def _get_macro_events(db_path=None) -> list:
     from app.config import DB_PATH as _DB_PATH
+    from app.database.db import get_db as _get_db
     path = db_path or _DB_PATH
-    with get_db(path) as conn:
+    with _get_db(path) as conn:
         # Migrate: create table if not exists (in case old DB)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS macro_event_log (
@@ -2663,8 +2664,9 @@ async def macro_events_add(
         event_type = "その他"
     from datetime import datetime as _dt
     from app.config import DB_PATH as _DB_PATH
+    from app.database.db import get_db as _get_db
     now = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
-    with get_db(_DB_PATH) as conn:
+    with _get_db(_DB_PATH) as conn:
         conn.execute("""
             CREATE TABLE IF NOT EXISTS macro_event_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2694,7 +2696,8 @@ async def macro_events_add(
 async def macro_events_delete(event_id: int):
     """イベントを削除する（Phase 62）。注文は発生しない。"""
     from app.config import DB_PATH as _DB_PATH
-    with get_db(_DB_PATH) as conn:
+    from app.database.db import get_db as _get_db
+    with _get_db(_DB_PATH) as conn:
         conn.execute("DELETE FROM macro_event_log WHERE id = ?", (event_id,))
     return RedirectResponse("/macro-events", status_code=303)
 

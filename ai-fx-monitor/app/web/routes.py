@@ -132,6 +132,7 @@ from app.scripts.rolling_stats import (
 from app.scripts.signal_score import get_score_report
 from app.scripts.rr_analysis import get_rr_report
 from app.scripts.session_stats import get_session_report
+from app.scripts.tag_stats import get_tag_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2439,4 +2440,58 @@ async def api_session_stats(symbol: str = ""):
         ],
         "hourly_counts": report.hourly_counts,
         "hourly_win_rates": report.hourly_win_rates,
+    }
+
+
+@router.get("/tag-stats", response_class=HTMLResponse)
+async def tag_stats_page(request: Request, symbol: str = ""):
+    """タグ別成績ページ（Phase 59）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_tag_report(symbol=sym)
+    except Exception as exc:
+        from app.scripts.tag_stats import TagReport
+        report = TagReport(symbol=sym, total_trades=0, total_tags=0)
+        logger.error("tag_stats error: %s", exc)
+    return templates.TemplateResponse(
+        "tag_stats.html",
+        {"request": request, "report": report, "symbol": symbol,
+         "supported_symbols": SUPPORTED_SYMBOLS},
+    )
+
+
+@router.get("/api/tag-stats")
+async def api_tag_stats(symbol: str = ""):
+    """タグ別成績を JSON で返す（Phase 59）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_tag_report(symbol=sym)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "total_tags": report.total_tags,
+        "best_tag": report.best_tag,
+        "worst_tag": report.worst_tag,
+        "buckets": [
+            {
+                "tag": b.tag,
+                "trades": b.trades,
+                "wins": b.wins,
+                "losses": b.losses,
+                "win_rate": b.win_rate,
+                "expectancy": b.expectancy,
+                "profit_factor": b.profit_factor,
+                "total_pips": b.total_pips,
+            }
+            for b in report.buckets
+        ],
+        "tag_labels": report.tag_labels,
+        "win_rate_series": report.win_rate_series,
+        "expectancy_series": report.expectancy_series,
+        "trade_count_series": report.trade_count_series,
+        "profit_factor_series": report.profit_factor_series,
     }

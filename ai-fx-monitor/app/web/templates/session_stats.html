@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e">
-  <title>AI FX市場監視 - スコア分析</title>
+  <title>AI FX市場監視 - セッション分析</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="manifest" href="/static/manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
@@ -42,9 +42,9 @@
       <a href="/scorecard" class="nav-link">スコアカード</a>
       <a href="/goals" class="nav-link">目標管理</a>
       <a href="/rolling-stats" class="nav-link">ローリング</a>
-      <a href="/signal-score" class="nav-link active">スコア分析</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
       <a href="/rr-analysis" class="nav-link">R:R分析</a>
-      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/session-stats" class="nav-link active">セッション</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -52,12 +52,17 @@
   <main class="main-content">
     <section class="card">
       <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-        シグナルスコア分析
-        <span style="font-size:0.8rem;color:#888;font-weight:normal;">スコア別成績でフィルターの有効性を検証 / 自動注文なし</span>
+        FXセッション別分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">東京・ロンドン・NY 時間帯別成績 / 自動注文なし</span>
       </h2>
 
+      <p style="font-size:0.75rem;color:#666;margin-bottom:1rem;">
+        ※ タイムスタンプは JST 基準で分類しています。
+        東京 09〜16時 / ロンドン 17〜20時 / 重複(LN+NY) 21〜0時 / NY/深夜 1〜8時
+      </p>
+
       <!-- フィルター -->
-      <form method="get" action="/signal-score"
+      <form method="get" action="/session-stats"
             style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;">
         <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
           <option value="">全通貨ペア</option>
@@ -71,52 +76,38 @@
       {% if report.total_trades == 0 %}
       <p style="color:#888;text-align:center;padding:2rem 0;">
         クローズ済みトレードデータがありません。<br>
-        トレードを承認・クローズするとスコア分析が表示されます。
+        トレードを承認・クローズするとセッション分析が表示されます。
       </p>
       {% else %}
 
-      <!-- 校正バナー -->
-      {% if report.is_calibrated is not none %}
-        {% set bc = "#4ade80" if report.is_calibrated else "#fbbf24" %}
-      {% else %}
-        {% set bc = "#888" %}
-      {% endif %}
-      <div style="background:#0f0f1a;border-left:4px solid {{ bc }};
-                  border-radius:0 0.5rem 0.5rem 0;padding:0.75rem 1rem;margin-bottom:1.25rem;">
-        <div style="font-size:0.82rem;font-weight:600;color:{{ bc }};margin-bottom:0.2rem;">
-          {% if report.is_calibrated is none %}スコア校正：判定不能
-          {% elif report.is_calibrated %}✓ スコア有効
-          {% else %}⚠ スコア要確認{% endif %}
-        </div>
-        <div style="font-size:0.78rem;color:#aaa;">{{ report.calibration_label }}</div>
-      </div>
-
-      <!-- ベスト・ワースト -->
-      {% if report.best_score is not none %}
+      <!-- ベスト/ワーストバナー -->
+      {% if report.best_session %}
       <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
-        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:140px;">
-          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最良スコア（期待値）</div>
-          <div style="font-size:1.8rem;font-weight:700;color:#4ade80;">{{ report.best_score }}</div>
+        <div style="background:#0a1a0a;border:1px solid #4ade8033;border-radius:0.5rem;
+                    padding:0.75rem 1rem;flex:1;min-width:160px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最良セッション</div>
+          <div style="font-size:1.2rem;font-weight:700;color:#4ade80;">{{ report.best_session }}</div>
         </div>
-        {% if report.worst_score != report.best_score %}
-        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:140px;">
-          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最低スコア（期待値）</div>
-          <div style="font-size:1.8rem;font-weight:700;color:#f87171;">{{ report.worst_score }}</div>
+        {% if report.worst_session and report.worst_session != report.best_session %}
+        <div style="background:#1a0a0a;border:1px solid #f8717133;border-radius:0.5rem;
+                    padding:0.75rem 1rem;flex:1;min-width:160px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最低セッション</div>
+          <div style="font-size:1.2rem;font-weight:700;color:#f87171;">{{ report.worst_session }}</div>
         </div>
         {% endif %}
-        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:140px;">
-          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">総トレード数</div>
-          <div style="font-size:1.8rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:120px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">総件数</div>
+          <div style="font-size:1.2rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
         </div>
       </div>
       {% endif %}
 
-      <!-- スコア別テーブル -->
+      <!-- セッション別テーブル -->
       <div style="overflow-x:auto;margin-bottom:1.5rem;">
         <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
           <thead>
             <tr style="border-bottom:1px solid #333;">
-              <th style="padding:0.5rem;text-align:center;color:#888;font-weight:500;">スコア</th>
+              <th style="padding:0.5rem;text-align:left;color:#888;font-weight:500;">セッション</th>
               <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">件数</th>
               <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">勝率</th>
               <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">期待値(pips)</th>
@@ -127,17 +118,13 @@
           <tbody>
             {% for b in report.buckets %}
             <tr style="border-bottom:1px solid #1e1e2e;
-              {% if report.best_score == b.score and b.trades > 0 %}background:#0a1a0a;{% endif %}
-              {% if report.worst_score == b.score and b.trades > 0 and report.worst_score != report.best_score %}background:#1a0a0a;{% endif %}">
-              <td style="padding:0.5rem;text-align:center;">
-                <span style="display:inline-block;width:1.8rem;height:1.8rem;line-height:1.8rem;
-                             border-radius:50%;background:#1e1e3e;font-weight:700;font-size:0.9rem;
-                             color:{% if b.trades == 0 %}#555
-                                    {% elif report.best_score == b.score %}#4ade80
-                                    {% elif report.worst_score == b.score and report.worst_score != report.best_score %}#f87171
-                                    {% else %}#e2e8f0{% endif %};">
-                  {{ b.score }}
-                </span>
+              {% if report.best_session == b.session and b.trades >= 3 %}background:#0a1a0a;{% endif %}
+              {% if report.worst_session == b.session and b.trades >= 3 and report.worst_session != report.best_session %}background:#1a0a0a;{% endif %}">
+              <td style="padding:0.5rem;font-weight:600;
+                color:{% if report.best_session == b.session and b.trades >= 3 %}#4ade80
+                       {% elif report.worst_session == b.session and b.trades >= 3 and report.worst_session != report.best_session %}#f87171
+                       {% else %}#ccc{% endif %};">
+                {{ b.session }}
               </td>
               <td style="padding:0.5rem;text-align:right;color:#ccc;">{{ b.trades }}</td>
               <td style="padding:0.5rem;text-align:right;
@@ -168,27 +155,32 @@
     </section>
 
     {% if report.total_trades > 0 %}
-    <!-- 勝率チャート -->
+    <!-- セッション別勝率・期待値チャート -->
     <section class="card">
-      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">スコア別 勝率（%）</h3>
-      <div style="position:relative;height:220px;">
-        <canvas id="winRateChart"></canvas>
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">セッション別 勝率・期待値</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.4rem;text-align:center;">勝率（%）</div>
+          <div style="position:relative;height:200px;">
+            <canvas id="winRateChart"></canvas>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.4rem;text-align:center;">期待値（pips）</div>
+          <div style="position:relative;height:200px;">
+            <canvas id="expectancyChart"></canvas>
+          </div>
+        </div>
       </div>
     </section>
 
-    <!-- 期待値チャート -->
+    <!-- 時間帯別件数ヒートバー -->
     <section class="card">
-      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">スコア別 期待値（pips）</h3>
-      <div style="position:relative;height:220px;">
-        <canvas id="expectancyChart"></canvas>
-      </div>
-    </section>
-
-    <!-- 件数チャート -->
-    <section class="card">
-      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">スコア別 トレード件数</h3>
-      <div style="position:relative;height:180px;">
-        <canvas id="countChart"></canvas>
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        時間帯別 件数（JST）
+      </h3>
+      <div style="position:relative;height:160px;">
+        <canvas id="hourlyChart"></canvas>
       </div>
     </section>
     {% endif %}
@@ -197,86 +189,79 @@
   {% if report.total_trades > 0 %}
   <script>
   (function() {
-    const labels = {{ report.score_labels | tojson }};
+    const sessions = {{ report.session_labels | tojson }};
     const winRates = {{ report.win_rate_series | tojson }};
     const expectancies = {{ report.expectancy_series | tojson }};
     const counts = {{ report.trade_count_series | tojson }};
+    const hourlyCounts = {{ report.hourly_counts | tojson }};
 
-    const scaleOpts = {
-      x: { ticks: { color: '#aaa', font: { size: 12 } }, grid: { color: '#222' } },
-      y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' } },
-    };
+    const sessionColors = ['#60a5fa', '#fbbf24', '#c084fc', '#34d399'];
 
-    const barColor = (value, neutralColor, positiveColor, negativeColor) => {
-      if (value === null) return '#333';
-      if (value >= 0) return positiveColor || '#4ade80';
-      return negativeColor || '#f87171';
-    };
+    const barOpts = (yLabel) => ({
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#aaa', font: { size: 10 } }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' },
+             title: { display: true, text: yLabel, color: '#666' } },
+      }
+    });
 
-    // Win rate
     new Chart(document.getElementById('winRateChart'), {
       type: 'bar',
       data: {
-        labels: labels.map(l => 'Score ' + l),
+        labels: sessions,
         datasets: [{
           data: winRates,
-          backgroundColor: winRates.map(v =>
-            v === null ? '#333' : v >= 55 ? '#4ade8066' : v >= 45 ? '#fbbf2466' : '#f8717166'),
-          borderColor: winRates.map(v =>
-            v === null ? '#333' : v >= 55 ? '#4ade80' : v >= 45 ? '#fbbf24' : '#f87171'),
-          borderWidth: 2,
-          borderRadius: 4,
+          backgroundColor: sessionColors.map((c, i) => (winRates[i] ?? 0) >= 50 ? c + '55' : '#f8717144'),
+          borderColor: sessionColors.map((c, i) => (winRates[i] ?? 0) >= 50 ? c : '#f87171'),
+          borderWidth: 2, borderRadius: 4,
         }]
       },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { legend: { display: false } },
-        scales: { ...scaleOpts, y: { ...scaleOpts.y, min: 0, max: 100,
-          title: { display: true, text: '%', color: '#666' } } }
-      }
+      options: { ...barOpts('%'), scales: { ...barOpts('%').scales,
+        y: { ...barOpts('%').scales.y, min: 0, max: 100 } } }
     });
 
-    // Expectancy
     new Chart(document.getElementById('expectancyChart'), {
       type: 'bar',
       data: {
-        labels: labels.map(l => 'Score ' + l),
+        labels: sessions,
         datasets: [{
           data: expectancies,
-          backgroundColor: expectancies.map(v =>
-            v === null ? '#333' : v >= 0 ? '#4ade8066' : '#f8717166'),
-          borderColor: expectancies.map(v =>
-            v === null ? '#333' : v >= 0 ? '#4ade80' : '#f87171'),
-          borderWidth: 2,
-          borderRadius: 4,
+          backgroundColor: expectancies.map(v => (v ?? 0) >= 0 ? '#4ade8044' : '#f8717144'),
+          borderColor: expectancies.map(v => (v ?? 0) >= 0 ? '#4ade80' : '#f87171'),
+          borderWidth: 2, borderRadius: 4,
         }]
       },
-      options: {
-        responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { legend: { display: false } },
-        scales: { ...scaleOpts, y: { ...scaleOpts.y,
-          title: { display: true, text: 'pips', color: '#666' } } }
-      }
+      options: barOpts('pips')
     });
 
-    // Count
-    new Chart(document.getElementById('countChart'), {
+    // Hourly count bar (colored by session)
+    const sessionForHour = (h) => {
+      if (h >= 9 && h <= 16) return 0;   // Tokyo
+      if (h >= 17 && h <= 20) return 1;  // London
+      if (h >= 21 || h === 0) return 2;  // Overlap
+      return 3;                           // NY
+    };
+    new Chart(document.getElementById('hourlyChart'), {
       type: 'bar',
       data: {
-        labels: labels.map(l => 'Score ' + l),
+        labels: Array.from({length: 24}, (_, i) => i + 'h'),
         datasets: [{
-          data: counts,
-          backgroundColor: '#60a5fa44',
-          borderColor: '#60a5fa',
-          borderWidth: 2,
-          borderRadius: 4,
+          data: hourlyCounts,
+          backgroundColor: hourlyCounts.map((_, h) => sessionColors[sessionForHour(h)] + '88'),
+          borderColor: hourlyCounts.map((_, h) => sessionColors[sessionForHour(h)]),
+          borderWidth: 1, borderRadius: 2,
         }]
       },
       options: {
         responsive: true, maintainAspectRatio: false, animation: false,
         plugins: { legend: { display: false } },
-        scales: { ...scaleOpts, y: { ...scaleOpts.y, beginAtZero: true,
-          title: { display: true, text: '件', color: '#666' } } }
+        scales: {
+          x: { ticks: { color: '#666', font: { size: 9 }, maxRotation: 0 }, grid: { color: '#1a1a1a' } },
+          y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' },
+               beginAtZero: true, title: { display: true, text: '件', color: '#666' } },
+        }
       }
     });
   })();

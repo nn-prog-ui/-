@@ -131,6 +131,7 @@ from app.scripts.rolling_stats import (
 )
 from app.scripts.signal_score import get_score_report
 from app.scripts.rr_analysis import get_rr_report
+from app.scripts.session_stats import get_session_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2383,4 +2384,59 @@ async def api_rr_analysis(symbol: str = ""):
         "assessment": report.assessment,
         "hist_labels": report.hist_labels,
         "hist_counts": report.hist_counts,
+    }
+
+
+@router.get("/session-stats", response_class=HTMLResponse)
+async def session_stats_page(request: Request, symbol: str = ""):
+    """FXセッション別分析ページ（Phase 58）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_session_report(symbol=sym)
+    except Exception as exc:
+        logger.error("セッション分析エラー: %s", exc)
+        from app.scripts.session_stats import SessionReport
+        report = SessionReport(symbol=sym, total_trades=0)
+
+    return templates.TemplateResponse(
+        "session_stats.html",
+        {
+            "request": request,
+            "report": report,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/session-stats")
+async def api_session_stats(symbol: str = ""):
+    """セッション別成績を JSON で返す（Phase 58）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_session_report(symbol=sym)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "best_session": report.best_session,
+        "worst_session": report.worst_session,
+        "buckets": [
+            {
+                "session": b.session,
+                "trades": b.trades,
+                "wins": b.wins,
+                "losses": b.losses,
+                "win_rate": b.win_rate,
+                "expectancy": b.expectancy,
+                "profit_factor": b.profit_factor,
+                "total_pips": b.total_pips,
+            }
+            for b in report.buckets
+        ],
+        "hourly_counts": report.hourly_counts,
+        "hourly_win_rates": report.hourly_win_rates,
     }

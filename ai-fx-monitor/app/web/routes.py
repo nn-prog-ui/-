@@ -129,6 +129,7 @@ from app.scripts.rolling_stats import (
     VALID_WINDOWS as ROLLING_VALID_WINDOWS,
     get_rolling_report,
 )
+from app.scripts.signal_score import get_score_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2277,4 +2278,59 @@ async def api_rolling_stats(symbol: str = "", window: int = ROLLING_DEFAULT_WIND
         "expectancy_series": report.expectancy_series,
         "profit_factor_series": report.profit_factor_series,
         "cumulative_series": report.cumulative_series,
+    }
+
+
+@router.get("/signal-score", response_class=HTMLResponse)
+async def signal_score_page(request: Request, symbol: str = ""):
+    """シグナルスコア分析ページ（Phase 56）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_score_report(symbol=sym)
+    except Exception as exc:
+        logger.error("スコア分析エラー: %s", exc)
+        from app.scripts.signal_score import ScoreReport
+        report = ScoreReport(symbol=sym, total_trades=0)
+
+    return templates.TemplateResponse(
+        "signal_score.html",
+        {
+            "request": request,
+            "report": report,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/signal-score")
+async def api_signal_score(symbol: str = ""):
+    """シグナルスコア別成績を JSON で返す（Phase 56）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_score_report(symbol=sym)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "is_calibrated": report.is_calibrated,
+        "calibration_label": report.calibration_label,
+        "best_score": report.best_score,
+        "worst_score": report.worst_score,
+        "buckets": [
+            {
+                "score": b.score,
+                "trades": b.trades,
+                "wins": b.wins,
+                "losses": b.losses,
+                "win_rate": b.win_rate,
+                "expectancy": b.expectancy,
+                "profit_factor": b.profit_factor,
+                "total_pips": b.total_pips,
+            }
+            for b in report.buckets
+        ],
     }

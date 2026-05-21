@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - スコア分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link active">スコア分析</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        シグナルスコア分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">スコア別成績でフィルターの有効性を検証 / 自動注文なし</span>
+      </h2>
+
+      <!-- フィルター -->
+      <form method="get" action="/signal-score"
+            style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if report.total_trades == 0 %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズするとスコア分析が表示されます。
+      </p>
+      {% else %}
+
+      <!-- 校正バナー -->
+      {% if report.is_calibrated is not none %}
+        {% set bc = "#4ade80" if report.is_calibrated else "#fbbf24" %}
+      {% else %}
+        {% set bc = "#888" %}
+      {% endif %}
+      <div style="background:#0f0f1a;border-left:4px solid {{ bc }};
+                  border-radius:0 0.5rem 0.5rem 0;padding:0.75rem 1rem;margin-bottom:1.25rem;">
+        <div style="font-size:0.82rem;font-weight:600;color:{{ bc }};margin-bottom:0.2rem;">
+          {% if report.is_calibrated is none %}スコア校正：判定不能
+          {% elif report.is_calibrated %}✓ スコア有効
+          {% else %}⚠ スコア要確認{% endif %}
+        </div>
+        <div style="font-size:0.78rem;color:#aaa;">{{ report.calibration_label }}</div>
+      </div>
+
+      <!-- ベスト・ワースト -->
+      {% if report.best_score is not none %}
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:140px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最良スコア（期待値）</div>
+          <div style="font-size:1.8rem;font-weight:700;color:#4ade80;">{{ report.best_score }}</div>
+        </div>
+        {% if report.worst_score != report.best_score %}
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:140px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最低スコア（期待値）</div>
+          <div style="font-size:1.8rem;font-weight:700;color:#f87171;">{{ report.worst_score }}</div>
+        </div>
+        {% endif %}
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:140px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">総トレード数</div>
+          <div style="font-size:1.8rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
+        </div>
+      </div>
+      {% endif %}
+
+      <!-- スコア別テーブル -->
+      <div style="overflow-x:auto;margin-bottom:1.5rem;">
+        <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+          <thead>
+            <tr style="border-bottom:1px solid #333;">
+              <th style="padding:0.5rem;text-align:center;color:#888;font-weight:500;">スコア</th>
+              <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">件数</th>
+              <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">勝率</th>
+              <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">期待値(pips)</th>
+              <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">PF</th>
+              <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">累積(pips)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in report.buckets %}
+            <tr style="border-bottom:1px solid #1e1e2e;
+              {% if report.best_score == b.score and b.trades > 0 %}background:#0a1a0a;{% endif %}
+              {% if report.worst_score == b.score and b.trades > 0 and report.worst_score != report.best_score %}background:#1a0a0a;{% endif %}">
+              <td style="padding:0.5rem;text-align:center;">
+                <span style="display:inline-block;width:1.8rem;height:1.8rem;line-height:1.8rem;
+                             border-radius:50%;background:#1e1e3e;font-weight:700;font-size:0.9rem;
+                             color:{% if b.trades == 0 %}#555
+                                    {% elif report.best_score == b.score %}#4ade80
+                                    {% elif report.worst_score == b.score and report.worst_score != report.best_score %}#f87171
+                                    {% else %}#e2e8f0{% endif %};">
+                  {{ b.score }}
+                </span>
+              </td>
+              <td style="padding:0.5rem;text-align:right;color:#ccc;">{{ b.trades }}</td>
+              <td style="padding:0.5rem;text-align:right;
+                color:{% if b.win_rate is none %}#555{% elif b.win_rate >= 55 %}#4ade80{% elif b.win_rate >= 45 %}#fbbf24{% else %}#f87171{% endif %};">
+                {% if b.win_rate is not none %}{{ '%.1f'|format(b.win_rate) }}%{% else %}—{% endif %}
+              </td>
+              <td style="padding:0.5rem;text-align:right;
+                color:{% if b.expectancy is none %}#555{% elif b.expectancy >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+                {% if b.expectancy is not none %}{{ '%+.2f'|format(b.expectancy) }}{% else %}—{% endif %}
+              </td>
+              <td style="padding:0.5rem;text-align:right;color:#ccc;">
+                {% if b.profit_factor is not none %}{{ '%.2f'|format(b.profit_factor) }}{% else %}—{% endif %}
+              </td>
+              <td style="padding:0.5rem;text-align:right;
+                color:{% if b.total_pips >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+                {% if b.trades > 0 %}{{ '%+.1f'|format(b.total_pips) }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;margin-bottom:0.5rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+      {% endif %}
+    </section>
+
+    {% if report.total_trades > 0 %}
+    <!-- 勝率チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">スコア別 勝率（%）</h3>
+      <div style="position:relative;height:220px;">
+        <canvas id="winRateChart"></canvas>
+      </div>
+    </section>
+
+    <!-- 期待値チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">スコア別 期待値（pips）</h3>
+      <div style="position:relative;height:220px;">
+        <canvas id="expectancyChart"></canvas>
+      </div>
+    </section>
+
+    <!-- 件数チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">スコア別 トレード件数</h3>
+      <div style="position:relative;height:180px;">
+        <canvas id="countChart"></canvas>
+      </div>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if report.total_trades > 0 %}
+  <script>
+  (function() {
+    const labels = {{ report.score_labels | tojson }};
+    const winRates = {{ report.win_rate_series | tojson }};
+    const expectancies = {{ report.expectancy_series | tojson }};
+    const counts = {{ report.trade_count_series | tojson }};
+
+    const scaleOpts = {
+      x: { ticks: { color: '#aaa', font: { size: 12 } }, grid: { color: '#222' } },
+      y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' } },
+    };
+
+    const barColor = (value, neutralColor, positiveColor, negativeColor) => {
+      if (value === null) return '#333';
+      if (value >= 0) return positiveColor || '#4ade80';
+      return negativeColor || '#f87171';
+    };
+
+    // Win rate
+    new Chart(document.getElementById('winRateChart'), {
+      type: 'bar',
+      data: {
+        labels: labels.map(l => 'Score ' + l),
+        datasets: [{
+          data: winRates,
+          backgroundColor: winRates.map(v =>
+            v === null ? '#333' : v >= 55 ? '#4ade8066' : v >= 45 ? '#fbbf2466' : '#f8717166'),
+          borderColor: winRates.map(v =>
+            v === null ? '#333' : v >= 55 ? '#4ade80' : v >= 45 ? '#fbbf24' : '#f87171'),
+          borderWidth: 2,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: { ...scaleOpts, y: { ...scaleOpts.y, min: 0, max: 100,
+          title: { display: true, text: '%', color: '#666' } } }
+      }
+    });
+
+    // Expectancy
+    new Chart(document.getElementById('expectancyChart'), {
+      type: 'bar',
+      data: {
+        labels: labels.map(l => 'Score ' + l),
+        datasets: [{
+          data: expectancies,
+          backgroundColor: expectancies.map(v =>
+            v === null ? '#333' : v >= 0 ? '#4ade8066' : '#f8717166'),
+          borderColor: expectancies.map(v =>
+            v === null ? '#333' : v >= 0 ? '#4ade80' : '#f87171'),
+          borderWidth: 2,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: { ...scaleOpts, y: { ...scaleOpts.y,
+          title: { display: true, text: 'pips', color: '#666' } } }
+      }
+    });
+
+    // Count
+    new Chart(document.getElementById('countChart'), {
+      type: 'bar',
+      data: {
+        labels: labels.map(l => 'Score ' + l),
+        datasets: [{
+          data: counts,
+          backgroundColor: '#60a5fa44',
+          borderColor: '#60a5fa',
+          borderWidth: 2,
+          borderRadius: 4,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: { ...scaleOpts, y: { ...scaleOpts.y, beginAtZero: true,
+          title: { display: true, text: '件', color: '#666' } } }
+      }
+    });
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#1a1a2e">
-  <title>AI FX市場監視 - タグ分析</title>
+  <title>AI FX市場監視 - 曜日別分析</title>
   <link rel="stylesheet" href="/static/style.css">
   <link rel="manifest" href="/static/manifest.json">
   <meta name="mobile-web-app-capable" content="yes">
@@ -45,8 +45,8 @@
       <a href="/signal-score" class="nav-link">スコア分析</a>
       <a href="/rr-analysis" class="nav-link">R:R分析</a>
       <a href="/session-stats" class="nav-link">セッション</a>
-      <a href="/tag-stats" class="nav-link active">タグ分析</a>
-      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link active">曜日分析</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -54,17 +54,16 @@
   <main class="main-content">
     <section class="card">
       <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
-        ジャーナルタグ別成績分析
-        <span style="font-size:0.8rem;color:#888;font-weight:normal;">ジャーナルのタグごとの勝率・期待値 / 自動注文なし</span>
+        曜日別成績分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">月〜日ごとの勝率・期待値 / 自動注文なし</span>
       </h2>
 
       <p style="font-size:0.75rem;color:#666;margin-bottom:1rem;">
-        ※ ジャーナルに記録されたタグ（カンマ区切り）を集計します。
-        タグは取引ジャーナルから設定できます。
+        ※ タイムスタンプから曜日を判定します（JST 基準）。
       </p>
 
       <!-- フィルター -->
-      <form method="get" action="/tag-stats"
+      <form method="get" action="/weekday-stats"
             style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;">
         <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
           <option value="">全通貨ペア</option>
@@ -77,43 +76,39 @@
 
       {% if report.total_trades == 0 %}
       <p style="color:#888;text-align:center;padding:2rem 0;">
-        タグ付きのトレードデータがありません。<br>
-        ジャーナルにタグを設定したトレードをクローズすると分析が表示されます。
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズすると曜日別分析が表示されます。
       </p>
       {% else %}
 
       <!-- ベスト/ワーストバナー -->
-      {% if report.best_tag %}
+      {% if report.best_weekday %}
       <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.25rem;">
         <div style="background:#0a1a0a;border:1px solid #4ade8033;border-radius:0.5rem;
-                    padding:0.75rem 1rem;flex:1;min-width:160px;">
-          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最良タグ</div>
-          <div style="font-size:1.2rem;font-weight:700;color:#4ade80;">{{ report.best_tag }}</div>
+                    padding:0.75rem 1rem;flex:1;min-width:130px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最良曜日</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#4ade80;">{{ report.best_weekday }}曜日</div>
         </div>
-        {% if report.worst_tag and report.worst_tag != report.best_tag %}
+        {% if report.worst_weekday and report.worst_weekday != report.best_weekday %}
         <div style="background:#1a0a0a;border:1px solid #f8717133;border-radius:0.5rem;
-                    padding:0.75rem 1rem;flex:1;min-width:160px;">
-          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最低タグ</div>
-          <div style="font-size:1.2rem;font-weight:700;color:#f87171;">{{ report.worst_tag }}</div>
+                    padding:0.75rem 1rem;flex:1;min-width:130px;">
+          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">最低曜日</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#f87171;">{{ report.worst_weekday }}曜日</div>
         </div>
         {% endif %}
-        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:120px;">
-          <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">タグ数</div>
-          <div style="font-size:1.2rem;font-weight:700;color:#e2e8f0;">{{ report.total_tags }}</div>
-        </div>
-        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:120px;">
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.75rem 1rem;flex:1;min-width:110px;">
           <div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">総件数</div>
           <div style="font-size:1.2rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
         </div>
       </div>
       {% endif %}
 
-      <!-- タグ別テーブル -->
+      <!-- 曜日別テーブル -->
       <div style="overflow-x:auto;margin-bottom:1.5rem;">
         <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
           <thead>
             <tr style="border-bottom:1px solid #333;">
-              <th style="padding:0.5rem;text-align:left;color:#888;font-weight:500;">タグ</th>
+              <th style="padding:0.5rem;text-align:left;color:#888;font-weight:500;">曜日</th>
               <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">件数</th>
               <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">勝率</th>
               <th style="padding:0.5rem;text-align:right;color:#888;font-weight:500;">期待値(pips)</th>
@@ -122,15 +117,16 @@
             </tr>
           </thead>
           <tbody>
+            {% set weekday_full = ["月曜日","火曜日","水曜日","木曜日","金曜日","土曜日","日曜日"] %}
             {% for b in report.buckets %}
             <tr style="border-bottom:1px solid #1e1e2e;
-              {% if report.best_tag == b.tag and b.trades >= 2 %}background:#0a1a0a;{% endif %}
-              {% if report.worst_tag == b.tag and b.trades >= 2 and report.worst_tag != report.best_tag %}background:#1a0a0a;{% endif %}">
+              {% if report.best_weekday == b.name and b.trades >= 3 %}background:#0a1a0a;{% endif %}
+              {% if report.worst_weekday == b.name and b.trades >= 3 and report.worst_weekday != report.best_weekday %}background:#1a0a0a;{% endif %}">
               <td style="padding:0.5rem;font-weight:600;
-                color:{% if report.best_tag == b.tag and b.trades >= 2 %}#4ade80
-                       {% elif report.worst_tag == b.tag and b.trades >= 2 and report.worst_tag != report.best_tag %}#f87171
+                color:{% if report.best_weekday == b.name and b.trades >= 3 %}#4ade80
+                       {% elif report.worst_weekday == b.name and b.trades >= 3 and report.worst_weekday != report.best_weekday %}#f87171
                        {% else %}#ccc{% endif %};">
-                {{ b.tag }}
+                {{ weekday_full[b.weekday] }}
               </td>
               <td style="padding:0.5rem;text-align:right;color:#ccc;">{{ b.trades }}</td>
               <td style="padding:0.5rem;text-align:right;
@@ -160,32 +156,29 @@
       {% endif %}
     </section>
 
-    {% if report.tag_labels | length > 0 %}
-    <!-- タグ別勝率・期待値チャート -->
+    {% if report.total_trades > 0 %}
+    <!-- 曜日別 勝率・期待値チャート -->
     <section class="card">
-      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
-        タグ別 勝率・期待値
-        <span style="font-size:0.75rem;color:#666;font-weight:normal;margin-left:0.5rem;">（{{ 2 }}件以上のタグのみ表示）</span>
-      </h3>
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">曜日別 勝率・期待値</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
         <div>
           <div style="font-size:0.75rem;color:#888;margin-bottom:0.4rem;text-align:center;">勝率（%）</div>
-          <div style="position:relative;height:220px;">
+          <div style="position:relative;height:200px;">
             <canvas id="winRateChart"></canvas>
           </div>
         </div>
         <div>
           <div style="font-size:0.75rem;color:#888;margin-bottom:0.4rem;text-align:center;">期待値（pips）</div>
-          <div style="position:relative;height:220px;">
+          <div style="position:relative;height:200px;">
             <canvas id="expectancyChart"></canvas>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- タグ別件数・PF -->
+    <!-- 曜日別 件数・PF -->
     <section class="card">
-      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">タグ別 件数 / プロフィットファクター</h3>
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">曜日別 件数 / プロフィットファクター</h3>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
         <div>
           <div style="font-size:0.75rem;color:#888;margin-bottom:0.4rem;text-align:center;">件数</div>
@@ -204,26 +197,23 @@
     {% endif %}
   </main>
 
-  {% if report.tag_labels | length > 0 %}
+  {% if report.total_trades > 0 %}
   <script>
   (function() {
-    const tags = {{ report.tag_labels | tojson }};
+    const labels = {{ report.weekday_labels | tojson }};
     const winRates = {{ report.win_rate_series | tojson }};
     const expectancies = {{ report.expectancy_series | tojson }};
     const counts = {{ report.trade_count_series | tojson }};
     const pfs = {{ report.profit_factor_series | tojson }};
 
-    const palette = [
-      '#60a5fa','#fbbf24','#c084fc','#34d399','#f97316','#e879f9','#22d3ee',
-      '#a3e635','#fb7185','#818cf8','#2dd4bf','#f59e0b'
-    ];
-    const colors = tags.map((_, i) => palette[i % palette.length]);
+    // Mon-Sun palette (Mon=blue, Fri=orange, weekend=grey)
+    const palette = ['#60a5fa','#818cf8','#c084fc','#34d399','#fbbf24','#94a3b8','#64748b'];
 
     const barOpts = (yLabel) => ({
       responsive: true, maintainAspectRatio: false, animation: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#aaa', font: { size: 10 }, maxRotation: 45 }, grid: { color: '#1a1a1a' } },
+        x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
         y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' },
              title: { display: true, text: yLabel, color: '#666' } },
       }
@@ -232,7 +222,7 @@
     new Chart(document.getElementById('winRateChart'), {
       type: 'bar',
       data: {
-        labels: tags,
+        labels,
         datasets: [{
           data: winRates,
           backgroundColor: winRates.map(v => (v ?? 0) >= 50 ? '#4ade8044' : '#f8717144'),
@@ -247,7 +237,7 @@
     new Chart(document.getElementById('expectancyChart'), {
       type: 'bar',
       data: {
-        labels: tags,
+        labels,
         datasets: [{
           data: expectancies,
           backgroundColor: expectancies.map(v => (v ?? 0) >= 0 ? '#4ade8044' : '#f8717144'),
@@ -261,11 +251,11 @@
     new Chart(document.getElementById('countChart'), {
       type: 'bar',
       data: {
-        labels: tags,
+        labels,
         datasets: [{
           data: counts,
-          backgroundColor: colors.map(c => c + '55'),
-          borderColor: colors,
+          backgroundColor: palette.map(c => c + '55'),
+          borderColor: palette,
           borderWidth: 2, borderRadius: 4,
         }]
       },
@@ -276,7 +266,7 @@
     new Chart(document.getElementById('pfChart'), {
       type: 'bar',
       data: {
-        labels: tags,
+        labels,
         datasets: [{
           data: pfs,
           backgroundColor: pfs.map(v => (v ?? 0) >= 1.0 ? '#60a5fa44' : '#f8717144'),

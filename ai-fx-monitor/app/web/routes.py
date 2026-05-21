@@ -133,6 +133,7 @@ from app.scripts.signal_score import get_score_report
 from app.scripts.rr_analysis import get_rr_report
 from app.scripts.session_stats import get_session_report
 from app.scripts.tag_stats import get_tag_report
+from app.scripts.weekday_stats import get_weekday_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2490,6 +2491,60 @@ async def api_tag_stats(symbol: str = ""):
             for b in report.buckets
         ],
         "tag_labels": report.tag_labels,
+        "win_rate_series": report.win_rate_series,
+        "expectancy_series": report.expectancy_series,
+        "trade_count_series": report.trade_count_series,
+        "profit_factor_series": report.profit_factor_series,
+    }
+
+
+@router.get("/weekday-stats", response_class=HTMLResponse)
+async def weekday_stats_page(request: Request, symbol: str = ""):
+    """曜日別成績ページ（Phase 60）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_weekday_report(symbol=sym)
+    except Exception as exc:
+        from app.scripts.weekday_stats import WeekdayReport
+        report = WeekdayReport(symbol=sym, total_trades=0)
+        logger.error("weekday_stats error: %s", exc)
+    return templates.TemplateResponse(
+        "weekday_stats.html",
+        {"request": request, "report": report, "symbol": symbol,
+         "supported_symbols": SUPPORTED_SYMBOLS},
+    )
+
+
+@router.get("/api/weekday-stats")
+async def api_weekday_stats(symbol: str = ""):
+    """曜日別成績を JSON で返す（Phase 60）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_weekday_report(symbol=sym)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "best_weekday": report.best_weekday,
+        "worst_weekday": report.worst_weekday,
+        "buckets": [
+            {
+                "weekday": b.weekday,
+                "name": b.name,
+                "trades": b.trades,
+                "wins": b.wins,
+                "losses": b.losses,
+                "win_rate": b.win_rate,
+                "expectancy": b.expectancy,
+                "profit_factor": b.profit_factor,
+                "total_pips": b.total_pips,
+            }
+            for b in report.buckets
+        ],
+        "weekday_labels": report.weekday_labels,
         "win_rate_series": report.win_rate_series,
         "expectancy_series": report.expectancy_series,
         "trade_count_series": report.trade_count_series,

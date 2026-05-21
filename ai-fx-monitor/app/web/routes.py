@@ -150,6 +150,11 @@ _last_result: AnalysisResult | None = None
 _signal_cache: dict[str, dict] = {}
 
 
+@router.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
+
 @router.get("/", response_class=HTMLResponse)
 async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
     global _last_result, _signal_cache

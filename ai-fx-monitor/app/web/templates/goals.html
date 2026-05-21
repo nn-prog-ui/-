@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 目標管理</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link active">目標管理</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- 目標作成フォーム -->
+    <section class="card">
+      <h2 class="card-title">目標管理（Goal Tracker）</h2>
+      <p class="history-note" style="margin-bottom:1rem;">
+        月次・週次の pip 目標を設定し、実績との進捗を追跡します。
+        同一期間の目標を再登録すると上書きされます。
+      </p>
+
+      <form method="post" action="/goals" style="display:grid;gap:0.75rem;max-width:640px;">
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:0.75rem;">
+
+          <div>
+            <label class="form-label">期間タイプ</label>
+            <select name="period_type" class="form-input" id="periodType" onchange="updateLabel()">
+              <option value="monthly">月次</option>
+              <option value="weekly">週次</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="form-label">対象期間</label>
+            <input type="text" name="period_label" id="periodLabel" class="form-input"
+              value="{{ current_month }}" placeholder="例: 2026-01">
+            <small style="color:#888;font-size:0.75rem;">月次: YYYY-MM ／ 週次: YYYY-W##</small>
+          </div>
+
+          <div>
+            <label class="form-label">目標 pips</label>
+            <input type="number" name="target_pips" class="form-input"
+              value="100" min="1" step="10" required>
+          </div>
+
+          <div>
+            <label class="form-label">通貨ペア（任意）</label>
+            <select name="symbol" class="form-input">
+              <option value="">全通貨ペア</option>
+              {% for sym in supported_symbols %}
+              <option value="{{ sym }}">{{ sym }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+        </div>
+
+        <div>
+          <label class="form-label">メモ（任意）</label>
+          <input type="text" name="note" class="form-input" maxlength="200" placeholder="目標コメント">
+        </div>
+
+        <div>
+          <button type="submit" class="btn btn-primary">目標を設定</button>
+        </div>
+      </form>
+    </section>
+
+    <!-- 進捗一覧 -->
+    {% if goals %}
+    <section class="card">
+      <h3 class="card-title">設定済み目標</h3>
+      <div style="display:grid;gap:1rem;">
+        {% for g in goals %}
+        <div style="border:1px solid {% if g.achieved %}#166534{% else %}#2a3a4a{% endif %};
+                    border-radius:0.5rem;padding:1rem;background:#0f0f1a;">
+
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;
+                      gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+            <div>
+              <span style="font-weight:600;font-size:0.95rem;color:#fff;">
+                {{ g.period_label }}
+              </span>
+              <span style="margin-left:0.5rem;font-size:0.75rem;padding:0.1rem 0.5rem;
+                           border-radius:0.25rem;background:#1a2a3a;color:#60a5fa;">
+                {{ '月次' if g.period_type == 'monthly' else '週次' }}
+              </span>
+              {% if g.symbol %}
+              <span style="margin-left:0.4rem;font-size:0.75rem;color:#aaa;">{{ g.symbol }}</span>
+              {% else %}
+              <span style="margin-left:0.4rem;font-size:0.75rem;color:#666;">全通貨</span>
+              {% endif %}
+              {% if g.achieved %}
+              <span style="margin-left:0.5rem;font-size:0.75rem;padding:0.1rem 0.5rem;
+                           border-radius:0.25rem;background:#166534;color:#4ade80;">
+                ✓ 達成
+              </span>
+              {% endif %}
+            </div>
+            <form method="post" action="/goals/{{ g.id }}/delete" style="margin:0;">
+              <button type="submit" class="btn"
+                style="padding:0.2rem 0.6rem;font-size:0.75rem;background:#2a1a1a;color:#f87171;border:1px solid #3a2a2a;"
+                onclick="return confirm('この目標を削除しますか？')">削除</button>
+            </form>
+          </div>
+
+          <!-- 進捗バー -->
+          <div style="margin-bottom:0.5rem;">
+            <div style="display:flex;justify-content:space-between;font-size:0.82rem;
+                        color:#aaa;margin-bottom:0.3rem;">
+              <span>実績 <strong style="color:{% if g.actual_pips >= 0 %}#4ade80{% else %}#f87171{% endif %};">
+                {{ '%+.1f'|format(g.actual_pips) }} pips
+              </strong> ({{ g.actual_trades }}件)</span>
+              <span>目標 <strong style="color:#fff;">{{ '%.0f'|format(g.target_pips) }} pips</strong>
+                ／ <strong style="color:{% if g.achieved %}#4ade80{% else %}#fbbf24{% endif %};">
+                {{ '%.1f'|format(g.progress_pct) }}%</strong>
+              </span>
+            </div>
+            <div style="background:#1a2a3a;border-radius:0.25rem;height:10px;overflow:hidden;">
+              <div style="height:100%;border-radius:0.25rem;transition:width 0.3s;
+                          width:{{ [g.progress_pct, 100]|min }}%;
+                          background:{% if g.achieved %}#4ade80{% elif g.progress_pct >= 50 %}#fbbf24{% else %}#60a5fa{% endif %};">
+              </div>
+            </div>
+          </div>
+
+          {% if g.note %}
+          <div style="font-size:0.78rem;color:#666;margin-top:0.4rem;">{{ g.note }}</div>
+          {% endif %}
+
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+
+    {% else %}
+    <section class="card">
+      <p style="color:#888;text-align:center;padding:1.5rem 0;">
+        目標がまだ設定されていません。上のフォームから最初の目標を登録してください。
+      </p>
+    </section>
+    {% endif %}
+
+  </main>
+
+  <script>
+  function updateLabel() {
+    const type = document.getElementById('periodType').value;
+    const labelInput = document.getElementById('periodLabel');
+    if (type === 'monthly') {
+      const now = new Date();
+      labelInput.value = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+      labelInput.placeholder = '例: 2026-01';
+    } else {
+      const now = new Date();
+      const jan4 = new Date(now.getFullYear(), 0, 4);
+      const week1Mon = new Date(jan4);
+      week1Mon.setDate(jan4.getDate() - (jan4.getDay() || 7) + 1);
+      const diff = Math.floor((now - week1Mon) / 604800000);
+      const week = diff + 1;
+      labelInput.value = now.getFullYear() + '-W' + String(week).padStart(2, '0');
+      labelInput.placeholder = '例: 2026-W03';
+    }
+  }
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

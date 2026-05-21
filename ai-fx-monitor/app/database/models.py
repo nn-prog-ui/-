@@ -149,3 +149,17 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
     user_agent  TEXT
 );
 """
+
+# Phase 54: 月次・週次目標管理
+CREATE_GOALS_TABLE = """
+CREATE TABLE IF NOT EXISTS trade_goals (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at   TEXT NOT NULL,
+    period_type  TEXT NOT NULL,   -- 'monthly' or 'weekly'
+    period_label TEXT NOT NULL,   -- '2026-01' or '2026-W03'
+    target_pips  REAL NOT NULL,
+    symbol       TEXT NOT NULL DEFAULT '',  -- '' = 全通貨ペア
+    note         TEXT,
+    UNIQUE(period_type, period_label, symbol)
+);
+"""

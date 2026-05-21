@@ -119,6 +119,11 @@ from app.scripts.position_sizing import (
 )
 from app.scripts.period_stats import get_period_report
 from app.scripts.scorecard import GRADE_COLORS, get_scorecard
+from app.scripts.goal_tracker import (
+    create_goal, delete_goal, get_goals,
+    current_month_label, current_week_label,
+    VALID_PERIOD_TYPES,
+)
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2153,3 +2158,60 @@ async def api_scorecard(symbol: str = ""):
         "radar_labels": sc.radar_labels,
         "radar_values": sc.radar_values,
     }
+
+
+@router.get("/goals", response_class=HTMLResponse)
+async def goals_page(request: Request):
+    """目標管理ページ（Phase 54）。注文は発生しない。"""
+    try:
+        goals = get_goals()
+    except Exception as exc:
+        logger.error("目標一覧取得エラー: %s", exc)
+        goals = []
+
+    return templates.TemplateResponse(
+        "goals.html",
+        {
+            "request": request,
+            "goals": goals,
+            "current_month": current_month_label(),
+            "current_week": current_week_label(),
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.post("/goals", response_class=HTMLResponse)
+async def goals_create(
+    request: Request,
+    period_type: str = Form(...),
+    period_label: str = Form(...),
+    target_pips: float = Form(...),
+    symbol: str = Form(""),
+    note: str = Form(""),
+):
+    """目標作成（Phase 54）。注文は発生しない。"""
+    sym = symbol.strip() if symbol and symbol in SUPPORTED_SYMBOLS else None
+    try:
+        if period_type not in VALID_PERIOD_TYPES:
+            raise ValueError(f"無効な期間タイプ: {period_type}")
+        create_goal(
+            period_type=period_type,
+            period_label=period_label.strip(),
+            target_pips=target_pips,
+            symbol=sym,
+            note=note.strip(),
+        )
+    except Exception as exc:
+        logger.error("目標作成エラー: %s", exc)
+    return RedirectResponse(url="/goals", status_code=303)
+
+
+@router.post("/goals/{goal_id}/delete", response_class=HTMLResponse)
+async def goals_delete(request: Request, goal_id: int):
+    """目標削除（Phase 54）。注文は発生しない。"""
+    try:
+        delete_goal(goal_id)
+    except Exception as exc:
+        logger.error("目標削除エラー: %s", exc)
+    return RedirectResponse(url="/goals", status_code=303)

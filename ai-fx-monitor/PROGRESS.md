@@ -118,6 +118,27 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 54：月次・週次目標管理（2026-05-21）
+
+- `app/database/models.py`：`CREATE_GOALS_TABLE` 追加（trade_goals テーブル）
+- `app/database/db.py`：`init_db()` に `CREATE_GOALS_TABLE` 追加
+- `app/scripts/goal_tracker.py`：新規作成
+  - `TradeGoal` dataclass（id/period_type/period_label/target_pips/symbol/note/actual_pips/progress_pct/achieved）
+  - `create_goal()`：UPSERT対応（同一キーは上書き）
+  - `get_goals()`：目標一覧 + `approval_history` から実績・進捗を自動計算
+  - `delete_goal()`・`get_goal_by_id()`：CRUD
+  - `_actual_pips()`：月次は `LIKE` パターン、週次は ISO 週日付範囲で絞込
+  - 修正：SQLite NULL は UNIQUE 制約で別扱いのため `symbol` を空文字列で管理
+- `app/web/routes.py`：`GET /goals` + `POST /goals` + `POST /goals/:id/delete` 追加
+- `app/web/templates/goals.html`：新規作成
+  - 目標作成フォーム（期間タイプ切替で自動ラベル補完 JS）
+  - 進捗バー（0〜100%、達成=緑 / 50%以上=黄 / 未達=青）
+  - 達成バッジ・削除ボタン付き一覧
+- 全21テンプレートのナビに「目標管理」リンク追加
+- `tests/test_goal_tracker.py`：テスト17件新規作成（全1037件通過）
+
+---
+
 ### Phase 53：システムスコアカード（2026-05-21）
 
 - `app/scripts/scorecard.py`：新規作成

@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - ストリーク分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link active">ストリーク</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        連勝・連敗ストリーク分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">連勝・連敗の傾向と分布 / 自動注文なし</span>
+      </h2>
+
+      <p style="font-size:0.75rem;color:#666;margin-bottom:1rem;">
+        ※ 連勝・連敗の長さを分析します。過信や萎縮を防ぐための心理管理に活用できます。
+      </p>
+
+      <!-- フィルター -->
+      <form method="get" action="/streak-stats"
+            style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if report.total_trades == 0 %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズするとストリーク分析が表示されます。
+      </p>
+      {% else %}
+
+      <!-- サマリーカード -->
+      <div style="display:flex;gap:0.75rem;flex-wrap:wrap;margin-bottom:1.5rem;">
+
+        <!-- 現在のストリーク -->
+        <div style="background:{% if report.current_outcome == 'win' %}#0a1a0a{% elif report.current_outcome == 'loss' %}#1a0a0a{% else %}#0f0f1a{% endif %};
+             border:1px solid {% if report.current_outcome == 'win' %}#4ade8033{% elif report.current_outcome == 'loss' %}#f8717133{% else %}#33333355{% endif %};
+             border-radius:0.5rem;padding:0.85rem 1.2rem;flex:1;min-width:140px;text-align:center;">
+          <div style="font-size:0.7rem;color:#888;margin-bottom:0.3rem;">現在のストリーク</div>
+          <div style="font-size:2rem;font-weight:800;
+            color:{% if report.current_outcome == 'win' %}#4ade80{% elif report.current_outcome == 'loss' %}#f87171{% else %}#666{% endif %};">
+            {% if report.current_outcome == 'win' %}▲{% elif report.current_outcome == 'loss' %}▼{% endif %}{{ report.current_streak }}
+          </div>
+          <div style="font-size:0.75rem;color:#888;margin-top:0.2rem;">
+            {% if report.current_outcome == 'win' %}連勝中{% elif report.current_outcome == 'loss' %}連敗中{% endif %}
+          </div>
+        </div>
+
+        <!-- 最大連勝 -->
+        <div style="background:#0a1a0a;border:1px solid #4ade8033;border-radius:0.5rem;
+                    padding:0.85rem 1.2rem;flex:1;min-width:120px;text-align:center;">
+          <div style="font-size:0.7rem;color:#888;margin-bottom:0.3rem;">最大連勝</div>
+          <div style="font-size:1.8rem;font-weight:700;color:#4ade80;">{{ report.max_win_streak }}</div>
+          {% if report.avg_win_streak is not none %}
+          <div style="font-size:0.7rem;color:#666;">平均 {{ report.avg_win_streak }}</div>
+          {% endif %}
+        </div>
+
+        <!-- 最大連敗 -->
+        <div style="background:#1a0a0a;border:1px solid #f8717133;border-radius:0.5rem;
+                    padding:0.85rem 1.2rem;flex:1;min-width:120px;text-align:center;">
+          <div style="font-size:0.7rem;color:#888;margin-bottom:0.3rem;">最大連敗</div>
+          <div style="font-size:1.8rem;font-weight:700;color:#f87171;">{{ report.max_loss_streak }}</div>
+          {% if report.avg_loss_streak is not none %}
+          <div style="font-size:0.7rem;color:#666;">平均 {{ report.avg_loss_streak }}</div>
+          {% endif %}
+        </div>
+
+        <!-- 総件数 -->
+        <div style="background:#0f0f1a;border-radius:0.5rem;padding:0.85rem 1.2rem;flex:1;min-width:100px;text-align:center;">
+          <div style="font-size:0.7rem;color:#888;margin-bottom:0.3rem;">総件数</div>
+          <div style="font-size:1.8rem;font-weight:700;color:#e2e8f0;">{{ report.total_trades }}</div>
+        </div>
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;margin-bottom:0.5rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+      {% endif %}
+    </section>
+
+    {% if report.total_trades > 0 %}
+    <!-- ストリーク推移チャート -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">
+        ストリーク推移
+        <span style="font-size:0.75rem;color:#666;font-weight:normal;margin-left:0.5rem;">（正=連勝数 / 負=連敗数）</span>
+      </h3>
+      <div style="position:relative;height:180px;">
+        <canvas id="timelineChart"></canvas>
+      </div>
+    </section>
+
+    <!-- ストリーク長分布 -->
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.75rem;">ストリーク長の分布</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;">
+        <div>
+          <div style="font-size:0.75rem;color:#4ade80;margin-bottom:0.4rem;text-align:center;font-weight:600;">連勝ストリーク分布</div>
+          <div style="position:relative;height:180px;">
+            <canvas id="winDistChart"></canvas>
+          </div>
+        </div>
+        <div>
+          <div style="font-size:0.75rem;color:#f87171;margin-bottom:0.4rem;text-align:center;font-weight:600;">連敗ストリーク分布</div>
+          <div style="position:relative;height:180px;">
+            <canvas id="lossDistChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <p style="font-size:0.7rem;color:#555;margin-top:0.5rem;text-align:center;">
+        「5+」は5連勝/連敗以上をまとめたものです。
+      </p>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if report.total_trades > 0 %}
+  <script>
+  (function() {
+    const timelineLabels = {{ report.timeline_labels | tojson }};
+    const timeline = {{ report.streak_timeline | tojson }};
+    const winDist = {{ report.win_streak_dist | tojson }};
+    const lossDist = {{ report.loss_streak_dist | tojson }};
+    const distLabels = ['1','2','3','4','5+'];
+
+    const barOpts = (yLabel, color) => ({
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#1a1a1a' } },
+        y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' },
+             title: { display: true, text: yLabel, color: '#666' }, beginAtZero: true },
+      }
+    });
+
+    // Timeline
+    new Chart(document.getElementById('timelineChart'), {
+      type: 'bar',
+      data: {
+        labels: timelineLabels,
+        datasets: [{
+          data: timeline,
+          backgroundColor: timeline.map(v => v > 0 ? '#4ade8066' : '#f8717166'),
+          borderColor: timeline.map(v => v > 0 ? '#4ade80' : '#f87171'),
+          borderWidth: 1, borderRadius: 2,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            display: timelineLabels.length <= 100,
+            ticks: { color: '#666', font: { size: 9 }, maxRotation: 0,
+                     maxTicksLimit: 20 },
+            grid: { color: '#1a1a1a' }
+          },
+          y: { ticks: { color: '#666', font: { size: 10 } }, grid: { color: '#222' },
+               title: { display: true, text: 'ストリーク', color: '#666' } },
+        }
+      }
+    });
+
+    // Win streak distribution
+    new Chart(document.getElementById('winDistChart'), {
+      type: 'bar',
+      data: {
+        labels: distLabels,
+        datasets: [{
+          data: winDist,
+          backgroundColor: '#4ade8044',
+          borderColor: '#4ade80',
+          borderWidth: 2, borderRadius: 4,
+        }]
+      },
+      options: barOpts('回', '#4ade80')
+    });
+
+    // Loss streak distribution
+    new Chart(document.getElementById('lossDistChart'), {
+      type: 'bar',
+      data: {
+        labels: distLabels,
+        datasets: [{
+          data: lossDist,
+          backgroundColor: '#f8717144',
+          borderColor: '#f87171',
+          borderWidth: 2, borderRadius: 4,
+        }]
+      },
+      options: barOpts('回', '#f87171')
+    });
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

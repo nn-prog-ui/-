@@ -134,6 +134,7 @@ from app.scripts.rr_analysis import get_rr_report
 from app.scripts.session_stats import get_session_report
 from app.scripts.tag_stats import get_tag_report
 from app.scripts.weekday_stats import get_weekday_report
+from app.scripts.streak_stats import get_streak_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2549,4 +2550,47 @@ async def api_weekday_stats(symbol: str = ""):
         "expectancy_series": report.expectancy_series,
         "trade_count_series": report.trade_count_series,
         "profit_factor_series": report.profit_factor_series,
+    }
+
+
+@router.get("/streak-stats", response_class=HTMLResponse)
+async def streak_stats_page(request: Request, symbol: str = ""):
+    """連勝・連敗ストリーク分析ページ（Phase 61）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_streak_report(symbol=sym)
+    except Exception as exc:
+        from app.scripts.streak_stats import StreakReport
+        report = StreakReport(symbol=sym, total_trades=0)
+        logger.error("streak_stats error: %s", exc)
+    return templates.TemplateResponse(
+        "streak_stats.html",
+        {"request": request, "report": report, "symbol": symbol,
+         "supported_symbols": SUPPORTED_SYMBOLS},
+    )
+
+
+@router.get("/api/streak-stats")
+async def api_streak_stats(symbol: str = ""):
+    """連勝・連敗ストリークを JSON で返す（Phase 61）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_streak_report(symbol=sym)
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "current_outcome": report.current_outcome,
+        "current_streak": report.current_streak,
+        "max_win_streak": report.max_win_streak,
+        "max_loss_streak": report.max_loss_streak,
+        "avg_win_streak": report.avg_win_streak,
+        "avg_loss_streak": report.avg_loss_streak,
+        "win_streak_dist": report.win_streak_dist,
+        "loss_streak_dist": report.loss_streak_dist,
+        "streak_timeline": report.streak_timeline,
+        "timeline_labels": report.timeline_labels,
     }

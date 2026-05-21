@@ -117,6 +117,7 @@ from app.scripts.r_multiple import get_r_multiple_report
 from app.scripts.position_sizing import (
     SizingInput, calculate_sizing, get_historical_stats,
 )
+from app.scripts.period_stats import get_period_report
 from app.services.correlation import LOOKBACK_OPTIONS, calculate_correlation_matrix, correlation_label
 from app.services.market_analyzer import AnalysisResult, run_analysis
 from app.services.notification import notify_analysis_result
@@ -2039,4 +2040,60 @@ async def api_position_sizing(
         "expectancy_pips": result.expectancy_pips,
         "payoff_ratio": result.payoff_ratio,
         "warnings": result.warnings,
+    }
+
+
+@router.get("/period-stats", response_class=HTMLResponse)
+async def period_stats_page(request: Request, symbol: str = ""):
+    """月次・週次パフォーマンスサマリーページ（Phase 52）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_period_report(symbol=sym)
+    except Exception as exc:
+        logger.error("期間別統計エラー: %s", exc)
+        report = get_period_report.__wrapped__(symbol=None) if False else None
+
+    return templates.TemplateResponse(
+        "period_stats.html",
+        {
+            "request": request,
+            "report": report,
+            "symbol": sym or "",
+            "supported_symbols": SUPPORTED_SYMBOLS,
+        },
+    )
+
+
+@router.get("/api/period-stats")
+async def api_period_stats(symbol: str = ""):
+    """月次・週次統計を JSON で返す（Phase 52）。注文は発生しない。"""
+    sym = symbol if symbol in SUPPORTED_SYMBOLS else None
+    try:
+        report = get_period_report(symbol=sym)
+    except Exception as exc:
+        logger.error("期間別統計APIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+    def _stat(s):
+        return {
+            "label": s.label,
+            "trades": s.trades,
+            "wins": s.wins,
+            "losses": s.losses,
+            "win_rate": s.win_rate,
+            "total_pips": s.total_pips,
+            "avg_pips": s.avg_pips,
+        }
+
+    return {
+        "ok": True,
+        "symbol": sym,
+        "total_trades": report.total_trades,
+        "total_pips": report.total_pips,
+        "max_consecutive_positive": report.max_consecutive_positive,
+        "max_consecutive_negative": report.max_consecutive_negative,
+        "best_month": _stat(report.best_month) if report.best_month else None,
+        "worst_month": _stat(report.worst_month) if report.worst_month else None,
+        "monthly": [_stat(s) for s in report.monthly],
+        "weekly": [_stat(s) for s in report.weekly],
     }

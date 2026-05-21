@@ -118,6 +118,27 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 52：月次・週次パフォーマンスサマリー（2026-05-21）
+
+- `app/scripts/period_stats.py`：新規作成
+  - `PeriodStat` dataclass（label/trades/wins/losses/win_rate/total_pips/avg_pips）
+  - `PeriodReport` dataclass（月次/週次リスト・最良最悪月・連続プラス/マイナス月数）
+  - `get_period_report(symbol, db_path)`：月次・週次を一括集計
+  - `_build_period_stats()`：汎用期間集計（月 or 週を切替可能）
+  - `_max_consecutive()`：連続プラス/マイナス月数の最大値計算
+  - `_parse_dt()` バグ修正：`len(fmt)` スライスを固定長スライスに変更
+- `app/web/routes.py`：`GET /period-stats` + `GET /api/period-stats` 追加
+- `app/web/templates/period_stats.html`：新規作成
+  - サマリーカード6枚（合計pips/集計月数/最良月/最悪月/連続プラス/連続マイナス）
+  - 月次損益バーチャート（Chart.js bar、赤/緑色分け）
+  - 月次勝率ラインチャート（50%基準線付き）
+  - 月次明細テーブル（降順、直近から表示）
+  - 週次損益バーチャート（直近20週）
+- 全19テンプレートのナビに「月次分析」リンク追加
+- `tests/test_period_stats.py`：テスト22件新規作成（全982件通過）
+
+---
+
 ### Phase 51：ポジションサイジング計算機（2026-05-21）
 
 - `app/scripts/position_sizing.py`：新規作成

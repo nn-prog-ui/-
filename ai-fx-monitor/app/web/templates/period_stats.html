@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 月次・週次サマリー</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link active">月次分析</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        月次・週次パフォーマンスサマリー
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">シミュレーション成績 / 自動注文なし</span>
+      </h2>
+
+      <!-- 通貨ペアフィルター -->
+      <form method="get" action="/period-stats" style="display:flex;gap:0.5rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <select name="symbol" class="form-input" style="max-width:180px;" onchange="this.form.submit()">
+          <option value="">全通貨ペア</option>
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="btn btn-primary">表示</button>
+      </form>
+
+      {% if report.total_trades > 0 %}
+
+      <!-- サマリーカード -->
+      <div class="dashboard-grid" style="margin-bottom:1.25rem;">
+        <div class="stat-card">
+          <div class="stat-label">合計損益</div>
+          <div class="stat-value {{ 'positive' if report.total_pips >= 0 else 'negative' }}">
+            {{ '%+.1f'|format(report.total_pips) }} pips
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">集計月数</div>
+          <div class="stat-value">{{ report.monthly|length }} ヶ月</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最良月</div>
+          {% if report.best_month %}
+          <div class="stat-value positive">{{ '%+.1f'|format(report.best_month.total_pips) }} pips</div>
+          <div style="font-size:0.75rem;color:#aaa;">{{ report.best_month.label }}</div>
+          {% else %}<div class="stat-value">—</div>{% endif %}
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">最悪月</div>
+          {% if report.worst_month %}
+          <div class="stat-value negative">{{ '%+.1f'|format(report.worst_month.total_pips) }} pips</div>
+          <div style="font-size:0.75rem;color:#aaa;">{{ report.worst_month.label }}</div>
+          {% else %}<div class="stat-value">—</div>{% endif %}
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">連続プラス月（最大）</div>
+          <div class="stat-value positive">{{ report.max_consecutive_positive }} ヶ月</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">連続マイナス月（最大）</div>
+          <div class="stat-value negative">{{ report.max_consecutive_negative }} ヶ月</div>
+        </div>
+      </div>
+
+      <!-- 月次損益チャート -->
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">月次損益 (pips)</h3>
+      <div style="position:relative;height:260px;margin-bottom:1.5rem;">
+        <canvas id="monthlyPipsChart"></canvas>
+      </div>
+
+      <!-- 月次勝率チャート -->
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">月次勝率 (%)</h3>
+      <div style="position:relative;height:200px;margin-bottom:1.5rem;">
+        <canvas id="monthlyWinRateChart"></canvas>
+      </div>
+
+      <small class="ai-disclaimer" style="display:block;margin-bottom:1rem;">
+        ※ シミュレーション成績です。過去の成績は将来の結果を保証しません。
+      </small>
+
+      {% else %}
+      <p style="color:#888;text-align:center;padding:2rem 0;">
+        クローズ済みトレードデータがありません。<br>
+        トレードを承認・クローズすると集計できます。
+      </p>
+      {% endif %}
+    </section>
+
+    <!-- 月次テーブル -->
+    {% if report.monthly %}
+    <section class="card">
+      <h3 class="card-title">月次明細</h3>
+      <div style="overflow-x:auto;">
+        <table class="report-table" style="width:100%;min-width:520px;">
+          <thead>
+            <tr>
+              <th>月</th>
+              <th>件数</th>
+              <th>勝/負</th>
+              <th>勝率</th>
+              <th>合計 pips</th>
+              <th>平均 pips</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in report.monthly|reverse %}
+            <tr>
+              <td style="font-weight:600;">{{ s.label }}</td>
+              <td>{{ s.trades }}</td>
+              <td><span class="positive">{{ s.wins }}</span> / <span class="negative">{{ s.losses }}</span></td>
+              <td class="{{ 'positive' if s.win_rate and s.win_rate >= 50 else 'negative' }}">
+                {% if s.win_rate is not none %}{{ '%.1f'|format(s.win_rate) }}%{% else %}—{% endif %}
+              </td>
+              <td class="{{ 'positive' if s.total_pips >= 0 else 'negative' }}">
+                {{ '%+.1f'|format(s.total_pips) }}
+              </td>
+              <td class="{{ 'positive' if s.avg_pips and s.avg_pips >= 0 else 'negative' }}">
+                {% if s.avg_pips is not none %}{{ '%+.2f'|format(s.avg_pips) }}{% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- 週次チャート -->
+    {% if report.weekly|length > 1 %}
+    <section class="card">
+      <h3 class="card-title" style="font-size:0.95rem;margin-bottom:0.5rem;">週次損益 (pips)（直近20週）</h3>
+      <div style="position:relative;height:220px;margin-bottom:1rem;">
+        <canvas id="weeklyPipsChart"></canvas>
+      </div>
+    </section>
+    {% endif %}
+  </main>
+
+  {% if report.total_trades > 0 %}
+  <script>
+  (function() {
+    const monthly = {{ report.monthly | map(attribute='label') | list | tojson }};
+    const monthlyPips = {{ report.monthly | map(attribute='total_pips') | list | tojson }};
+    const monthlyWinRate = {{ report.monthly | map(attribute='win_rate') | list | tojson }};
+
+    // 月次損益バーチャート
+    const monthPipsColors = monthlyPips.map(v => v >= 0 ? 'rgba(74,222,128,0.7)' : 'rgba(248,113,113,0.7)');
+    new Chart(document.getElementById('monthlyPipsChart'), {
+      type: 'bar',
+      data: {
+        labels: monthly,
+        datasets: [{
+          label: '月次損益 (pips)',
+          data: monthlyPips,
+          backgroundColor: monthPipsColors,
+          borderColor: monthPipsColors.map(c => c.replace('0.7','1')),
+          borderWidth: 1,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#333' } },
+          y: { ticks: { color: '#aaa' }, grid: { color: '#333' } },
+        }
+      }
+    });
+
+    // 月次勝率ラインチャート
+    new Chart(document.getElementById('monthlyWinRateChart'), {
+      type: 'line',
+      data: {
+        labels: monthly,
+        datasets: [{
+          label: '勝率 (%)',
+          data: monthlyWinRate,
+          borderColor: '#f59e0b',
+          backgroundColor: 'rgba(245,158,11,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          pointBackgroundColor: '#f59e0b',
+          borderWidth: 2,
+        }, {
+          label: '50%ライン',
+          data: monthly.map(() => 50),
+          borderColor: '#444',
+          borderDash: [4, 4],
+          borderWidth: 1,
+          pointRadius: 0,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#aaa', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#aaa', font: { size: 11 } }, grid: { color: '#333' } },
+          y: { ticks: { color: '#aaa' }, grid: { color: '#333' }, min: 0, max: 100 },
+        }
+      }
+    });
+
+    // 週次バーチャート（直近20週）
+    const weeklyEl = document.getElementById('weeklyPipsChart');
+    if (weeklyEl) {
+      const weekly = {{ report.weekly | map(attribute='label') | list | tojson }};
+      const weeklyPips = {{ report.weekly | map(attribute='total_pips') | list | tojson }};
+      const wSlice = weekly.slice(-20);
+      const wPipsSlice = weeklyPips.slice(-20);
+      const wColors = wPipsSlice.map(v => v >= 0 ? 'rgba(74,222,128,0.7)' : 'rgba(248,113,113,0.7)');
+      new Chart(weeklyEl, {
+        type: 'bar',
+        data: {
+          labels: wSlice,
+          datasets: [{
+            label: '週次損益 (pips)',
+            data: wPipsSlice,
+            backgroundColor: wColors,
+            borderColor: wColors.map(c => c.replace('0.7','1')),
+            borderWidth: 1,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#aaa', font: { size: 10 } }, grid: { color: '#333' } },
+            y: { ticks: { color: '#aaa' }, grid: { color: '#333' } },
+          }
+        }
+      });
+    }
+  })();
+  </script>
+  {% endif %}
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

@@ -462,9 +462,18 @@ def get_event_correlations(db_path=None) -> list[EventCorrelation]:
 # ── 公開API ───────────────────────────────────────────────────────────────
 
 def analyze_and_save(event_text: str, event_date: str, db_path=None) -> tuple[GeopoliticalAnalysis, int]:
-    """分析してDBに保存し (analysis, record_id) を返す。"""
+    """分析してDBに保存し (analysis, record_id) を返す。
+
+    strong_bullish / strong_bearish の場合は Phase 71 アラートを送信する。
+    """
     analysis = analyze_geopolitical_event(event_text)
     record_id = save_geopolitical_record(analysis, event_date, db_path)
+    # Phase 71: 強リスク検出時にアラート送信（失敗しても続行）
+    try:
+        from app.services.geo_alert import send_geo_alert
+        send_geo_alert(analysis)
+    except Exception:
+        pass
     return analysis, record_id
 
 

@@ -118,6 +118,25 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 71：地政学リスクアラート通知（2026-05-23）
+
+- `app/services/geo_alert.py`：新規作成
+  - `ALERT_IMPACTS = frozenset({"strong_bullish", "strong_bearish"})`：アラート対象レベル
+  - `should_geo_alert(usd_impact)` → bool：NOTIFY_GEO_ALERT 環境変数で ON/OFF、デフォルト true
+  - `build_geo_alert_message(analysis)`：カテゴリー・イベント・根拠・見通し・免責事項を含むメール本文生成
+  - `send_geo_alert(analysis)` → bool：既存 GmailAdapter（未設定時は LogOnly）で送信、例外は握りつぶして安全継続
+- `app/scripts/geopolitical.py`：`analyze_and_save()` にアラートトリガーを追加（失敗しても分析処理は継続）
+  - 手動分析（`/api/analyze-geopolitical`）・自動収集（`news_collector`）の両方に自動適用
+- `.env.example`：`NOTIFY_GEO_ALERT=true` 設定例を追記
+- `tests/test_geo_alert.py`：テスト31件新規作成（全テスト通過）
+  - `TestAlertImpacts`：strong のみ対象、bullish/bearish/neutral は対象外
+  - `TestShouldGeoAlert`：有効/無効・環境変数切替・デフォルト値
+  - `TestBuildGeoAlertMessage`：ラベル・カテゴリー・免責事項・プロバイダー
+  - `TestSendGeoAlert`：アダプター呼び出し・スキップ・例外安全・メッセージ内容確認
+  - `TestAnalyzeAndSaveAlertIntegration`：analyze_and_save() からのアラートトリガー統合確認
+
+---
+
 ### Phase 70：週次レポートに地政学サマリー追加（2026-05-22）
 
 - `app/scripts/weekly_report.py`：変更

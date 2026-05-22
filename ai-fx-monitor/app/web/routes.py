@@ -2715,3 +2715,44 @@ async def api_macro_events():
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
     return {"ok": True, "events": events}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 65: AIトレード週次レポート
+# ─────────────────────────────────────────────────────────────────────────
+
+@router.get("/weekly-report", response_class=HTMLResponse)
+async def weekly_report_page(request: Request, symbol: str = ""):
+    """週次レポート一覧ページ（Phase 65）。注文は発生しない。"""
+    from app.scripts.weekly_report import get_weekly_reports, current_week_label
+    reports = get_weekly_reports(symbol, limit=12)
+    return templates.TemplateResponse(
+        "weekly_report.html",
+        {
+            "request": request,
+            "reports": reports,
+            "symbol": symbol,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "current_week": current_week_label(),
+        },
+    )
+
+
+@router.post("/api/generate-weekly-report")
+async def api_generate_weekly_report(symbol: str = ""):
+    """今週の週次レポートを生成・保存して返す（Phase 65）。注文は発生しない。"""
+    from dataclasses import asdict
+    from app.scripts.weekly_report import generate_and_save_weekly_report
+    try:
+        report = generate_and_save_weekly_report(symbol)
+        return {
+            "ok": True,
+            "id": report.id,
+            "week_label": report.metrics.week_label,
+            "ai_narrative": report.ai_narrative,
+            "ai_provider": report.ai_provider,
+            "metrics": asdict(report.metrics),
+        }
+    except Exception as exc:
+        logger.error("週次レポート生成エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}

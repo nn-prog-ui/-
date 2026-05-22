@@ -164,6 +164,21 @@ CREATE TABLE IF NOT EXISTS trade_goals (
 );
 """
 
+# Phase 65: 週次レポートログ
+CREATE_WEEKLY_REPORT_TABLE = """
+CREATE TABLE IF NOT EXISTS weekly_report_log (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at   TEXT NOT NULL,
+    week_label   TEXT NOT NULL,     -- "2026-W21"
+    week_start   TEXT NOT NULL,     -- "2026-05-18"
+    week_end     TEXT NOT NULL,     -- "2026-05-24"
+    symbol       TEXT NOT NULL DEFAULT '',   -- '' = 全通貨ペア
+    report_json  TEXT NOT NULL,     -- 集計データ JSON
+    ai_narrative TEXT NOT NULL DEFAULT '',
+    ai_provider  TEXT NOT NULL DEFAULT 'mock'  -- 'claude' | 'openai' | 'mock'
+);
+"""
+
 # Phase 62: 世界経済イベントログ
 CREATE_MACRO_EVENT_LOG_TABLE = """
 CREATE TABLE IF NOT EXISTS macro_event_log (

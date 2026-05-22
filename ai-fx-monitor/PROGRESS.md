@@ -118,6 +118,30 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 65：AIトレード週次レポート自動生成（2026-05-22）
+
+- `app/database/models.py`：`CREATE_WEEKLY_REPORT_TABLE` 追加（weekly_report_log テーブル）
+- `app/database/db.py`：`init_db()` に `CREATE_WEEKLY_REPORT_TABLE` 追加
+- `app/scripts/weekly_report.py`：新規作成
+  - `WeeklyMetrics` dataclass（今週成績/累計/ストリーク/スコアカード/マクロイベント）
+  - `WeeklyReport` dataclass（metrics/ai_narrative/ai_provider/created_at）
+  - `week_bounds()`：ISO 週ラベルから月曜〜日曜の日付を算出
+  - `_collect_metrics()`：approval_history・macro_event_log・trade_goals・scorecard を一括集計
+  - `_generate_ai_narrative()`：Claude API → OpenAI → mock の優先順位でナレーティブ生成
+  - `_generate_mock_narrative()`：取引数・勝率・連勝連敗から定型文を組み立て
+  - `_build_weekly_prompt()`：Claude API 向けの構造化プロンプトを生成
+  - `save_weekly_report()` / `get_weekly_reports()` / `get_latest_weekly_report()`：DB CRUD
+  - `generate_and_save_weekly_report()`：集計→AI生成→DB保存を一括実行
+- `app/web/routes.py`：`GET /weekly-report` + `POST /api/generate-weekly-report` 追加
+- `app/web/templates/weekly_report.html`：新規作成
+  - 通貨ペア選択 + 「今週のレポートを生成」ボタン（非同期）
+  - 生成結果インラインプレビュー（指標カード + AIナレーティブ）
+  - 過去レポート一覧（週ラベル・指標グリッド・AIナレーティブ・ストリーク・マクロイベント）
+- 全31テンプレートのナビに「週次レポート」リンク追加
+- `tests/test_weekly_report.py`：テスト29件新規作成（全テスト通過）
+
+---
+
 ### Phase 64：HTTP Basic認証（本番デプロイセキュリティ）（2026-05-22）
 
 - `app/services/auth.py`：新規作成

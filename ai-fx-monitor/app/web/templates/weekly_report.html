@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 週次レポート</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link">世界イベント</a>
+      <a href="/weekly-report" class="nav-link active">週次レポート</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- 生成パネル -->
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        AIトレード週次レポート
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">
+          全指標を集約してAIが週の成績をサマリー / 注文なし
+        </span>
+      </h2>
+
+      <p style="font-size:0.8rem;color:#aaa;margin-bottom:1rem;">
+        今週（{{ current_week }}）のトレード成績・累計指標・スコアカード・ストリーク・マクロイベントを集約し、<br>
+        Claude API（または mock）で日本語サマリーを生成します。生成後にDBへ保存されます。
+      </p>
+
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;margin-bottom:1rem;">
+        <select id="symbolSelect" class="form-input" style="width:auto;">
+          <option value="">全通貨ペア</option>
+          {% for s in supported_symbols %}
+          <option value="{{ s }}" {% if s == symbol %}selected{% endif %}>{{ s }}</option>
+          {% endfor %}
+        </select>
+        <button id="generateBtn" class="btn btn-buy" onclick="generateReport()">
+          今週のレポートを生成
+        </button>
+      </div>
+
+      <div id="generateStatus" style="display:none;color:#aaa;font-size:0.85rem;margin-bottom:0.75rem;">
+        生成中... Claude APIを呼び出しています
+      </div>
+
+      <div id="generateResult" style="display:none;">
+        <div class="card" style="background:#0f0f23;border:1px solid #4ade80;margin-top:0.5rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+            <span style="font-weight:700;color:#4ade80;" id="resWeekLabel"></span>
+            <span id="resProvider" style="font-size:0.75rem;background:#1a1a2e;padding:2px 8px;border-radius:4px;color:#aaa;"></span>
+          </div>
+          <p id="resNarrative" style="line-height:1.8;color:#e0e0e0;margin:0;font-size:0.9rem;"></p>
+          <div id="resMetrics" style="margin-top:1rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0.5rem;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 過去レポート一覧 -->
+    <section class="card">
+      <h2 class="card-title">過去のレポート</h2>
+
+      {% if not reports %}
+      <p style="color:#666;font-size:0.85rem;">レポートがまだありません。上のボタンから生成してください。</p>
+      {% else %}
+      {% for rpt in reports %}
+      <div class="card" style="background:#0f0f23;border:1px solid #333;margin-bottom:1rem;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+          <span style="font-weight:700;color:#60a5fa;">{{ rpt.metrics.week_label }}</span>
+          <span style="font-size:0.75rem;color:#aaa;">
+            {{ rpt.metrics.week_start }} 〜 {{ rpt.metrics.week_end }}
+          </span>
+          <span style="font-size:0.75rem;background:#1a1a2e;padding:2px 8px;border-radius:4px;color:#888;">
+            {{ rpt.ai_provider }}
+          </span>
+          <span style="font-size:0.75rem;color:#555;margin-left:auto;">{{ rpt.created_at[:16] }}</span>
+        </div>
+
+        <!-- 指標グリッド -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:0.5rem;margin-bottom:1rem;">
+          <div class="perf-card">
+            <div class="perf-label">今週取引</div>
+            <div class="perf-value">{{ rpt.metrics.week_trades }}件</div>
+          </div>
+          <div class="perf-card">
+            <div class="perf-label">今週勝率</div>
+            <div class="perf-value">
+              {% if rpt.metrics.week_win_rate is not none %}
+                {{ "%.1f"|format(rpt.metrics.week_win_rate) }}%
+              {% else %}N/A{% endif %}
+            </div>
+          </div>
+          <div class="perf-card">
+            <div class="perf-label">今週損益</div>
+            <div class="perf-value" style="color:{% if rpt.metrics.week_pips >= 0 %}#4ade80{% else %}#f87171{% endif %}">
+              {{ "%+.1f"|format(rpt.metrics.week_pips) }} pips
+            </div>
+          </div>
+          <div class="perf-card">
+            <div class="perf-label">累計pips</div>
+            <div class="perf-value" style="color:{% if rpt.metrics.total_pips >= 0 %}#4ade80{% else %}#f87171{% endif %}">
+              {{ "%+.1f"|format(rpt.metrics.total_pips) }}
+            </div>
+          </div>
+          <div class="perf-card">
+            <div class="perf-label">累計勝率</div>
+            <div class="perf-value">
+              {% if rpt.metrics.total_win_rate is not none %}
+                {{ "%.1f"|format(rpt.metrics.total_win_rate) }}%
+              {% else %}N/A{% endif %}
+            </div>
+          </div>
+          <div class="perf-card">
+            <div class="perf-label">グレード</div>
+            <div class="perf-value">{{ rpt.metrics.overall_grade }}</div>
+          </div>
+        </div>
+
+        <!-- AIナレーティブ -->
+        {% if rpt.ai_narrative %}
+        <div style="background:#1a1a2e;border-radius:6px;padding:1rem;border-left:3px solid #60a5fa;">
+          <p style="margin:0;line-height:1.8;color:#d0d0d0;font-size:0.875rem;">{{ rpt.ai_narrative }}</p>
+        </div>
+        {% endif %}
+
+        <!-- ストリーク -->
+        {% if rpt.metrics.current_streak > 0 %}
+        <div style="margin-top:0.75rem;font-size:0.8rem;color:#aaa;">
+          現在のストリーク：
+          {% if rpt.metrics.current_streak_type == 'win' %}
+          <span style="color:#4ade80;font-weight:600;">{{ rpt.metrics.current_streak }}連勝</span>
+          {% else %}
+          <span style="color:#f87171;font-weight:600;">{{ rpt.metrics.current_streak }}連敗</span>
+          {% endif %}
+          &nbsp;|&nbsp; 最大連勝: {{ rpt.metrics.max_win_streak }} / 最大連敗: {{ rpt.metrics.max_loss_streak }}
+        </div>
+        {% endif %}
+
+        <!-- マクロイベント -->
+        {% if rpt.metrics.macro_events %}
+        <div style="margin-top:0.75rem;font-size:0.78rem;color:#888;">
+          マクロイベント:
+          {% for ev in rpt.metrics.macro_events[:3] %}
+          <span style="background:#1a1a2e;padding:2px 6px;border-radius:3px;margin-right:4px;">{{ ev }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% endfor %}
+      {% endif %}
+    </section>
+
+  </main>
+
+  <script>
+    async function generateReport() {
+      const symbol = document.getElementById('symbolSelect').value;
+      const btn = document.getElementById('generateBtn');
+      const status = document.getElementById('generateStatus');
+      const result = document.getElementById('generateResult');
+
+      btn.disabled = true;
+      btn.textContent = '生成中...';
+      status.style.display = 'block';
+      result.style.display = 'none';
+
+      try {
+        const resp = await fetch('/api/generate-weekly-report?symbol=' + encodeURIComponent(symbol), {
+          method: 'POST',
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+          document.getElementById('resWeekLabel').textContent = data.week_label;
+          document.getElementById('resProvider').textContent =
+            data.ai_provider === 'claude' ? 'Claude AI' :
+            data.ai_provider === 'openai' ? 'OpenAI' : 'Mock';
+          document.getElementById('resNarrative').textContent = data.ai_narrative;
+
+          // 指標カード
+          const m = data.metrics;
+          const metricsEl = document.getElementById('resMetrics');
+          metricsEl.innerHTML = [
+            { label: '今週取引', value: m.week_trades + '件' },
+            { label: '今週勝率', value: m.week_win_rate != null ? m.week_win_rate.toFixed(1) + '%' : 'N/A' },
+            { label: '今週損益', value: (m.week_pips >= 0 ? '+' : '') + m.week_pips.toFixed(1) + ' pips',
+              color: m.week_pips >= 0 ? '#4ade80' : '#f87171' },
+            { label: '累計pips', value: (m.total_pips >= 0 ? '+' : '') + m.total_pips.toFixed(1),
+              color: m.total_pips >= 0 ? '#4ade80' : '#f87171' },
+            { label: 'グレード', value: m.overall_grade },
+          ].map(item =>
+            `<div class="perf-card">
+              <div class="perf-label">${item.label}</div>
+              <div class="perf-value" style="color:${item.color || ''};">${item.value}</div>
+            </div>`
+          ).join('');
+
+          result.style.display = 'block';
+          // ページリロードして履歴に追加
+          setTimeout(() => location.reload(), 3000);
+        } else {
+          alert('エラー: ' + (data.error || '不明なエラー'));
+        }
+      } catch (e) {
+        alert('通信エラー: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '今週のレポートを生成';
+        status.style.display = 'none';
+      }
+    }
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

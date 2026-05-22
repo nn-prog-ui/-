@@ -141,6 +141,13 @@
             ---
           {% endif %}
         </span>
+        {% if result.geo_score_adjustment != 0 and result.score is not none %}
+        {% set base = result.score - result.geo_score_adjustment %}
+        <div style="font-size:0.72rem;color:#aaa;margin-top:2px;line-height:1.3;">
+          技術 {% if base > 0 %}+{% endif %}{{ base }}
+          / 地政学 {% if result.geo_score_adjustment > 0 %}+{% endif %}{{ result.geo_score_adjustment }}
+        </div>
+        {% endif %}
       </div>
     </section>
 

@@ -73,6 +73,9 @@ class AnalysisResult:
     confluence: ConfluenceResult | None = None
     # Phase 46: シグナル品質スコアリング
     signal_quality: object = None  # QualityStats | None
+    # Phase 68: 地政学リスクスコア補正
+    geo_score_adjustment: int = 0
+    geo_risk_level: str = "neutral"
 
     @property
     def signal_label(self) -> str:
@@ -178,6 +181,27 @@ def run_analysis(
     if signal_result.score is not None:
         score_val = signal_result.score.score
 
+    # Phase 68: 地政学リスクによるスコア補正（シグナル変更なし・表示スコアのみ）
+    _GEO_ADJUSTMENT = {
+        "strong_bullish": 1,
+        "bullish": 1,
+        "neutral": 0,
+        "bearish": -1,
+        "strong_bearish": -1,
+    }
+    geo_score_adjustment = 0
+    geo_risk_level = "neutral"
+    try:
+        from app.scripts.geopolitical import get_geopolitical_records
+        geo_recs = get_geopolitical_records(limit=1)
+        if geo_recs:
+            geo_risk_level = geo_recs[0].usd_impact
+            geo_score_adjustment = _GEO_ADJUSTMENT.get(geo_risk_level, 0)
+            if score_val is not None:
+                score_val = max(-7, min(7, score_val + geo_score_adjustment))
+    except Exception:
+        pass
+
     # Phase 46: シグナル品質スコアリング
     signal_quality = None
     try:
@@ -248,4 +272,6 @@ def run_analysis(
         historical_stats=historical_stats,
         confluence=signal_result.confluence,
         signal_quality=signal_quality,
+        geo_score_adjustment=geo_score_adjustment,
+        geo_risk_level=geo_risk_level,
     )

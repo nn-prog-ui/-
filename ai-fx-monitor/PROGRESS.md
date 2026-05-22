@@ -118,6 +118,26 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 68：地政学リスクをシグナルスコアに反映（2026-05-22）
+
+- `app/services/market_analyzer.py`：`AnalysisResult` に 2 フィールド追加
+  - `geo_score_adjustment: int = 0`（補正値 -1/0/+1）
+  - `geo_risk_level: str = "neutral"`（地政学リスクレベル）
+- `run_analysis()` に Phase 68 スコア補正ブロックを追加
+  - `get_geopolitical_records(limit=1)` で最新レコードを取得
+  - strong_bullish/bullish → +1、neutral → 0、bearish/strong_bearish → -1 を加算
+  - スコアを max(-7, min(7, ...)) でクランプ（シグナル BUY/SELL/SKIP は技術分析のまま変更しない）
+  - 例外時はフォールバック（geo_score_adjustment=0）
+- `app/web/templates/index.html`：スコア表示に地政学補正内訳を追加
+  - 補正がある場合のみ「技術 +3 / 地政学 +1」を小さく表示
+- `tests/test_geo_score.py`：テスト22件新規作成（全テスト通過）
+  - `TestGeoAdjustmentMapping`：5種マッピングの正確性
+  - `TestScoreAdjustmentLogic`：加算・減算・クランプ境界値
+  - `TestAnalysisResultGeoFields`：デフォルト値・セッター確認
+  - `TestRunAnalysisGeoIntegration`：run_analysis() の統合確認
+
+---
+
 ### Phase 67：判定画面にAI地政学リスク表示（2026-05-22）
 
 - `app/web/routes.py`：`index()` ルートに Phase 67 地政学フェッチを追加

@@ -85,6 +85,19 @@ def _run_scan() -> None:
     logger.info("定期スキャン完了")
 
 
+def _run_news_collection() -> None:
+    """Phase 69: RSS ニュース自動収集・地政学分析。"""
+    try:
+        from app.scripts.news_collector import collect_and_analyze
+        result = collect_and_analyze()
+        logger.info(
+            "ニュース自動収集完了: 取得=%d 新規=%d 分析=%d",
+            result.fetched, result.new, result.analyzed,
+        )
+    except Exception as exc:
+        logger.error("ニュース自動収集エラー: %s", exc, exc_info=True)
+
+
 def start_scheduler() -> None:
     """バックグラウンドスケジューラーを起動する。
 
@@ -112,6 +125,15 @@ def start_scheduler() -> None:
             minutes=interval_minutes,
             id="fx_scan",
             name="FX定期スキャン",
+            replace_existing=True,
+        )
+        # Phase 69: ニュース自動収集（2時間ごと）
+        _scheduler.add_job(
+            _run_news_collection,
+            trigger="interval",
+            hours=2,
+            id="news_collection",
+            name="ニュース自動収集",
             replace_existing=True,
         )
         _scheduler.start()

@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - ニュース収集</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link">世界イベント</a>
+      <a href="/weekly-report" class="nav-link">週次レポート</a>
+      <a href="/geopolitical" class="nav-link">地政学分析</a>
+      <a href="/news-collector" class="nav-link active">ニュース収集</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- ステータスカード -->
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        FXニュース自動収集
+        <span style="font-size:0.78rem;color:#888;font-weight:normal;">
+          RSS フィードから FX 関連ニュースを自動取得・地政学分析
+        </span>
+      </h2>
+
+      <!-- 統計グリッド -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:0.75rem;margin-bottom:1.25rem;">
+        <div class="perf-card">
+          <div class="perf-label">収集記事数</div>
+          <div class="perf-value">{{ stats.total }}件</div>
+        </div>
+        <div class="perf-card">
+          <div class="perf-label">分析済み</div>
+          <div class="perf-value" style="color:#4ade80;">{{ stats.analyzed }}件</div>
+        </div>
+        <div class="perf-card">
+          <div class="perf-label">最終収集</div>
+          <div class="perf-value" style="font-size:0.78rem;">
+            {{ stats.last_collected[:16] if stats.last_collected else '未収集' }}
+          </div>
+        </div>
+      </div>
+
+      <!-- 収集ボタン -->
+      <div style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:0.75rem;">
+        <button id="collectBtn" class="btn btn-buy" onclick="collectNews()" style="min-width:140px;">
+          今すぐ収集
+        </button>
+        <span id="collectStatus" style="font-size:0.85rem;color:#aaa;display:none;">収集中...</span>
+      </div>
+      <div id="collectResult" style="display:none;margin-bottom:0.5rem;"></div>
+
+      <!-- RSS ソース一覧 -->
+      <details style="margin-top:0.75rem;">
+        <summary style="cursor:pointer;font-size:0.82rem;color:#888;">収集元 RSS ソース（{{ rss_sources|length }}件）</summary>
+        <div style="margin-top:0.5rem;display:flex;flex-direction:column;gap:4px;">
+          {% for src in rss_sources %}
+          <div style="font-size:0.78rem;color:#aaa;">
+            <span style="color:#60a5fa;">{{ src.name }}</span>
+          </div>
+          {% endfor %}
+        </div>
+      </details>
+    </section>
+
+    <!-- 収集済み記事一覧 -->
+    <section class="card">
+      <h2 class="card-title">収集済み記事</h2>
+
+      {% if not articles %}
+      <p style="color:#666;font-size:0.85rem;">
+        まだ記事が収集されていません。「今すぐ収集」ボタンを押してください。
+      </p>
+      {% else %}
+      <p style="font-size:0.78rem;color:#666;margin-bottom:0.75rem;">
+        直近{{ articles|length }}件 ／ FX関連キーワードでフィルタリング済み
+      </p>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% for art in articles %}
+        <div style="background:#0f0f23;border-radius:6px;padding:0.6rem 0.8rem;border-left:2px solid {% if art.analyzed %}#4ade80{% else %}#444{% endif %};">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.25rem;">
+            <span style="font-size:0.72rem;color:#666;">{{ art.collected_at[:16] }}</span>
+            <span style="font-size:0.72rem;color:#888;background:#1a1a2e;padding:1px 6px;border-radius:3px;">{{ art.source }}</span>
+            {% if art.analyzed %}
+            <span style="font-size:0.72rem;color:#4ade80;font-weight:600;margin-left:auto;">地政学分析済み</span>
+            {% else %}
+            <span style="font-size:0.72rem;color:#666;margin-left:auto;">未分析</span>
+            {% endif %}
+          </div>
+          <p style="margin:0;font-size:0.82rem;color:#ccc;line-height:1.4;">{{ art.title }}</p>
+          {% if art.summary %}
+          <p style="margin:0.2rem 0 0;font-size:0.75rem;color:#777;line-height:1.4;">
+            {{ art.summary[:120] }}{% if art.summary|length > 120 %}...{% endif %}
+          </p>
+          {% endif %}
+          {% if art.url %}
+          <a href="{{ art.url }}" target="_blank" rel="noopener noreferrer"
+             style="font-size:0.72rem;color:#60a5fa;text-decoration:none;margin-top:2px;display:inline-block;">
+            元記事を開く →
+          </a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </section>
+
+  </main>
+
+  <script>
+    async function collectNews() {
+      const btn = document.getElementById('collectBtn');
+      const status = document.getElementById('collectStatus');
+      const result = document.getElementById('collectResult');
+
+      btn.disabled = true;
+      btn.textContent = '収集中...';
+      status.style.display = 'inline';
+      result.style.display = 'none';
+
+      try {
+        const resp = await fetch('/api/collect-news', { method: 'POST' });
+        const data = await resp.json();
+
+        if (data.ok) {
+          result.innerHTML = `
+            <div class="alert" style="border-color:#4ade80;background:rgba(74,222,128,0.08);">
+              <strong>収集完了:</strong>
+              取得 ${data.fetched}件 ／ FX関連 ${data.relevant}件 ／
+              新規 ${data.new}件 ／ 地政学分析 ${data.analyzed}件 ／ スキップ ${data.skipped}件
+              ${data.errors.length > 0 ? '<br><span style="color:#f87171;font-size:0.8rem;">エラー: ' + data.errors.slice(0, 2).join(' | ') + '</span>' : ''}
+            </div>`;
+          result.style.display = 'block';
+          setTimeout(() => location.reload(), 2000);
+        } else {
+          result.innerHTML = `<div class="alert alert-error">エラー: ${data.error || '不明'}</div>`;
+          result.style.display = 'block';
+        }
+      } catch (e) {
+        result.innerHTML = `<div class="alert alert-error">通信エラー: ${e.message}</div>`;
+        result.style.display = 'block';
+      } finally {
+        btn.disabled = false;
+        btn.textContent = '今すぐ収集';
+        status.style.display = 'none';
+      }
+    }
+  </script>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

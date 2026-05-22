@@ -118,6 +118,38 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 69：FXニュース自動収集・自動地政学分析（2026-05-22）
+
+- `app/scripts/news_collector.py`：新規作成
+  - `RSS_SOURCES`：BBC Business / MarketWatch / CNBC の 3 ソース
+  - `FX_KEYWORDS`：英語+日本語 30+ キーワード（Fed/利上げ/Trump/戦争等）
+  - `NewsArticle` / `NewsRecord` / `CollectionResult` dataclass
+  - `fetch_rss(name, url, timeout)`：urllib + ElementTree で RSS 2.0 解析（失敗時は空リスト）
+  - `is_fx_relevant(article)`：タイトル＋サマリーを小文字比較でキーワードフィルタ
+  - `_make_hash(title)`：md5[:12] でタイトルを一意識別（重複排除）
+  - `ensure_news_table()` / `get_fetched_hashes()` / `save_news_article()` / `mark_analyzed()` / `get_news_articles()` / `get_collection_stats()`：SQLite CRUD（`news_article_log` テーブル）
+  - `collect_and_analyze(db_path)`：全ソース収集→FX関連フィルタ→重複スキップ→地政学分析→DB保存
+- `app/services/scheduler.py`：`_run_news_collection()` 追加、2時間ごとの APScheduler ジョブを登録
+- `app/web/routes.py`：3ルート追加
+  - `GET /news-collector` — 収集ページ（記事一覧・統計）
+  - `POST /api/collect-news` — 手動収集トリガー（スレッドプール実行）
+  - `GET /api/news-articles` — JSON API
+- `app/web/templates/news_collector.html`：新規作成
+  - 収集統計（件数・分析済み・最終収集時刻）
+  - 「今すぐ収集」ボタン（JS fetch → 結果表示→自動リロード）
+  - 記事一覧（タイトル・サマリー・元記事リンク・分析済バッジ）
+  - RSS ソース一覧（折りたたみ）
+- 全 30 テンプレートのナビに「ニュース収集」リンク追加
+- `tests/test_news_collector.py`：テスト34件新規作成（全テスト通過）
+  - `TestConstants`：RSS ソースと FX キーワードの網羅性
+  - `TestMakeHash`：ハッシュ長・一貫性・衝突確認
+  - `TestIsFxRelevant`：英語/日本語/大小文字/サマリー判定
+  - `TestDBOperations`：保存・重複・ハッシュ取得・分析マーク・統計
+  - `TestFetchRss`：無効URL・XMLパース・空フィード
+  - `TestCollectAndAnalyze`：モック収集・フィルタ・DB保存・重複スキップ
+
+---
+
 ### Phase 68：地政学リスクをシグナルスコアに反映（2026-05-22）
 
 - `app/services/market_analyzer.py`：`AnalysisResult` に 2 フィールド追加

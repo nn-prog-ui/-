@@ -2864,3 +2864,60 @@ async def api_geopolitical_list():
         "records": [asdict(r) for r in records],
         "correlations": [asdict(c) for c in correlations],
     }
+
+
+# ── Phase 69: ニュース自動収集 ─────────────────────────────────────────────
+
+@router.get("/news-collector", response_class=HTMLResponse)
+async def news_collector_page(request: Request):
+    """FXニュース自動収集ページ（Phase 69）。注文は発生しない。"""
+    from app.scripts.news_collector import get_news_articles, get_collection_stats, RSS_SOURCES
+    articles = get_news_articles(limit=30)
+    stats = get_collection_stats()
+    return templates.TemplateResponse(
+        "news_collector.html",
+        {
+            "request": request,
+            "articles": articles,
+            "stats": stats,
+            "rss_sources": RSS_SOURCES,
+        },
+    )
+
+
+@router.post("/api/collect-news")
+async def api_collect_news():
+    """ニュース収集を手動でトリガー（Phase 69）。注文は発生しない。"""
+    import asyncio
+    from dataclasses import asdict
+    from app.scripts.news_collector import collect_and_analyze
+
+    loop = asyncio.get_event_loop()
+    try:
+        result = await loop.run_in_executor(None, collect_and_analyze)
+        return {
+            "ok": True,
+            "fetched": result.fetched,
+            "relevant": result.relevant,
+            "new": result.new,
+            "analyzed": result.analyzed,
+            "skipped": result.skipped,
+            "errors": result.errors,
+        }
+    except Exception as exc:
+        logger.error("ニュース収集APIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.get("/api/news-articles")
+async def api_news_articles(limit: int = 30):
+    """収集済みニュース記事をJSON返却（Phase 69）。"""
+    from dataclasses import asdict
+    from app.scripts.news_collector import get_news_articles, get_collection_stats
+    articles = get_news_articles(limit=limit)
+    stats = get_collection_stats()
+    return {
+        "ok": True,
+        "articles": [asdict(a) for a in articles],
+        "stats": stats,
+    }

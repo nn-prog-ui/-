@@ -204,6 +204,21 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
     except Exception:
         warning_events = []
 
+    # Phase 67: 地政学リスク情報を渡す
+    try:
+        from app.scripts.geopolitical import (
+            get_geopolitical_records,
+            USD_IMPACT_LABELS,
+            USD_IMPACT_COLORS,
+        )
+        geo_records = get_geopolitical_records(limit=3)
+        geo_risk = geo_records[0].usd_impact if geo_records else "neutral"
+    except Exception:
+        geo_records = []
+        geo_risk = "neutral"
+        USD_IMPACT_LABELS = {}
+        USD_IMPACT_COLORS = {}
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -212,6 +227,10 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
             "error": None,
             "supported_symbols": SUPPORTED_SYMBOLS,
             "warning_events": warning_events,
+            "geo_records": geo_records,
+            "geo_risk": geo_risk,
+            "usd_impact_labels": USD_IMPACT_LABELS,
+            "usd_impact_colors": USD_IMPACT_COLORS,
         },
     )
 

@@ -118,6 +118,25 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 67：判定画面にAI地政学リスク表示（2026-05-22）
+
+- `app/web/routes.py`：`index()` ルートに Phase 67 地政学フェッチを追加
+  - `get_geopolitical_records(limit=3)` で直近3件取得
+  - `geo_risk`（最新レコードの `usd_impact`）・`geo_records`・`usd_impact_labels`・`usd_impact_colors` をテンプレートに渡す
+  - 例外時は `geo_records=[]`, `geo_risk="neutral"` でフォールバック
+- `app/web/templates/index.html`：`warning_events` ブロック直下に地政学リスクセクション追加
+  - 最新分析の USD影響バッジ（ドル高・ドル安・中立）をカードヘッダーに表示
+  - 直近3件のイベントを左ボーダー色付きで一覧表示（日付・カテゴリー・影響・イベント要約80字・根拠100字）
+  - 「詳細 →」リンクで `/geopolitical` ページへ遷移
+  - 地政学レコードが0件の場合はセクション非表示
+- `tests/test_geo_index.py`：テスト18件新規作成（全テスト通過）
+  - `TestImpactConstants`：USD_IMPACT_LABELS / USD_IMPACT_COLORS の網羅性チェック
+  - `TestGeoRiskCalculation`：geo_risk 計算ロジック（空・bullish・bearish・最新優先・strong 各ケース）
+  - `TestGeoRecordsLimit`：limit=3 遵守・最新順ソート確認
+  - `TestGeopoliticalRecordFields`：テンプレート使用フィールドの型・値チェック
+
+---
+
 ### Phase 66：AI地政学リスク分析（2026-05-22）
 
 - `app/scripts/geopolitical.py`：新規作成

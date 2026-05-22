@@ -196,6 +196,41 @@
     </div>
     {% endif %}
 
+    <!-- Phase 67: 地政学リスク表示 -->
+    {% if geo_records %}
+    {% set geo_color = usd_impact_colors.get(geo_risk, '#888') %}
+    {% set geo_label = usd_impact_labels.get(geo_risk, '中立') %}
+    <section class="card" style="border-left: 3px solid {{ geo_color }};">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+        <h3 class="card-title" style="margin:0;">地政学リスク（最新分析）</h3>
+        <div style="display:flex;align-items:center;gap:0.5rem;">
+          <span style="font-size:0.75rem;color:#888;">USD影響:</span>
+          <span style="background:{{ geo_color }}22;color:{{ geo_color }};border:1px solid {{ geo_color }};padding:3px 10px;border-radius:12px;font-size:0.82rem;font-weight:700;">
+            {{ geo_label }}
+          </span>
+          <a href="/geopolitical" style="font-size:0.75rem;color:#888;">詳細 →</a>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:0.5rem;">
+        {% for rec in geo_records %}
+        {% set rec_color = usd_impact_colors.get(rec.usd_impact, '#888') %}
+        {% set rec_label = usd_impact_labels.get(rec.usd_impact, '中立') %}
+        <div style="background:#0f0f23;border-radius:6px;padding:0.6rem 0.8rem;border-left:2px solid {{ rec_color }};">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.3rem;">
+            <span style="font-size:0.75rem;color:#666;">{{ rec.event_date }}</span>
+            <span style="font-size:0.75rem;color:#888;background:#1a1a2e;padding:1px 6px;border-radius:3px;">{{ rec.category }}</span>
+            <span style="font-size:0.75rem;color:{{ rec_color }};font-weight:600;margin-left:auto;">{{ rec_label }}</span>
+          </div>
+          <p style="margin:0;font-size:0.82rem;color:#ccc;line-height:1.5;">{{ rec.event_text[:80] }}{% if rec.event_text|length > 80 %}...{% endif %}</p>
+          {% if rec.reasoning %}
+          <p style="margin:0.25rem 0 0;font-size:0.75rem;color:#888;line-height:1.4;">{{ rec.reasoning[:100] }}{% if rec.reasoning|length > 100 %}...{% endif %}</p>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endif %}
+
     <!-- 判定根拠（Phase 19） -->
     {% set conditions = result.buy_conditions if result.signal == 'BUY' else result.sell_conditions if result.signal == 'SELL' else (result.buy_conditions or result.sell_conditions) %}
     {% if conditions %}

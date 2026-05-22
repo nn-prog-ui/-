@@ -118,6 +118,29 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 64：HTTP Basic認証（本番デプロイセキュリティ）（2026-05-22）
+
+- `app/services/auth.py`：新規作成
+  - `AUTH_USERNAME` / `AUTH_PASSWORD`：環境変数から読み込み
+  - `AUTH_ENABLED`：両方設定時のみ認証を有効化（未設定時はフリーアクセス）
+  - `PUBLIC_PATHS`：`/health`（Railway ヘルスチェック用）
+  - `PUBLIC_PREFIXES`：`/static/`（アイコン・CSS・JS・manifest）
+  - `parse_basic_auth()`：Authorization ヘッダーを (username, password) に分解
+  - `check_credentials()`：`secrets.compare_digest` でタイミング攻撃耐性
+  - `is_public_path()`：公開パスかどうかを判定
+- `app/main.py`：`BasicAuthMiddleware`（Starlette BaseHTTPMiddleware）を追加
+  - 認証不要パスは無条件でスルー
+  - 認証失敗時は `401 Unauthorized` + `WWW-Authenticate: Basic realm="AI FX Monitor"`
+- `.env.example`：`AUTH_USERNAME` / `AUTH_PASSWORD` 設定例と Railway 変数の説明を追加
+- `tests/test_auth.py`：テスト30件新規作成
+  - `TestParseBasicAuth`（6件）：有効ヘッダー・None・空・非Basicスキーム・コロン入りPW・不正Base64
+  - `TestCheckCredentials`（4件）：正解・誤PW・誤ユーザー・空
+  - `TestIsPublicPath`（8件）：各公開/非公開パスの判定
+  - `TestAuthMiddlewareEnabled`（7件）：認証ON時の各エンドポイント動作
+  - `TestAuthMiddlewareDisabled`（4件）：認証OFF時は全エンドポイントにアクセス可
+
+---
+
 ### Phase 54：月次・週次目標管理（2026-05-21）
 
 - `app/database/models.py`：`CREATE_GOALS_TABLE` 追加（trade_goals テーブル）

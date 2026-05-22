@@ -2756,3 +2756,92 @@ async def api_generate_weekly_report(symbol: str = ""):
     except Exception as exc:
         logger.error("週次レポート生成エラー: %s", exc)
         return {"ok": False, "error": str(exc)}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase 66: AI地政学リスク分析
+# ─────────────────────────────────────────────────────────────────────────
+
+@router.get("/geopolitical", response_class=HTMLResponse)
+async def geopolitical_page(request: Request):
+    """地政学リスク分析ページ（Phase 66）。注文は発生しない。"""
+    from app.scripts.geopolitical import (
+        get_geopolitical_records, get_event_correlations,
+        EVENT_CATEGORIES, USD_IMPACT_LABELS, USD_IMPACT_COLORS, CONFIDENCE_LABELS,
+    )
+    records = get_geopolitical_records(limit=50)
+    correlations = get_event_correlations()
+    return templates.TemplateResponse(
+        "geopolitical.html",
+        {
+            "request": request,
+            "records": records,
+            "correlations": correlations,
+            "event_categories": EVENT_CATEGORIES,
+            "usd_impact_labels": USD_IMPACT_LABELS,
+            "usd_impact_colors": USD_IMPACT_COLORS,
+            "confidence_labels": CONFIDENCE_LABELS,
+            "today": __import__("datetime").date.today().isoformat(),
+        },
+    )
+
+
+@router.post("/api/analyze-geopolitical")
+async def api_analyze_geopolitical(
+    event_text: str = Form(...),
+    event_date: str = Form(...),
+):
+    """イベントテキストをAIで分析しDBに保存する（Phase 66）。注文は発生しない。"""
+    from dataclasses import asdict
+    from app.scripts.geopolitical import analyze_and_save, USD_IMPACT_LABELS, USD_IMPACT_COLORS
+    if not event_text.strip():
+        return {"ok": False, "error": "イベント内容を入力してください"}
+    try:
+        analysis, record_id = analyze_and_save(event_text.strip(), event_date)
+        return {
+            "ok": True,
+            "id": record_id,
+            "category": analysis.category,
+            "usd_impact": analysis.usd_impact,
+            "usd_impact_label": USD_IMPACT_LABELS.get(analysis.usd_impact, analysis.usd_impact),
+            "usd_impact_color": USD_IMPACT_COLORS.get(analysis.usd_impact, "#aaa"),
+            "confidence": analysis.confidence,
+            "reasoning": analysis.reasoning,
+            "similar_events": analysis.similar_events,
+            "short_term_outlook": analysis.short_term_outlook,
+            "risk_factors": analysis.risk_factors,
+            "ai_provider": analysis.ai_provider,
+        }
+    except Exception as exc:
+        logger.error("地政学分析エラー: %s", exc)
+        return {"ok": False, "error": str(exc)}
+
+
+@router.post("/geopolitical/{record_id}/result", response_class=RedirectResponse)
+async def geopolitical_update_result(record_id: int, actual_result: str = Form(...)):
+    """実際の結果を後から記録する（Phase 66）。注文は発生しない。"""
+    from app.scripts.geopolitical import update_actual_result
+    update_actual_result(record_id, actual_result.strip())
+    return RedirectResponse("/geopolitical", status_code=303)
+
+
+@router.post("/geopolitical/{record_id}/delete", response_class=RedirectResponse)
+async def geopolitical_delete(record_id: int):
+    """記録を削除する（Phase 66）。"""
+    from app.scripts.geopolitical import delete_geopolitical_record
+    delete_geopolitical_record(record_id)
+    return RedirectResponse("/geopolitical", status_code=303)
+
+
+@router.get("/api/geopolitical")
+async def api_geopolitical_list():
+    """地政学リスク記録をJSON返却（Phase 66）。注文は発生しない。"""
+    from dataclasses import asdict
+    from app.scripts.geopolitical import get_geopolitical_records, get_event_correlations
+    records = get_geopolitical_records(limit=50)
+    correlations = get_event_correlations()
+    return {
+        "ok": True,
+        "records": [asdict(r) for r in records],
+        "correlations": [asdict(c) for c in correlations],
+    }

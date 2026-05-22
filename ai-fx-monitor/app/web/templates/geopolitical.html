@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 地政学リスク分析</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link">世界イベント</a>
+      <a href="/weekly-report" class="nav-link">週次レポート</a>
+      <a href="/geopolitical" class="nav-link active">地政学分析</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- 説明バナー -->
+    <section class="card" style="border-left:4px solid #60a5fa;padding-left:1.25rem;">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        AI地政学リスク分析
+        <span style="font-size:0.8rem;color:#888;font-weight:normal;">
+          世界情勢・政策変更がドル円に与える影響をAIが評価 / 注文なし
+        </span>
+      </h2>
+      <p style="font-size:0.82rem;color:#aaa;line-height:1.7;margin:0;">
+        ニュースや世界情勢のテキストを入力すると、<strong style="color:#60a5fa;">Claude AI</strong> が以下を分析します：<br>
+        ① USD/JPYへの影響方向（ドル高 / ドル安 / 中立）&nbsp;
+        ② 信頼度と根拠&nbsp;
+        ③ 過去の類似事例&nbsp;
+        ④ 短期見通しと逆方向リスク<br>
+        <span style="color:#fbbf24;">※ AIの分析は参考情報です。最終判断は必ずご自身で行ってください。</span>
+      </p>
+    </section>
+
+    <!-- イベント入力・分析フォーム -->
+    <section class="card">
+      <h2 class="card-title">新規イベントを分析する</h2>
+
+      <div style="display:grid;gap:0.75rem;max-width:750px;">
+        <div>
+          <label class="form-label">イベント日付 *</label>
+          <input type="date" id="eventDate" class="form-input" value="{{ today }}" style="width:200px;">
+        </div>
+        <div>
+          <label class="form-label">イベント内容 *（ニュース・政策・世界情勢を自由に入力）</label>
+          <textarea id="eventText" class="form-input" rows="4" placeholder="例）トランプ大統領が中国への追加関税25%を発表した。&#10;例）FRBが0.25%の利下げを決定した。&#10;例）ウクライナ・ロシア停戦交渉が決裂し、紛争が拡大した。" style="width:100%;resize:vertical;"></textarea>
+        </div>
+        <div>
+          <button id="analyzeBtn" class="btn btn-buy" onclick="analyzeEvent()" style="min-width:200px;">
+            AIで分析する
+          </button>
+          <span id="analyzeStatus" style="display:none;color:#aaa;font-size:0.85rem;margin-left:1rem;">
+            分析中...
+          </span>
+        </div>
+      </div>
+
+      <!-- 分析結果 -->
+      <div id="analysisResult" style="display:none;margin-top:1.5rem;">
+        <div class="card" style="background:#0f0f23;border:2px solid #60a5fa;">
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:1rem;margin-bottom:1rem;">
+            <span style="font-size:1.2rem;font-weight:700;" id="resImpactLabel"></span>
+            <span id="resConfidence" style="font-size:0.8rem;background:#1a1a2e;padding:3px 10px;border-radius:4px;color:#aaa;"></span>
+            <span id="resCategory" style="font-size:0.8rem;background:#1a1a2e;padding:3px 10px;border-radius:4px;color:#aaa;"></span>
+            <span id="resProvider" style="font-size:0.75rem;color:#555;margin-left:auto;"></span>
+          </div>
+
+          <div style="display:grid;gap:0.75rem;">
+            <div>
+              <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">AI分析の根拠</div>
+              <p id="resReasoning" style="margin:0;color:#d0d0d0;line-height:1.7;font-size:0.875rem;"></p>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.75rem;">
+              <div>
+                <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">短期見通し（1〜2週間）</div>
+                <p id="resOutlook" style="margin:0;color:#d0d0d0;font-size:0.85rem;line-height:1.6;"></p>
+              </div>
+              <div>
+                <div style="font-size:0.75rem;color:#f87171;margin-bottom:0.25rem;">逆方向リスク</div>
+                <p id="resRisk" style="margin:0;color:#d0d0d0;font-size:0.85rem;line-height:1.6;"></p>
+              </div>
+            </div>
+            <div id="resSimilarBlock" style="display:none;">
+              <div style="font-size:0.75rem;color:#888;margin-bottom:0.25rem;">過去の類似事例</div>
+              <ul id="resSimilar" style="margin:0;padding-left:1.25rem;color:#aaa;font-size:0.85rem;line-height:1.8;"></ul>
+            </div>
+          </div>
+
+          <div style="margin-top:1rem;font-size:0.75rem;color:#555;border-top:1px solid #222;padding-top:0.75rem;">
+            ※ この分析は情報提供のみを目的としています。投資判断・売買はご自身の責任で行ってください。
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- カテゴリー別集計 -->
+    {% if correlations %}
+    <section class="card">
+      <h2 class="card-title">カテゴリー別 分析傾向</h2>
+      <div style="overflow-x:auto;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>カテゴリー</th>
+              <th>記録数</th>
+              <th>ドル強気</th>
+              <th>ドル弱気</th>
+              <th>中立</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in correlations %}
+            <tr>
+              <td>{{ c.category }}</td>
+              <td>{{ c.total_events }}</td>
+              <td style="color:#4ade80;">{{ c.bullish_events }}</td>
+              <td style="color:#f87171;">{{ c.bearish_events }}</td>
+              <td style="color:#fbbf24;">{{ c.total_events - c.bullish_events - c.bearish_events }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- 過去の分析履歴 -->
+    <section class="card">
+      <h2 class="card-title">分析履歴</h2>
+
+      {% if not records %}
+      <p style="color:#666;font-size:0.85rem;">まだ分析がありません。上のフォームからイベントを入力してください。</p>
+      {% else %}
+      {% for rec in records %}
+      <div class="card" style="background:#0f0f23;border:1px solid #333;margin-bottom:1rem;">
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+          <span style="font-size:0.8rem;color:#aaa;">{{ rec.event_date }}</span>
+          <span style="font-size:0.8rem;background:#1a1a2e;padding:2px 8px;border-radius:4px;color:#888;">
+            {{ rec.category }}
+          </span>
+          <span style="font-weight:700;" id="impact-color-{{ rec.id }}">
+            {% if rec.usd_impact == 'strong_bullish' %}<span style="color:#4ade80;">ドル強気 ▲▲</span>
+            {% elif rec.usd_impact == 'bullish' %}<span style="color:#86efac;">ドル強気 ▲</span>
+            {% elif rec.usd_impact == 'bearish' %}<span style="color:#fca5a5;">ドル弱気 ▼</span>
+            {% elif rec.usd_impact == 'strong_bearish' %}<span style="color:#f87171;">ドル弱気 ▼▼</span>
+            {% else %}<span style="color:#fbbf24;">中立 →</span>{% endif %}
+          </span>
+          <span style="font-size:0.75rem;background:#1a1a2e;padding:2px 6px;border-radius:3px;color:#666;">
+            {{ usd_impact_labels.get(rec.confidence, rec.confidence) if rec.confidence in ['high','medium','low'] else rec.confidence }}
+            {% if rec.confidence == 'high' %}高{% elif rec.confidence == 'medium' %}中{% else %}低{% endif %}信頼
+          </span>
+          <span style="font-size:0.75rem;color:#555;margin-left:auto;">{{ rec.ai_provider }}</span>
+        </div>
+
+        <p style="font-size:0.9rem;color:#d0d0d0;margin:0 0 0.5rem 0;font-weight:500;">{{ rec.event_text }}</p>
+
+        {% if rec.reasoning %}
+        <p style="font-size:0.82rem;color:#aaa;margin:0 0 0.5rem 0;line-height:1.6;">{{ rec.reasoning }}</p>
+        {% endif %}
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0.5rem;font-size:0.8rem;color:#888;margin-bottom:0.5rem;">
+          {% if rec.short_term_outlook %}
+          <div><span style="color:#60a5fa;">見通し:</span> {{ rec.short_term_outlook }}</div>
+          {% endif %}
+          {% if rec.risk_factors %}
+          <div><span style="color:#f87171;">リスク:</span> {{ rec.risk_factors }}</div>
+          {% endif %}
+        </div>
+
+        {% if rec.similar_events %}
+        <div style="font-size:0.78rem;color:#666;margin-bottom:0.5rem;">
+          類似事例:
+          {% for ev in rec.similar_events %}
+          <span style="background:#1a1a2e;padding:2px 6px;border-radius:3px;margin-right:4px;">{{ ev }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- 実績記録 -->
+        <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #222;display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;">
+          {% if rec.actual_result %}
+          <div style="font-size:0.82rem;">
+            <span style="color:#4ade80;font-weight:600;">実際の結果:</span>
+            <span style="color:#d0d0d0;">{{ rec.actual_result }}</span>
+          </div>
+          {% else %}
+          <form method="post" action="/geopolitical/{{ rec.id }}/result"
+                style="display:flex;gap:0.5rem;flex:1;min-width:200px;">
+            <input type="text" name="actual_result" class="form-input"
+                   placeholder="実際のドル円の動きを記録（例: 翌週+150pips ドル高）"
+                   style="flex:1;font-size:0.8rem;">
+            <button type="submit" class="btn" style="white-space:nowrap;padding:6px 12px;font-size:0.8rem;">
+              記録
+            </button>
+          </form>
+          {% endif %}
+          <form method="post" action="/geopolitical/{{ rec.id }}/delete"
+                onsubmit="return confirm('この分析を削除しますか？')">
+            <button type="submit" class="btn" style="padding:4px 10px;font-size:0.75rem;color:#f87171;background:transparent;border:1px solid #f87171;">
+              削除
+            </button>
+          </form>
+        </div>
+      </div>
+      {% endfor %}
+      {% endif %}
+    </section>
+
+    <!-- 歴史的パターン参考資料 -->
+    <section class="card">
+      <details>
+        <summary style="cursor:pointer;font-weight:600;color:#aaa;font-size:0.9rem;padding:0.5rem 0;">
+          参考：ドル円に影響を与える主な歴史的パターン
+        </summary>
+        <div style="margin-top:1rem;display:grid;gap:0.75rem;">
+          <div class="card" style="background:#0f0f23;">
+            <h3 style="color:#4ade80;font-size:0.85rem;margin:0 0 0.5rem 0;">ドル高（円安）になりやすい局面</h3>
+            <ul style="font-size:0.82rem;color:#aaa;margin:0;padding-left:1.25rem;line-height:1.8;">
+              <li>FRBの利上げ・タカ派的発言 → 日米金利差拡大でドル買い</li>
+              <li>米国の強い経済指標（雇用・GDP）→ 利下げ期待後退</li>
+              <li>地政学リスク上昇（有事のドル買い）</li>
+              <li>保護主義的貿易政策・関税引き上げ</li>
+              <li>日銀の緩和継続・ハト派姿勢</li>
+              <li>リスクオン相場（株高・景気回復）</li>
+            </ul>
+          </div>
+          <div class="card" style="background:#0f0f23;">
+            <h3 style="color:#f87171;font-size:0.85rem;margin:0 0 0.5rem 0;">ドル安（円高）になりやすい局面</h3>
+            <ul style="font-size:0.82rem;color:#aaa;margin:0;padding-left:1.25rem;line-height:1.8;">
+              <li>FRBの利下げ・ハト派的発言 → 金利差縮小</li>
+              <li>米国の弱い経済指標（景気後退懸念）</li>
+              <li>日銀の利上げ・金融政策正常化</li>
+              <li>リスクオフ相場（株安・不況）→ 円高需要</li>
+              <li>米国の財政赤字拡大・国債格下げ</li>
+              <li>ドル離れ（de-dollarization）の動き</li>
+            </ul>
+          </div>
+        </div>
+      </details>
+    </section>
+
+  </main>
+
+  <script>
+    async function analyzeEvent() {
+      const text = document.getElementById('eventText').value.trim();
+      const dateVal = document.getElementById('eventDate').value;
+      if (!text) { alert('イベント内容を入力してください'); return; }
+      if (!dateVal) { alert('日付を選択してください'); return; }
+
+      const btn = document.getElementById('analyzeBtn');
+      const status = document.getElementById('analyzeStatus');
+      const result = document.getElementById('analysisResult');
+
+      btn.disabled = true;
+      btn.textContent = '分析中...';
+      status.style.display = 'inline';
+      result.style.display = 'none';
+
+      try {
+        const formData = new FormData();
+        formData.append('event_text', text);
+        formData.append('event_date', dateVal);
+
+        const resp = await fetch('/api/analyze-geopolitical', {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await resp.json();
+
+        if (data.ok) {
+          // 影響度
+          const impactEl = document.getElementById('resImpactLabel');
+          impactEl.textContent = data.usd_impact_label;
+          impactEl.style.color = data.usd_impact_color;
+
+          document.getElementById('resConfidence').textContent =
+            { high: '信頼度：高', medium: '信頼度：中', low: '信頼度：低' }[data.confidence] || data.confidence;
+          document.getElementById('resCategory').textContent = data.category;
+          document.getElementById('resProvider').textContent =
+            data.ai_provider === 'claude' ? 'Claude AI分析' :
+            data.ai_provider === 'openai' ? 'OpenAI分析' : 'ルールベース分析';
+          document.getElementById('resReasoning').textContent = data.reasoning;
+          document.getElementById('resOutlook').textContent = data.short_term_outlook;
+          document.getElementById('resRisk').textContent = data.risk_factors;
+
+          const similarBlock = document.getElementById('resSimilarBlock');
+          const similarList = document.getElementById('resSimilar');
+          if (data.similar_events && data.similar_events.length > 0) {
+            similarList.innerHTML = data.similar_events.map(e => `<li>${e}</li>`).join('');
+            similarBlock.style.display = 'block';
+          } else {
+            similarBlock.style.display = 'none';
+          }
+
+          result.style.display = 'block';
+          // 3秒後にリロードして履歴を更新
+          setTimeout(() => location.reload(), 4000);
+        } else {
+          alert('エラー: ' + (data.error || '不明なエラー'));
+        }
+      } catch (e) {
+        alert('通信エラー: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'AIで分析する';
+        status.style.display = 'none';
+      }
+    }
+  </script>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/static/sw.js').catch(() => {});
+    }
+  </script>
+</body>
+</html>

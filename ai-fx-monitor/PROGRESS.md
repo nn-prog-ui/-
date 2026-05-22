@@ -118,6 +118,38 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 66：AI地政学リスク分析（2026-05-22）
+
+- `app/scripts/geopolitical.py`：新規作成
+  - `_HISTORICAL_PATTERNS`：8種の歴史的パターン知識ベース（FRB利上げ/利下げ・トランプ・戦争・日銀・関税・財政等）
+  - `_classify_category()`：固有名詞優先の日本語キーワード分類（日銀 > FRB > 利上げ の優先順位）
+  - `_mock_analysis()`：AND/exclude ロジックのキーワードマッチング（API未設定時フォールバック）
+  - `analyze_geopolitical_event()`：Claude API → OpenAI → mock の優先順位で分析
+  - `_build_geo_prompt()`：歴史パターンヒント付きの構造化プロンプト（JSON出力指定）
+  - `GeopoliticalAnalysis` dataclass（カテゴリー/USD影響/信頼度/根拠/類似事例/短期見通し/リスク）
+  - `GeopoliticalRecord` dataclass（DB保存レコード・実際の結果記録フィールド）
+  - `EventCorrelation` dataclass（カテゴリー別集計）
+  - `ensure_table()`：`geopolitical_log` テーブルを動的作成（models.py非依存）
+  - `save_geopolitical_record()` / `get_geopolitical_records()` / `update_actual_result()` / `delete_geopolitical_record()`
+  - `get_event_correlations()`：カテゴリー別ドル強気/弱気件数を集計
+  - `analyze_and_save()`：分析→DB保存を一括実行
+- `app/web/routes.py`：4ルート追加
+  - `GET /geopolitical` — 分析ページ
+  - `POST /api/analyze-geopolitical` — AIで分析してDB保存
+  - `POST /geopolitical/{id}/result` — 実際の結果を後から記録
+  - `POST /geopolitical/{id}/delete` — 記録削除
+  - `GET /api/geopolitical` — JSON API
+- `app/web/templates/geopolitical.html`：新規作成
+  - イベントテキスト入力フォーム（日付・自由記述）
+  - AI分析結果プレビュー（影響度バッジ・根拠・見通し・リスク・類似事例）
+  - カテゴリー別集計テーブル
+  - 過去分析履歴（実際の結果記録フォーム・削除ボタン）
+  - 歴史的パターン参考資料（折りたたみ）
+- 全31テンプレートのナビに「地政学分析」リンク追加
+- `tests/test_geopolitical.py`：テスト42件新規作成（全テスト通過）
+
+---
+
 ### Phase 65：AIトレード週次レポート自動生成（2026-05-22）
 
 - `app/database/models.py`：`CREATE_WEEKLY_REPORT_TABLE` 追加（weekly_report_log テーブル）

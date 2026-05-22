@@ -118,6 +118,27 @@ AI FX市場監視システム 進捗記録
 
 ---
 
+### Phase 70：週次レポートに地政学サマリー追加（2026-05-22）
+
+- `app/scripts/weekly_report.py`：変更
+  - `WeeklyMetrics` に `geo_events: list[dict]` / `geo_risk_summary: str` フィールド追加（既存レポートはデフォルト値でロード可）
+  - `_summarize_geo_risk(geo_events)` 関数追加：bullish/bearish/neutral カウントで「ドル高バイアス 2件 / 中立 1件」形式のサマリー生成
+  - `_collect_metrics()` に地政学フェッチブロックを追加：`geopolitical_log` から今週の `event_date` 範囲で絞り込み（テーブル未存在時も安全にスキップ）
+  - `_build_weekly_prompt()` に「今週の地政学リスク分析」セクション追加：概要 + イベント詳細最大5件（USD影響を日本語ラベルに変換）
+  - `_generate_mock_narrative()` に地政学コンテキスト追記：geo_risk_summary を引用
+- `app/web/templates/weekly_report.html`：過去レポートのマクロイベント表示の下に地政学リスクセクションを追加
+  - bullish/bearish 件数比較でバイアス（ドル高 / ドル安 / 中立）をカラー表示
+  - イベント一覧（最大3件、左ボーダー色付き）
+  - 3件超の場合「他N件 → 地政学分析」リンク
+- `tests/test_weekly_geo_report.py`：テスト22件新規作成（全テスト通過）
+  - `TestSummarizeGeoRisk`：空・全bullish・全bearish・中立・混合・返り値型・区切り文字
+  - `TestWeeklyMetricsGeoFields`：デフォルト値・セッター確認
+  - `TestBuildWeeklyPromptGeo`：地政学セクション有無・内容・最大5件・日本語ラベル
+  - `TestMockNarrativeGeo`：地政学未登録時・登録時のナレーティブ
+  - `TestGeoFetchInCollectMetrics`：週境界フィルタ・サマリー計算・テーブル不在時の安全性
+
+---
+
 ### Phase 69：FXニュース自動収集・自動地政学分析（2026-05-22）
 
 - `app/scripts/news_collector.py`：新規作成

@@ -59,6 +59,10 @@ class WeeklyMetrics:
     # マクロイベント（今週分）
     macro_events: list[str] = field(default_factory=list)
 
+    # Phase 70: 地政学リスクサマリー（今週分）
+    geo_events: list[dict] = field(default_factory=list)
+    geo_risk_summary: str = ""
+
 
 @dataclass
 class WeeklyReport:
@@ -200,6 +204,30 @@ def _collect_metrics(symbol: str, week_label: str, db_path=None) -> WeeklyMetric
         ).fetchall()
         metrics.macro_events = [f"{r['event_type']}: {r['title']}" for r in macro_rows]
 
+        # Phase 70: 地政学リスク（今週分）
+        try:
+            geo_rows = conn.execute(
+                """
+                SELECT event_date, category, usd_impact, event_text
+                FROM geopolitical_log
+                WHERE event_date >= ? AND event_date <= ?
+                ORDER BY event_date
+                """,
+                (week_start, week_end),
+            ).fetchall()
+            metrics.geo_events = [
+                {
+                    "date": r["event_date"],
+                    "category": r["category"],
+                    "usd_impact": r["usd_impact"],
+                    "event_text": r["event_text"][:80],
+                }
+                for r in geo_rows
+            ]
+            metrics.geo_risk_summary = _summarize_geo_risk(metrics.geo_events)
+        except Exception:
+            pass
+
     # スコアカードは別モジュールから取得
     try:
         from app.scripts.scorecard import get_scorecard
@@ -256,11 +284,41 @@ def _build_weekly_prompt(m: WeeklyMetrics) -> str:
     if m.macro_events:
         lines += ["", "【今週のマクロイベント】"]
         lines += [f"- {e}" for e in m.macro_events[:5]]
+    if m.geo_events:
+        lines += ["", "【今週の地政学リスク分析】"]
+        lines.append(f"- 概要: {m.geo_risk_summary}")
+        for e in m.geo_events[:5]:
+            impact_labels = {
+                "strong_bullish": "強いドル高",
+                "bullish": "ドル高",
+                "neutral": "中立",
+                "bearish": "ドル安",
+                "strong_bearish": "強いドル安",
+            }
+            label = impact_labels.get(e["usd_impact"], e["usd_impact"])
+            lines.append(f"- {e['date']} [{e['category']}] {e['event_text']} → {label}")
     return "\n".join(lines)
 
 
 def _streak_ja(t: str) -> str:
     return "勝" if t == "win" else "敗" if t == "loss" else ""
+
+
+def _summarize_geo_risk(geo_events: list[dict]) -> str:
+    """地政学イベントリストからドル影響のサマリー文字列を生成する。"""
+    if not geo_events:
+        return ""
+    bullish = sum(1 for e in geo_events if e["usd_impact"] in ("bullish", "strong_bullish"))
+    bearish = sum(1 for e in geo_events if e["usd_impact"] in ("bearish", "strong_bearish"))
+    neutral = len(geo_events) - bullish - bearish
+    parts = []
+    if bullish:
+        parts.append(f"ドル高バイアス {bullish}件")
+    if bearish:
+        parts.append(f"ドル安バイアス {bearish}件")
+    if neutral:
+        parts.append(f"中立 {neutral}件")
+    return " / ".join(parts)
 
 
 def _generate_mock_narrative(m: WeeklyMetrics) -> str:
@@ -286,6 +344,9 @@ def _generate_mock_narrative(m: WeeklyMetrics) -> str:
     if m.current_streak > 0:
         ja = _streak_ja(m.current_streak_type)
         parts.append(f"現在{m.current_streak}連{ja}中です。")
+    # 地政学コンテキスト
+    if m.geo_events and m.geo_risk_summary:
+        parts.append(f"今週の地政学リスクは「{m.geo_risk_summary}」で、ドルへの影響が{len(m.geo_events)}件記録されました。")
     # 改善ヒント
     if m.week_losses > m.week_wins:
         parts.append("今週は損失が多かった週です。エントリー根拠の質を振り返り、無理なトレードがなかったか確認してみましょう。")

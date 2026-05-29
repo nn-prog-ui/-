@@ -51,6 +51,8 @@
       <a href="/weekly-report" class="nav-link">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
       <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -64,25 +66,77 @@
       </p>
     </section>
 
+    <!-- Phase 73: 地政学バイアスバナー -->
+    {% if geo_risk_global in ('strong_bullish', 'strong_bearish') %}
+    {% set geo_color_banner = geo_colors.get(geo_risk_global, '#888') %}
+    {% set geo_label_banner = geo_labels.get(geo_risk_global, '') %}
+    <div style="background:{{ geo_color_banner }}18;border:1px solid {{ geo_color_banner }};border-radius:8px;padding:0.7rem 1rem;margin-bottom:1rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+      <span style="font-size:1.2rem;">⚠️</span>
+      <span style="color:{{ geo_color_banner }};font-weight:700;">地政学リスク警戒中: {{ geo_label_banner }}</span>
+      {% if geo_latest %}
+      <span style="color:#aaa;font-size:0.82rem;">{{ geo_latest.event_date }} / {{ geo_latest.category }} / {{ geo_latest.event_text[:60] }}…</span>
+      {% endif %}
+      <a href="/geopolitical" style="margin-left:auto;font-size:0.8rem;color:{{ geo_color_banner }};">詳細 →</a>
+    </div>
+    {% endif %}
+
     <!-- シグナル概要バー -->
     {% set buy_count  = analyses | selectattr('signal', 'equalto', 'BUY')  | list | length %}
     {% set sell_count = analyses | selectattr('signal', 'equalto', 'SELL') | list | length %}
     {% set skip_count = analyses | selectattr('signal', 'equalto', 'SKIP') | list | length %}
 
-    <div class="history-grid" style="margin-bottom: 1.5rem;">
-      <div class="card" style="text-align:center;">
+    <div style="display:flex;gap:0.75rem;margin-bottom:1.25rem;flex-wrap:wrap;align-items:center;">
+      <div class="card" style="flex:1;min-width:100px;text-align:center;padding:0.6rem;">
         <div class="h-label">買い候補</div>
-        <div class="price-value" style="font-size:2.5rem; color:#4ade80;">{{ buy_count }}</div>
+        <div class="price-value" style="font-size:2.2rem;color:#4ade80;">{{ buy_count }}</div>
       </div>
-      <div class="card" style="text-align:center;">
+      <div class="card" style="flex:1;min-width:100px;text-align:center;padding:0.6rem;">
         <div class="h-label">売り候補</div>
-        <div class="price-value" style="font-size:2.5rem; color:#f87171;">{{ sell_count }}</div>
+        <div class="price-value" style="font-size:2.2rem;color:#f87171;">{{ sell_count }}</div>
       </div>
-      <div class="card" style="text-align:center;">
+      <div class="card" style="flex:1;min-width:100px;text-align:center;padding:0.6rem;">
         <div class="h-label">見送り</div>
-        <div class="price-value" style="font-size:2.5rem; color:#888;">{{ skip_count }}</div>
+        <div class="price-value" style="font-size:2.2rem;color:#888;">{{ skip_count }}</div>
       </div>
+      <!-- Phase 73: 地政学バイアスサマリー -->
+      <div class="card" style="flex:1;min-width:120px;text-align:center;padding:0.6rem;">
+        <div class="h-label">地政学バイアス</div>
+        {% set gc = geo_colors.get(geo_risk_global, '#888') %}
+        <div style="font-size:1rem;font-weight:700;color:{{ gc }};margin-top:0.3rem;">
+          {{ geo_labels.get(geo_risk_global, '中立') }}
+        </div>
+      </div>
+      <!-- 手動更新ボタン -->
+      <button id="btn-refresh" onclick="location.reload()" style="padding:0.5rem 1.2rem;border-radius:6px;border:1px solid #4ade80;background:#4ade8022;color:#4ade80;cursor:pointer;font-size:0.85rem;white-space:nowrap;">
+        🔄 今すぐ更新
+      </button>
     </div>
+
+    <!-- Phase 78: リアルタイム価格モニター -->
+    <section class="card" id="price-monitor-section" style="margin-bottom:1.25rem;padding:0.75rem 1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem;flex-wrap:wrap;">
+        <h3 style="font-size:0.88rem;color:#aaa;margin:0;font-weight:600;">💹 価格モニター</h3>
+        <span id="price-source-badge" style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;background:#333;color:#888;">読み込み中</span>
+        <span id="price-countdown" style="font-size:0.72rem;color:#666;">次回更新: 30秒後</span>
+        <span id="price-last-updated" style="font-size:0.72rem;color:#555;margin-left:auto;">--</span>
+      </div>
+      <div id="price-ticker" style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+        <div style="color:#555;font-size:0.85rem;padding:0.5rem 0;">価格データ読み込み中...</div>
+      </div>
+    </section>
+
+    <!-- Phase 81: オープンポジションサマリー -->
+    <section class="card" id="position-summary-section" style="margin-bottom:1.25rem;padding:0.75rem 1rem;">
+      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.6rem;flex-wrap:wrap;">
+        <h3 style="font-size:0.88rem;color:#aaa;margin:0;font-weight:600;">📌 オープンポジション</h3>
+        <span id="pos-count-badge" style="font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;background:#333;color:#888;">読み込み中</span>
+        <span id="pos-total-pnl" style="font-size:0.78rem;font-weight:700;margin-left:0.25rem;"></span>
+        <a href="/performance" style="font-size:0.72rem;color:#60a5fa;margin-left:auto;text-decoration:none;">詳細 →</a>
+      </div>
+      <div id="position-list" style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+        <div style="color:#555;font-size:0.85rem;padding:0.5rem 0;">読み込み中...</div>
+      </div>
+    </section>
 
     <!-- 通貨ペアカード一覧 -->
     {% if analyses %}
@@ -126,8 +180,26 @@
             <span class="ind-value">
               {% if r.score is not none %}{% if r.score > 0 %}+{% endif %}{{ r.score }}{% else %}---{% endif %}
             </span>
+            {# Phase 73: スコア内訳（地政学補正がある場合のみ） #}
+            {% if r.geo_score_adjustment is defined and r.geo_score_adjustment != 0 and r.score is not none %}
+            {% set base = r.score - r.geo_score_adjustment %}
+            <div style="font-size:0.68rem;color:#888;line-height:1.2;margin-top:1px;">
+              技術{% if base > 0 %}+{% endif %}{{ base }}/地政学{% if r.geo_score_adjustment > 0 %}+{% endif %}{{ r.geo_score_adjustment }}
+            </div>
+            {% endif %}
           </div>
         </div>
+
+        {# Phase 73: 地政学リスクバッジ #}
+        {% if r.geo_risk_level is defined and r.geo_risk_level and r.geo_risk_level != 'neutral' %}
+        {% set gc = geo_colors.get(r.geo_risk_level, '#888') %}
+        {% set gl = geo_labels.get(r.geo_risk_level, r.geo_risk_level) %}
+        <div style="margin-top:0.4rem;">
+          <span style="font-size:0.72rem;color:{{ gc }};border:1px solid {{ gc }};border-radius:4px;padding:1px 6px;background:{{ gc }}15;">
+            地政学: {{ gl }}
+          </span>
+        </div>
+        {% endif %}
 
         {% if r.signal != 'SKIP' and r.setup and r.setup.is_valid %}
         <div class="indicators-grid" style="margin-top:0.5rem; border-top:1px solid var(--border-color); padding-top:0.5rem;">
@@ -253,6 +325,237 @@
   <footer class="app-footer">
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
   </footer>
+
+  <!-- Phase 78: リアルタイム価格モニター JS -->
+  <style>
+    @keyframes priceFlash {
+      0%   { background: rgba(255,255,100,0.18); }
+      100% { background: transparent; }
+    }
+    .price-flash { animation: priceFlash 0.8s ease-out; }
+  </style>
+  <script>
+  (function() {
+    const ticker      = document.getElementById('price-ticker');
+    const lastUpdEl   = document.getElementById('price-last-updated');
+    const sourceBadge = document.getElementById('price-source-badge');
+    const countdown   = document.getElementById('price-countdown');
+
+    const SIGNAL_COLORS  = { BUY:'#4ade80', SELL:'#f87171', SKIP:'#888',  NONE:'#555' };
+    const SIGNAL_LABELS  = { BUY:'買い候補', SELL:'売り候補', SKIP:'見送り', NONE:'---' };
+    const POLL_INTERVAL  = 30; // 秒
+
+    let prevPrices   = {};
+    let lastFetchAt  = null;
+    let countdown_s  = POLL_INTERVAL;
+
+    function decimals(sym) {
+      return (sym && sym.includes('JPY')) ? 3 : 5;
+    }
+    function fmt(val, sym) {
+      return (val === null || val === undefined) ? '---' : val.toFixed(decimals(sym));
+    }
+
+    function render(data) {
+      lastFetchAt  = new Date();
+      countdown_s  = POLL_INTERVAL;
+
+      // データソースバッジ
+      const src = data.data_source || 'csv';
+      if (src === 'oanda') {
+        sourceBadge.textContent = '🔴 OANDA Live';
+        sourceBadge.style.cssText = 'font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;background:#f8717122;color:#f87171;';
+      } else {
+        sourceBadge.textContent = '📊 CSV';
+        sourceBadge.style.cssText = 'font-size:0.72rem;padding:0.15rem 0.5rem;border-radius:10px;background:#333;color:#888;';
+      }
+
+      ticker.innerHTML = '';
+      (data.prices || []).forEach(function(p) {
+        const sig       = p.signal || 'NONE';
+        const sigColor  = SIGNAL_COLORS[sig]  || '#555';
+        const sigLabel  = SIGNAL_LABELS[sig]  || '---';
+        const priceStr  = fmt(p.price, p.symbol);
+        const changed   = (prevPrices[p.symbol] !== undefined && p.price !== null &&
+                           prevPrices[p.symbol] !== p.price);
+
+        // 変化バッジ
+        let changeStr = '', changeColor = '#888';
+        if (p.change !== null && p.change !== undefined) {
+          const d = decimals(p.symbol);
+          const c = p.change, pc = p.change_pct;
+          if (c > 0) {
+            changeStr  = '▲ +' + c.toFixed(d) + (pc !== null ? ' (' + pc.toFixed(2) + '%)' : '');
+            changeColor = '#4ade80';
+          } else if (c < 0) {
+            changeStr  = '▼ ' + c.toFixed(d) + (pc !== null ? ' (' + pc.toFixed(2) + '%)' : '');
+            changeColor = '#f87171';
+          } else {
+            changeStr  = '— 変化なし';
+            changeColor = '#666';
+          }
+        }
+
+        const card = document.createElement('div');
+        card.style.cssText = 'flex:1;min-width:155px;background:var(--card-bg);border:1px solid #2a2a3e;border-radius:8px;padding:0.65rem 0.9rem;';
+        const priceDiv = document.createElement('div');
+        priceDiv.className = changed ? 'price-flash' : '';
+        priceDiv.style.cssText = 'font-size:1.35rem;font-weight:700;color:#e2e8f0;letter-spacing:0.02em;';
+        priceDiv.textContent = priceStr;
+
+        card.innerHTML = '<div style="font-size:0.75rem;color:#888;margin-bottom:0.2rem;">' + p.symbol + '</div>';
+        card.appendChild(priceDiv);
+        card.innerHTML += '<div style="font-size:0.72rem;color:' + changeColor + ';margin-top:0.15rem;">' + (changeStr || '') + '</div>' +
+          '<div style="margin-top:0.3rem;display:inline-block;font-size:0.68rem;padding:0.1rem 0.45rem;border-radius:10px;background:' + sigColor + '22;color:' + sigColor + ';">' + sigLabel + '</div>';
+        // priceDiv の挿入順を維持するため再構築
+        card.innerHTML = '';
+        const symEl  = document.createElement('div');
+        symEl.style.cssText  = 'font-size:0.75rem;color:#888;margin-bottom:0.2rem;';
+        symEl.textContent    = p.symbol;
+        const chgEl  = document.createElement('div');
+        chgEl.style.cssText  = 'font-size:0.72rem;color:' + changeColor + ';margin-top:0.15rem;';
+        chgEl.textContent    = changeStr || '';
+        const sigEl  = document.createElement('div');
+        sigEl.style.cssText  = 'margin-top:0.3rem;display:inline-block;font-size:0.68rem;padding:0.1rem 0.45rem;border-radius:10px;background:' + sigColor + '22;color:' + sigColor + ';';
+        sigEl.textContent    = sigLabel;
+        card.appendChild(symEl);
+        card.appendChild(priceDiv);
+        card.appendChild(chgEl);
+        card.appendChild(sigEl);
+        ticker.appendChild(card);
+
+        if (p.price !== null) prevPrices[p.symbol] = p.price;
+      });
+    }
+
+    function fetchPrices() {
+      fetch('/api/live-prices')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { render(d); })
+        .catch(function() { lastUpdEl.textContent = '価格取得失敗'; });
+    }
+
+    // 毎秒: 経過時間表示 + カウントダウン
+    setInterval(function() {
+      if (lastFetchAt) {
+        const secs = Math.floor((new Date() - lastFetchAt) / 1000);
+        lastUpdEl.textContent = '最終更新: ' + secs + '秒前';
+      }
+      countdown_s = Math.max(0, countdown_s - 1);
+      countdown.textContent = '次回更新: ' + countdown_s + '秒後';
+      if (countdown_s <= 0) {
+        fetchPrices();
+      }
+    }, 1000);
+
+    fetchPrices(); // 即時実行
+  })();
+  </script>
+
+  <!-- Phase 81: オープンポジションサマリーJS -->
+  <script>
+  (function() {
+    var listEl    = document.getElementById('position-list');
+    var countBadge = document.getElementById('pos-count-badge');
+    var totalPnlEl = document.getElementById('pos-total-pnl');
+
+    function fmtPips(val, sym) {
+      if (val === null || val === undefined) return '---';
+      var d = (sym && sym.indexOf('JPY') !== -1) ? 1 : 1;
+      return (val > 0 ? '+' : '') + val.toFixed(d);
+    }
+    function fmtPrice(val, sym) {
+      if (val === null || val === undefined) return '---';
+      return val.toFixed(sym && sym.indexOf('JPY') !== -1 ? 3 : 5);
+    }
+    function fmtElapsed(h) {
+      if (h === null || h === undefined) return '';
+      if (h < 1) return Math.round(h * 60) + '分';
+      if (h < 24) return h.toFixed(1) + '時間';
+      return (h / 24).toFixed(1) + '日';
+    }
+
+    function render(data) {
+      var positions = data.positions || [];
+      // バッジ
+      countBadge.textContent = positions.length + '件';
+      countBadge.style.background = positions.length > 0 ? '#4ade8022' : '#333';
+      countBadge.style.color = positions.length > 0 ? '#4ade80' : '#888';
+
+      // 合計含み損益
+      if (data.total_unrealized_pips !== null && data.total_unrealized_pips !== undefined) {
+        var tp = data.total_unrealized_pips;
+        totalPnlEl.textContent = '合計: ' + (tp > 0 ? '+' : '') + tp.toFixed(1) + 'pips';
+        totalPnlEl.style.color = tp > 0 ? '#4ade80' : tp < 0 ? '#f87171' : '#888';
+      } else {
+        totalPnlEl.textContent = '';
+      }
+
+      listEl.innerHTML = '';
+      if (positions.length === 0) {
+        var empty = document.createElement('div');
+        empty.style.cssText = 'color:#555;font-size:0.85rem;padding:0.4rem 0;';
+        empty.textContent = 'オープン中のポジションはありません';
+        listEl.appendChild(empty);
+        return;
+      }
+
+      positions.forEach(function(p) {
+        var pips = p.unrealized_pips;
+        var pipsColor = pips !== null ? (pips > 0 ? '#4ade80' : pips < 0 ? '#f87171' : '#888') : '#666';
+        var sigColor  = p.signal === 'BUY' ? '#4ade80' : '#f87171';
+        var sigLabel  = p.signal === 'BUY' ? '買い' : '売り';
+
+        var card = document.createElement('div');
+        card.style.cssText = 'flex:1;min-width:200px;background:var(--card-bg);border:1px solid #2a2a3e;border-radius:8px;padding:0.65rem 0.9rem;';
+
+        // ヘッダ行
+        var hdr = document.createElement('div');
+        hdr.style.cssText = 'display:flex;align-items:center;gap:0.4rem;margin-bottom:0.3rem;';
+        hdr.innerHTML =
+          '<span style="font-size:0.75rem;color:#aaa;">' + p.symbol + '</span>' +
+          '<span style="font-size:0.68rem;padding:0.1rem 0.4rem;border-radius:10px;background:' + sigColor + '22;color:' + sigColor + ';">' + sigLabel + '</span>' +
+          (p.elapsed_hours !== null ? '<span style="font-size:0.68rem;color:#555;margin-left:auto;">' + fmtElapsed(p.elapsed_hours) + '経過</span>' : '');
+
+        // 含み損益
+        var pnlDiv = document.createElement('div');
+        pnlDiv.style.cssText = 'font-size:1.3rem;font-weight:700;color:' + pipsColor + ';letter-spacing:0.02em;';
+        pnlDiv.textContent = (pips !== null ? fmtPips(pips, p.symbol) + ' pips' : '---');
+
+        // エントリー→現在
+        var priceDiv = document.createElement('div');
+        priceDiv.style.cssText = 'font-size:0.72rem;color:#888;margin-top:0.15rem;';
+        priceDiv.textContent = '入: ' + fmtPrice(p.entry_price, p.symbol) + ' → 現: ' + fmtPrice(p.current_price, p.symbol);
+
+        // SL/TP距離
+        var distDiv = document.createElement('div');
+        distDiv.style.cssText = 'font-size:0.7rem;margin-top:0.25rem;display:flex;gap:0.75rem;';
+        distDiv.innerHTML =
+          '<span style="color:#f87171;">SL: ' + (p.pips_to_sl !== null ? p.pips_to_sl.toFixed(1) + 'p' : '---') + '</span>' +
+          '<span style="color:#4ade80;">TP: ' + (p.pips_to_tp !== null ? p.pips_to_tp.toFixed(1) + 'p' : '---') + '</span>';
+
+        card.appendChild(hdr);
+        card.appendChild(pnlDiv);
+        card.appendChild(priceDiv);
+        card.appendChild(distDiv);
+        listEl.appendChild(card);
+      });
+    }
+
+    function fetchPositions() {
+      fetch('/api/open-positions')
+        .then(function(r) { return r.json(); })
+        .then(function(d) { render(d); })
+        .catch(function() {
+          countBadge.textContent = '取得失敗';
+          countBadge.style.color = '#f87171';
+        });
+    }
+
+    fetchPositions();
+    setInterval(fetchPositions, 30000);
+  })();
+  </script>
 
   <!-- Phase 25: 自動リフレッシュ -->
   <script>

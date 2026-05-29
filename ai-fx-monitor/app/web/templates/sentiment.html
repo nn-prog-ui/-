@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - センチメント集計</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link">世界イベント</a>
+      <a href="/weekly-report" class="nav-link">週次レポート</a>
+      <a href="/geopolitical" class="nav-link">地政学分析</a>
+      <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link active">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- ヘッダーカード -->
+    <section class="card">
+      <h2 class="card-title" style="display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+        ニュースセンチメント集計
+        <span style="font-size:0.78rem;color:#888;font-weight:normal;">
+          地政学 AI 分析のドル方向バイアスを集計
+        </span>
+      </h2>
+      <!-- 期間フィルタ -->
+      <form method="GET" action="/sentiment" style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;margin-top:0.75rem;">
+        <label style="font-size:0.85rem;color:#aaa;">集計期間:</label>
+        {% for d_opt, d_label in [(30,'30日'), (60,'60日'), (90,'90日'), (180,'180日')] %}
+        <button type="submit" name="days" value="{{ d_opt }}"
+          style="padding:3px 14px;border-radius:5px;font-size:0.82rem;cursor:pointer;
+          border:1px solid {% if days == d_opt %}#4ade80{% else %}#444{% endif %};
+          background:{% if days == d_opt %}#4ade8022{% else %}transparent{% endif %};
+          color:{% if days == d_opt %}#4ade80{% else %}#aaa{% endif %};">
+          {{ d_label }}
+        </button>
+        {% endfor %}
+      </form>
+      {% if report %}
+      <p style="font-size:0.8rem;color:#888;margin-top:0.5rem;">
+        対象: {{ report.date_from or '---' }} 〜 {{ report.date_to or '---' }}
+        （{{ report.summary.total }}件 / {{ report.total_days }}日）
+      </p>
+      {% endif %}
+    </section>
+
+    {% if not report or report.summary.total == 0 %}
+    <section class="card">
+      <p class="empty-history">
+        センチメントデータがありません。
+        <a href="/news-collector" style="color:#4ade80;">ニュース収集</a>または
+        <a href="/geopolitical" style="color:#4ade80;">地政学分析</a>でデータを追加してください。
+      </p>
+    </section>
+
+    {% else %}
+
+    <!-- ── 全体センチメントサマリー ──────────────────────────────────── -->
+    <section class="card">
+      <h3 class="card-title">全体センチメント（過去{{ days }}日）</h3>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1rem;">
+        <div style="flex:1;min-width:100px;text-align:center;padding:0.5rem;border-radius:6px;background:#4ade8015;border:1px solid #4ade8040;">
+          <div style="font-size:0.78rem;color:#888;">ドル高バイアス</div>
+          <div style="font-size:2rem;font-weight:700;color:#4ade80;">{{ report.summary.bullish }}</div>
+          <div style="font-size:0.82rem;color:#4ade80;">{{ report.summary.bullish_pct }}%</div>
+        </div>
+        <div style="flex:1;min-width:100px;text-align:center;padding:0.5rem;border-radius:6px;background:#f8717115;border:1px solid #f8717140;">
+          <div style="font-size:0.78rem;color:#888;">ドル安バイアス</div>
+          <div style="font-size:2rem;font-weight:700;color:#f87171;">{{ report.summary.bearish }}</div>
+          <div style="font-size:0.82rem;color:#f87171;">{{ report.summary.bearish_pct }}%</div>
+        </div>
+        <div style="flex:1;min-width:100px;text-align:center;padding:0.5rem;border-radius:6px;background:#88888815;border:1px solid #88888840;">
+          <div style="font-size:0.78rem;color:#888;">中立</div>
+          <div style="font-size:2rem;font-weight:700;color:#888;">{{ report.summary.neutral }}</div>
+          <div style="font-size:0.82rem;color:#888;">{{ report.summary.neutral_pct }}%</div>
+        </div>
+        {% if report.summary.strong_bullish or report.summary.strong_bearish %}
+        <div style="flex:1;min-width:140px;text-align:center;padding:0.5rem;border-radius:6px;background:#facc1510;border:1px solid #facc1540;">
+          <div style="font-size:0.78rem;color:#888;">強シグナル</div>
+          <div style="font-size:1.4rem;font-weight:700;color:#facc15;">
+            ▲{{ report.summary.strong_bullish }} / ▼{{ report.summary.strong_bearish }}
+          </div>
+          <div style="font-size:0.78rem;color:#888;">strong_bullish / strong_bearish</div>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- 割合バー -->
+      <div style="height:14px;border-radius:7px;overflow:hidden;display:flex;background:#1e1e2e;">
+        {% if report.summary.bullish_pct > 0 %}
+        <div style="width:{{ report.summary.bullish_pct }}%;background:#4ade80;" title="ドル高 {{ report.summary.bullish_pct }}%"></div>
+        {% endif %}
+        {% if report.summary.neutral_pct > 0 %}
+        <div style="width:{{ report.summary.neutral_pct }}%;background:#555;" title="中立 {{ report.summary.neutral_pct }}%"></div>
+        {% endif %}
+        {% if report.summary.bearish_pct > 0 %}
+        <div style="width:{{ report.summary.bearish_pct }}%;background:#f87171;" title="ドル安 {{ report.summary.bearish_pct }}%"></div>
+        {% endif %}
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:#666;margin-top:3px;">
+        <span>← ドル高</span><span>中立</span><span>ドル安 →</span>
+      </div>
+    </section>
+
+    <!-- ── カテゴリー別センチメント（横棒グラフ） ──────────────────── -->
+    {% if report.categories %}
+    <section class="card" style="margin-top:1rem;">
+      <h3 class="card-title">カテゴリー別センチメント</h3>
+      <div style="width:100%;overflow-x:auto;">
+        <svg id="cat-svg" width="760" height="{{ [report.categories|length * 38 + 40, 100]|max }}"
+             style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;"></svg>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- ── 時系列センチメント（折れ線グラフ） ──────────────────────── -->
+    {% if report.daily|length > 1 %}
+    <section class="card" style="margin-top:1rem;">
+      <h3 class="card-title">センチメント時系列（ネットスコア）</h3>
+      <div style="width:100%;overflow-x:auto;">
+        <svg id="trend-svg" width="760" height="200"
+             style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;"></svg>
+      </div>
+      <p style="font-size:0.75rem;color:var(--text-muted);margin:0.3rem 0 0;">
+        ネットスコア = ドル高件数 - ドル安件数（正=ドル高優勢、負=ドル安優勢）
+      </p>
+    </section>
+    {% endif %}
+
+    <!-- ── 強シグナルイベント TOP ───────────────────────────────────── -->
+    {% if report.top_events %}
+    <section class="card" style="margin-top:1rem;">
+      <h3 class="card-title">強シグナルイベント TOP{{ report.top_events|length }}</h3>
+      <div style="overflow-x:auto;">
+        <table class="report-table">
+          <thead>
+            <tr>
+              <th>日付</th>
+              <th>カテゴリー</th>
+              <th>USD影響</th>
+              <th>イベント</th>
+              <th>信頼度</th>
+              <th>AI</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for ev in report.top_events %}
+            {% set ev_color = usd_impact_colors.get(ev.usd_impact, '#888') %}
+            <tr>
+              <td style="white-space:nowrap;">{{ ev.event_date }}</td>
+              <td style="font-size:0.82rem;">{{ ev.category }}</td>
+              <td>
+                <span style="color:{{ ev_color }};font-weight:600;">
+                  {{ usd_impact_labels.get(ev.usd_impact, ev.usd_impact) }}
+                </span>
+              </td>
+              <td style="font-size:0.82rem;max-width:320px;">{{ ev.event_text[:100] }}{% if ev.event_text|length > 100 %}…{% endif %}</td>
+              <td style="font-size:0.82rem;color:#aaa;">{{ ev.confidence }}</td>
+              <td style="font-size:0.78rem;color:#666;">{{ ev.ai_provider }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+    {% endif %}
+
+    {% endif %}{# end if report #}
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+
+  <!-- Phase 75: グラフ描画 JS -->
+  <script>
+  (function() {
+    var CAT_DATA  = {{ cat_json | safe }};
+    var DAILY_DATA = {{ daily_json | safe }};
+
+    // ── カテゴリー別横棒グラフ ─────────────────────────────────────
+    (function drawCategories() {
+      var svg = document.getElementById('cat-svg');
+      if (!svg || !CAT_DATA || CAT_DATA.length === 0) return;
+
+      var W = parseInt(svg.getAttribute('width')) || 760;
+      var H = parseInt(svg.getAttribute('height')) || 200;
+      var PAD = {top:16, right:20, bottom:16, left:200};
+      var cw = W - PAD.left - PAD.right;
+
+      var parts = [];
+
+      CAT_DATA.forEach(function(c, i) {
+        var y = PAD.top + i * 38;
+        var total = c.total || 1;
+
+        // カテゴリーラベル
+        parts.push('<text x="'+(PAD.left-6)+'" y="'+(y+14)+'" text-anchor="end" fill="#ccc" font-size="11">'+
+          c.category.slice(0,22)+'</text>');
+
+        // 件数ラベル（右端）
+        parts.push('<text x="'+(W-4)+'" y="'+(y+14)+'" text-anchor="end" fill="#666" font-size="10">'+c.total+'件</text>');
+
+        // ドル高バー
+        var bW = Math.round(c.bullish / total * cw);
+        if (bW > 0) {
+          parts.push('<rect x="'+PAD.left+'" y="'+y+'" width="'+bW+'" height="16" fill="#4ade80" rx="2"/>');
+        }
+        // ドル安バー（右からスタック）
+        var brW = Math.round(c.bearish / total * cw);
+        if (brW > 0) {
+          parts.push('<rect x="'+(PAD.left+cw-brW)+'" y="'+y+'" width="'+brW+'" height="16" fill="#f87171" rx="2"/>');
+        }
+
+        // % ラベル
+        if (c.bullish_pct >= 15) {
+          parts.push('<text x="'+(PAD.left+bW/2)+'" y="'+(y+12)+'" text-anchor="middle" fill="#0d0d1a" font-size="9" font-weight="bold">'+c.bullish_pct+'%</text>');
+        }
+        if (c.bearish_pct >= 15) {
+          parts.push('<text x="'+(PAD.left+cw-brW/2)+'" y="'+(y+12)+'" text-anchor="middle" fill="#0d0d1a" font-size="9" font-weight="bold">'+c.bearish_pct+'%</text>');
+        }
+      });
+
+      // 凡例
+      var lx = PAD.left, ly = H - 12;
+      parts.push('<rect x="'+lx+'" y="'+(ly-8)+'" width="12" height="10" fill="#4ade80" rx="2"/>');
+      parts.push('<text x="'+(lx+15)+'" y="'+ly+'" fill="#888" font-size="10">ドル高</text>');
+      parts.push('<rect x="'+(lx+70)+'" y="'+(ly-8)+'" width="12" height="10" fill="#f87171" rx="2"/>');
+      parts.push('<text x="'+(lx+85)+'" y="'+ly+'" fill="#888" font-size="10">ドル安</text>');
+
+      svg.innerHTML = parts.join('');
+    })();
+
+    // ── 時系列ネットスコア折れ線グラフ ────────────────────────────
+    (function drawTrend() {
+      var svg = document.getElementById('trend-svg');
+      if (!svg || !DAILY_DATA || DAILY_DATA.length < 2) return;
+
+      var W = 760, H = 200;
+      var PAD = {top:16, right:20, bottom:32, left:44};
+      var cw = W - PAD.left - PAD.right, ch = H - PAD.top - PAD.bottom;
+
+      var scores = DAILY_DATA.map(function(d){ return d.net_score; });
+      var maxS = Math.max.apply(null, scores.concat([0]));
+      var minS = Math.min.apply(null, scores.concat([0]));
+      var span = Math.max(maxS - minS, 1);
+      var padS = span * 0.1;
+      maxS += padS; minS -= padS; span = maxS - minS;
+
+      function toX(i) { return PAD.left + (i / (DAILY_DATA.length - 1)) * cw; }
+      function toY(v) { return PAD.top + ch * (1 - (v - minS) / span); }
+
+      var parts = [];
+
+      // グリッドライン
+      for (var gi = 0; gi <= 4; gi++) {
+        var gv = minS + span * gi / 4;
+        var gy = toY(gv);
+        parts.push('<line x1="'+PAD.left+'" y1="'+gy+'" x2="'+(PAD.left+cw)+'" y2="'+gy+'" stroke="#1e2040" stroke-width="1"/>');
+        parts.push('<text x="'+(PAD.left-3)+'" y="'+(gy+4)+'" text-anchor="end" fill="#555" font-size="9">'+gv.toFixed(0)+'</text>');
+      }
+
+      // ゼロライン
+      var zy = toY(0);
+      parts.push('<line x1="'+PAD.left+'" y1="'+zy+'" x2="'+(PAD.left+cw)+'" y2="'+zy+'" stroke="#444" stroke-width="1.5" stroke-dasharray="4 3"/>');
+
+      // 折れ線
+      var pts = DAILY_DATA.map(function(d,i){ return toX(i)+','+toY(d.net_score); }).join(' ');
+      parts.push('<polyline points="'+pts+'" fill="none" stroke="#a78bfa" stroke-width="2"/>');
+
+      // ドット（正=緑、負=赤、0=灰）
+      DAILY_DATA.forEach(function(d, i) {
+        var col = d.net_score > 0 ? '#4ade80' : d.net_score < 0 ? '#f87171' : '#555';
+        parts.push('<circle cx="'+toX(i)+'" cy="'+toY(d.net_score)+'" r="3" fill="'+col+'"/>');
+      });
+
+      // X軸ラベル（等間隔で最大8件）
+      var n = DAILY_DATA.length;
+      var every = Math.max(1, Math.floor(n / 8));
+      for (var li = 0; li < n; li += every) {
+        var lx = toX(li);
+        var lbl = DAILY_DATA[li].date.slice(5); // MM-DD
+        parts.push('<text x="'+lx+'" y="'+(H-4)+'" text-anchor="middle" fill="#555" font-size="9">'+lbl+'</text>');
+      }
+
+      // 枠
+      parts.push('<rect x="'+PAD.left+'" y="'+PAD.top+'" width="'+cw+'" height="'+ch+'" fill="none" stroke="#1e2040" stroke-width="1"/>');
+      svg.innerHTML = parts.join('');
+    })();
+
+  })();
+  </script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+
+</body>
+</html>

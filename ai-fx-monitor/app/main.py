@@ -50,6 +50,14 @@ app.include_router(router)
 
 @app.on_event("startup")
 async def startup_event():
+    # Phase 76: 起動チェック（ディレクトリ・CSVデータ・安全環境変数）
+    try:
+        from app.scripts.startup_check import run_startup_checks
+        run_startup_checks()
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("起動チェックエラー（継続）: %s", exc)
+
     init_db()
     start_scheduler()
 

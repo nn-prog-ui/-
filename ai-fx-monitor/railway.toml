@@ -1,9 +1,35 @@
+# Phase 76: Railway デプロイ設定
+# ============================================================
+# デプロイ方式: Dockerfile（NIXPACKS から変更）
+# ボリューム: Railway ダッシュボード → Storage → Add Volume
+#   Mount Path: /app/data  （DB・データファイルを永続化）
+#
+# 必須 Variables（Railway ダッシュボード → Variables で設定）:
+#   APP_ENV=production
+#   TRADING_MODE=demo_only           ← 変更禁止
+#   DB_PATH=/app/data/fx_monitor.db
+#   DATA_DIR=/app/data/raw
+#   AUTH_USERNAME=admin              ← 本番では必ず設定
+#   AUTH_PASSWORD=<strong_password>  ← 本番では必ず設定
+#
+# オプション Variables:
+#   ANTHROPIC_API_KEY=<key>   # AI分析機能を使う場合
+#   OPENAI_API_KEY=<key>
+#   EMAIL_FROM=<gmail>        # メール通知を使う場合
+#   EMAIL_APP_PASSWORD=<app_password>
+#   EMAIL_TO=<dest>
+#   NOTIFY_ON_BUY=true
+#   NOTIFY_ON_SELL=true
+#   NOTIFY_GEO_ALERT=true
+# ============================================================
+
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
 
 [deploy]
 startCommand = "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
 healthcheckPath = "/health"
-healthcheckTimeout = 100
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 10

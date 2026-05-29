@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 
+from app.indicators.candlestick_patterns import CandlePattern
 from app.strategy.rules import SignalResult
 from app.strategy.risk import TradeSetup
 
@@ -48,17 +49,21 @@ def generate_commentary(
     signal_result: SignalResult,
     setup: TradeSetup | None = None,
     historical_stats: dict | None = None,
+    candlestick_patterns: list[CandlePattern] | None = None,
 ) -> str:
     """ルール判定結果からAIコメントを生成する。
 
     優先順位: ANTHROPIC_API_KEY(Claude) > OPENAI_API_KEY(OpenAI) > モック
     signalの変更は行わず、補足説明のみを返すこと。
     """
+    patterns = candlestick_patterns or []
     if os.environ.get("ANTHROPIC_API_KEY"):
-        return ClaudeCommentaryAdapter().generate(signal_result, setup, historical_stats)
+        return ClaudeCommentaryAdapter().generate(signal_result, setup, historical_stats,
+                                                  candlestick_patterns=patterns)
     if os.environ.get("OPENAI_API_KEY"):
-        return OpenAICommentaryAdapter().generate(signal_result, setup, historical_stats)
-    comment = _generate_mock_commentary(signal_result, setup, historical_stats)
+        return OpenAICommentaryAdapter().generate(signal_result, setup, historical_stats,
+                                                  candlestick_patterns=patterns)
+    comment = _generate_mock_commentary(signal_result, setup, historical_stats, patterns)
     return _sanitize_commentary(comment)
 
 
@@ -66,9 +71,11 @@ def _generate_mock_commentary(
     result: SignalResult,
     setup: TradeSetup | None,
     historical_stats: dict | None = None,
+    candlestick_patterns: list[CandlePattern] | None = None,
 ) -> str:
     """ルール結果から文章コメントを生成する（モック実装）。"""
     parts: list[str] = []
+    patterns = candlestick_patterns or []
 
     # データ不足時
     if not result.data_sufficient:
@@ -110,6 +117,28 @@ def _generate_mock_commentary(
     if result.skip_reasons and any("経済指標" in r for r in result.skip_reasons):
         parts.append("重要な経済指標の発表前後60分に該当するため、ルール上は見送りが適切です。")
 
+    # Phase 86: ローソク足パターン言及
+    if patterns:
+        bullish_pats = [p for p in patterns if p.direction == "bullish"]
+        bearish_pats = [p for p in patterns if p.direction == "bearish"]
+        strong_pats  = [p for p in patterns if p.strength >= 3]
+
+        if strong_pats:
+            names = "・".join(p.name for p in strong_pats[:2])
+            dirs  = strong_pats[0].direction
+            if dirs == "bullish":
+                parts.append(f"直近のローソク足では強い強気パターン（{names}）が検出されており、上昇圧力の存在を示しています。")
+            else:
+                parts.append(f"直近のローソク足では強い弱気パターン（{names}）が検出されており、下落圧力の存在を示しています。")
+        elif bullish_pats and not bearish_pats:
+            names = "・".join(p.name for p in bullish_pats[:2])
+            parts.append(f"直近のローソク足では強気パターン（{names}）が確認されています。")
+        elif bearish_pats and not bullish_pats:
+            names = "・".join(p.name for p in bearish_pats[:2])
+            parts.append(f"直近のローソク足では弱気パターン（{names}）が確認されています。")
+        elif bullish_pats and bearish_pats:
+            parts.append("直近のローソク足では強気・弱気両方のパターンが混在しており、方向感が定まっていません。")
+
     # 判定のサマリー
     if result.signal == "BUY":
         parts.append("現在のルールでは買い候補の条件が揃っています。ただし、最終判断は必ず人間が行ってください。")
@@ -150,6 +179,7 @@ def _build_signal_prompt(
     result: SignalResult,
     setup: TradeSetup | None,
     historical_stats: dict | None = None,
+    candlestick_patterns: list[CandlePattern] | None = None,
 ) -> str:
     """Claude API向けのユーザープロンプトを構築する。"""
     lines = [
@@ -196,6 +226,15 @@ def _build_signal_prompt(
         if recent:
             lines.append(f"【直近結果】{' / '.join(recent)}")
 
+    # Phase 86: ローソク足パターン情報
+    patterns = candlestick_patterns or []
+    if patterns:
+        pat_parts = []
+        for p in patterns[:4]:  # 最大4パターン
+            dir_label = {"bullish": "強気", "bearish": "弱気", "neutral": "中立"}.get(p.direction, p.direction)
+            pat_parts.append(f"{p.name}（{p.name_en}・{dir_label}・強度{p.strength}）")
+        lines.append(f"【直近ローソク足パターン】{' / '.join(pat_parts)}")
+
     lines.append("\n上記の市場状況について補足コメントを生成してください。")
     return "\n".join(lines)
 
@@ -218,6 +257,7 @@ class CommentaryAdapter:
         signal_result: SignalResult,
         setup: TradeSetup | None = None,
         historical_stats: dict | None = None,
+        candlestick_patterns: list[CandlePattern] | None = None,
     ) -> str:
         raise NotImplementedError
 
@@ -230,8 +270,10 @@ class MockCommentaryAdapter(CommentaryAdapter):
         signal_result: SignalResult,
         setup: TradeSetup | None = None,
         historical_stats: dict | None = None,
+        candlestick_patterns: list[CandlePattern] | None = None,
     ) -> str:
-        comment = _generate_mock_commentary(signal_result, setup, historical_stats)
+        comment = _generate_mock_commentary(signal_result, setup, historical_stats,
+                                            candlestick_patterns=candlestick_patterns)
         return _sanitize_commentary(comment)
 
 
@@ -253,12 +295,14 @@ class OpenAICommentaryAdapter(CommentaryAdapter):
         signal_result: SignalResult,
         setup: TradeSetup | None = None,
         historical_stats: dict | None = None,
+        candlestick_patterns: list[CandlePattern] | None = None,
     ) -> str:
         if not signal_result.data_sufficient:
             return "データが不足しているため、判定を行えません。CSVファイルを確認してください。"
 
         try:
-            user_prompt = _build_signal_prompt(signal_result, setup, historical_stats)
+            user_prompt = _build_signal_prompt(signal_result, setup, historical_stats,
+                                               candlestick_patterns=candlestick_patterns)
             response = self._client.chat.completions.create(
                 model=self._model,
                 max_tokens=512,
@@ -271,7 +315,8 @@ class OpenAICommentaryAdapter(CommentaryAdapter):
             return _sanitize_commentary(comment)
         except Exception:
             fallback = MockCommentaryAdapter()
-            return fallback.generate(signal_result, setup, historical_stats)
+            return fallback.generate(signal_result, setup, historical_stats,
+                                     candlestick_patterns=candlestick_patterns)
 
 
 class ClaudeCommentaryAdapter(CommentaryAdapter):
@@ -292,12 +337,14 @@ class ClaudeCommentaryAdapter(CommentaryAdapter):
         signal_result: SignalResult,
         setup: TradeSetup | None = None,
         historical_stats: dict | None = None,
+        candlestick_patterns: list[CandlePattern] | None = None,
     ) -> str:
         if not signal_result.data_sufficient:
             return "データが不足しているため、判定を行えません。CSVファイルを確認してください。"
 
         try:
-            user_prompt = _build_signal_prompt(signal_result, setup, historical_stats)
+            user_prompt = _build_signal_prompt(signal_result, setup, historical_stats,
+                                               candlestick_patterns=candlestick_patterns)
             response = self._client.messages.create(
                 model=self._model,
                 max_tokens=512,
@@ -318,4 +365,5 @@ class ClaudeCommentaryAdapter(CommentaryAdapter):
         except Exception:
             # API呼び出し失敗時はモックにフォールバック
             fallback = MockCommentaryAdapter()
-            return fallback.generate(signal_result, setup, historical_stats)
+            return fallback.generate(signal_result, setup, historical_stats,
+                                     candlestick_patterns=candlestick_patterns)

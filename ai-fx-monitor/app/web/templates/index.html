@@ -51,6 +51,8 @@
       <a href="/weekly-report" class="nav-link">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
       <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -76,7 +78,7 @@
     <section class="price-header card">
       <div class="pair-info">
         <h2 class="pair-name">{{ result.symbol }}</h2>
-        <span class="timeframe-badge">1時間足ベース</span>
+        <span class="timeframe-badge">1時間ごとのデータを使用</span>
       </div>
       <div class="price-display">
         <span class="price-label">現在価格</span>
@@ -104,37 +106,47 @@
       {% endif %}
     </section>
 
-    <!-- Phase 28/31: ローソク足チャート（複数時間足タブ） -->
-    <section class="card" id="candle-chart-section" style="margin-top:1rem;">
-      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.4rem;margin-bottom:0.5rem;">
-        <h3 class="card-title" style="margin:0;">
-          ローソク足チャート
-          <span id="candle-symbol-label" style="font-size:0.8rem;color:var(--text-muted);margin-left:0.5rem;"></span>
-        </h3>
-        <!-- 時間足タブ -->
-        <div id="tf-tabs" style="display:flex;gap:4px;">
-          <button data-tf="1h"  class="tf-btn tf-active" style="padding:2px 10px;font-size:0.8rem;border-radius:4px;border:1px solid #4ade80;background:#4ade8022;color:#4ade80;cursor:pointer;">1時間</button>
-          <button data-tf="4h"  class="tf-btn"            style="padding:2px 10px;font-size:0.8rem;border-radius:4px;border:1px solid #444;background:transparent;color:#aaa;cursor:pointer;">4時間</button>
-          <button data-tf="1d"  class="tf-btn"            style="padding:2px 10px;font-size:0.8rem;border-radius:4px;border:1px solid #444;background:transparent;color:#aaa;cursor:pointer;">日足</button>
-        </div>
+    <!-- Phase 72: TradingView リアルタイムチャート -->
+    {% set tv_symbols = {'USD/JPY': 'FX:USDJPY', 'EUR/USD': 'FX:EURUSD', 'GBP/USD': 'FX:GBPUSD', 'EUR/JPY': 'FX:EURJPY', 'AUD/JPY': 'FX:AUDJPY', 'AUD/USD': 'FX:AUDUSD', 'EUR/GBP': 'FX:EURGBP', 'GBP/JPY': 'FX:GBPJPY'} %}
+    {% set tv_symbol = tv_symbols.get(result.symbol, 'FX:USDJPY') if result else 'FX:USDJPY' %}
+    <section class="card" style="margin-top:1rem;">
+      <h3 class="card-title" style="margin-bottom:0.5rem;">
+        リアルタイムチャート
+        <span style="font-size:0.78rem;color:#888;font-weight:normal;">powered by TradingView</span>
+      </h3>
+      <div style="height:420px;">
+        <div id="tradingview_main" style="height:100%;"></div>
       </div>
-      <div style="width:100%;overflow-x:auto;">
-        <svg id="candle-svg" width="760" height="260"
-             style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;">
-          <text x="380" y="135" text-anchor="middle" fill="#666" font-size="13">読み込み中...</text>
-        </svg>
-      </div>
-      <p id="candle-status" style="font-size:0.75rem;color:var(--text-muted);margin:0.3rem 0 0;text-align:right;"></p>
+      <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
+      <script type="text/javascript">
+      new TradingView.widget({
+        "autosize": true,
+        "height": 420,
+        "symbol": "{{ tv_symbol }}",
+        "interval": "60",
+        "timezone": "Asia/Tokyo",
+        "theme": "dark",
+        "style": "1",
+        "locale": "ja",
+        "enable_publishing": false,
+        "allow_symbol_change": false,
+        "container_id": "tradingview_main"
+      });
+      </script>
     </section>
 
     <!-- メイン判定 -->
+    {% set buy_passed  = result.buy_conditions  | selectattr('passed') | list | length %}
+    {% set sell_passed = result.sell_conditions | selectattr('passed') | list | length %}
+    {% set total_conds = result.buy_conditions  | length %}
+
     <section class="signal-section card {{ result.signal_css_class }}">
       <div class="signal-main">
         <div class="signal-label">判定</div>
         <div class="signal-value">{{ result.signal_label }}</div>
       </div>
       <div class="signal-score">
-        <span class="score-label">スコア</span>
+        <span class="score-label">総合スコア</span>
         <span class="score-value">
           {% if result.score is not none %}
             {% if result.score > 0 %}+{% endif %}{{ result.score }}
@@ -142,22 +154,61 @@
             ---
           {% endif %}
         </span>
+        <div style="font-size:0.72rem;color:#aaa;margin-top:4px;line-height:1.5;">
+          スコアは7つの条件のうち何個を満たしているかを表します<br>
+          （最大 +7 = 全条件を満たし買い候補 ／ 最小 -7 = 全条件を満たし売り候補）
+        </div>
         {% if result.geo_score_adjustment != 0 and result.score is not none %}
         {% set base = result.score - result.geo_score_adjustment %}
         <div style="font-size:0.72rem;color:#aaa;margin-top:2px;line-height:1.3;">
           技術 {% if base > 0 %}+{% endif %}{{ base }}
-          / 地政学 {% if result.geo_score_adjustment > 0 %}+{% endif %}{{ result.geo_score_adjustment }}
+          / 国際情勢 {% if result.geo_score_adjustment > 0 %}+{% endif %}{{ result.geo_score_adjustment }}
         </div>
         {% endif %}
       </div>
     </section>
+
+    <!-- 買い・売り条件の充足数を両方表示 -->
+    {% if total_conds > 0 %}
+    <section class="card" style="padding:0.75rem 1rem;">
+      <div style="font-size:0.78rem;color:#888;margin-bottom:8px;">条件の充足数（全{{ total_conds }}条件）</div>
+      <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:center;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="color:#4ade80;font-weight:700;font-size:1.1rem;">▲ 買い</span>
+          <span style="font-size:1.3rem;font-weight:700;color:{% if buy_passed >= total_conds %}#4ade80{% elif buy_passed >= 4 %}#fde68a{% else %}#888{% endif %};">
+            {{ buy_passed }}<span style="font-size:0.85rem;font-weight:400;color:#666;">/{{ total_conds }}</span>
+          </span>
+          <div class="score-bar-wrap">
+            {% for i in range(total_conds) %}
+            <span class="score-bar-cell {% if i < buy_passed %}bar-buy{% endif %}"></span>
+            {% endfor %}
+          </div>
+        </div>
+        <div style="color:#444;font-size:1.2rem;">│</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="color:#f87171;font-weight:700;font-size:1.1rem;">▼ 売り</span>
+          <span style="font-size:1.3rem;font-weight:700;color:{% if sell_passed >= total_conds %}#f87171{% elif sell_passed >= 4 %}#fbbf24{% else %}#888{% endif %};">
+            {{ sell_passed }}<span style="font-size:0.85rem;font-weight:400;color:#666;">/{{ total_conds }}</span>
+          </span>
+          <div class="score-bar-wrap">
+            {% for i in range(total_conds) %}
+            <span class="score-bar-cell {% if i < sell_passed %}bar-sell{% endif %}"></span>
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:#666;margin-top:6px;">
+        ※ 全{{ total_conds }}条件が揃ったときのみ「買い候補」または「売り候補」と判定されます
+      </div>
+    </section>
+    {% endif %}
 
     <!-- Phase 46: シグナル品質バッジ -->
     {% set sq = result.signal_quality %}
     {% if sq and result.signal in ('BUY', 'SELL') %}
     <section class="card" style="padding:0.75rem 1rem;">
       <div style="display:flex; align-items:center; gap:1rem; flex-wrap:wrap;">
-        <span style="color:#888; font-size:0.85rem;">品質スコア</span>
+        <span style="color:#888; font-size:0.85rem;">シグナルの信頼度</span>
         <span class="quality-badge quality-{{ sq.quality_label | lower }}" title="{{ sq.quality_description }}">
           {{ sq.quality_label }}
         </span>
@@ -171,8 +222,8 @@
         </span>
         {% if sq.avg_pips is not none %}
         <span style="font-size:0.85rem; color:#888;">
-          平均: <strong style="{% if sq.avg_pips >= 0 %}color:#4ade80;{% else %}color:#f87171;{% endif %}">
-            {{ "%+.1f"|format(sq.avg_pips) }}pips
+          平均損益: <strong style="{% if sq.avg_pips >= 0 %}color:#4ade80;{% else %}color:#f87171;{% endif %}">
+            {{ "%+.1f"|format(sq.avg_pips) }}pips（価格の変化幅）
           </strong>
         </span>
         {% endif %}
@@ -244,7 +295,7 @@
     {% if conditions %}
     <section class="card">
       <h3 class="card-title">
-        判定根拠（条件チェック）
+        判定の理由（条件チェック）
         {% if result.signal == 'BUY' %}<span style="color:#4ade80;">— 買い条件</span>
         {% elif result.signal == 'SELL' %}<span style="color:#f87171;">— 売り条件</span>
         {% else %}<span style="color:#888;">— 参考（未充足）</span>{% endif %}
@@ -263,25 +314,25 @@
 
     <!-- トレンド分析 -->
     <section class="card">
-      <h3 class="card-title">環境認識（トレンド分析）</h3>
+      <h3 class="card-title">相場の流れ</h3>
       <div class="indicators-grid">
         <div class="indicator-item">
-          <span class="ind-label">日足トレンド</span>
+          <span class="ind-label">1日単位の方向</span>
           <span class="ind-value trend-{{ result.daily_trend }}">{{ result.daily_trend }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">4時間足トレンド</span>
+          <span class="ind-label">4時間単位の方向</span>
           <span class="ind-value trend-{{ result.h4_trend }}">{{ result.h4_trend }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">1時間足の状態</span>
+          <span class="ind-label">1時間単位の状態</span>
           <span class="ind-value">{{ result.h1_status }}</span>
         </div>
       </div>
       {% if result.confluence %}
       {% set cf = result.confluence %}
       <div class="confluence-panel">
-        <span class="confluence-label">TF一致</span>
+        <span class="confluence-label">方向の一致度</span>
         <div class="tf-badges">
           <span class="tf-badge {% if cf.daily_agrees %}agree{% else %}disagree{% endif %}">
             <span class="tf-dot"></span>日足
@@ -300,36 +351,41 @@
 
     <!-- テクニカル指標 -->
     <section class="card">
-      <h3 class="card-title">テクニカル指標</h3>
+      <h3 class="card-title">価格分析の数値</h3>
       <div class="indicators-grid">
         <div class="indicator-item">
-          <span class="ind-label">RSI（14）</span>
+          <span class="ind-label">上がりすぎ・下がりすぎ（RSI 0〜100）</span>
           <span class="ind-value {% if result.rsi %}{% if result.rsi >= 70 %}rsi-high{% elif result.rsi <= 30 %}rsi-low{% else %}rsi-normal{% endif %}{% endif %}">
             {{ "%.1f"|format(result.rsi) if result.rsi is not none else "---" }}
+            {% if result.rsi %}
+              {% if result.rsi >= 70 %}<small>（買いすぎ注意）</small>
+              {% elif result.rsi <= 30 %}<small>（売りすぎ注意）</small>
+              {% endif %}
+            {% endif %}
           </span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">ATR状態</span>
+          <span class="ind-label">値動きの激しさ</span>
           <span class="ind-value {% if result.atr_abnormal %}atr-warning{% endif %}">
             {{ result.atr_status }}
           </span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">直近高値（20本）</span>
+          <span class="ind-label">最近の高い価格（20時間分）</span>
           <span class="ind-value">
             {{ "%.3f"|format(result.recent_high) if result.recent_high is not none else "---" }}
           </span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">直近安値（20本）</span>
+          <span class="ind-label">最近の安い価格（20時間分）</span>
           <span class="ind-value">
             {{ "%.3f"|format(result.recent_low) if result.recent_low is not none else "---" }}
           </span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">重要指標警戒</span>
+          <span class="ind-label">重要な経済発表</span>
           <span class="ind-value {% if result.economic_warning %}warning-active{% endif %}">
-            {% if result.economic_warning %}警戒中{% else %}なし{% endif %}
+            {% if result.economic_warning %}発表前後（注意）{% else %}なし{% endif %}
           </span>
         </div>
       </div>
@@ -337,62 +393,70 @@
 
     <!-- ボリンジャーバンド -->
     <section class="card">
-      <h3 class="card-title">ボリンジャーバンド（BB20・±2σ）</h3>
+      <h3 class="card-title">価格の上限・下限（ボリンジャーバンド）</h3>
       <div class="indicators-grid">
         <div class="indicator-item">
-          <span class="ind-label">BB上限（+2σ）</span>
+          <span class="ind-label">上限の目安価格</span>
           <span class="ind-value">{{ "%.3f"|format(result.bb_upper) if result.bb_upper is not none else "---" }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">BB中央（SMA20）</span>
+          <span class="ind-label">中心の価格（20時間平均）</span>
           <span class="ind-value">{{ "%.3f"|format(result.bb_middle) if result.bb_middle is not none else "---" }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">BB下限（-2σ）</span>
+          <span class="ind-label">下限の目安価格</span>
           <span class="ind-value">{{ "%.3f"|format(result.bb_lower) if result.bb_lower is not none else "---" }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">BB位置</span>
+          <span class="ind-label">現在の位置</span>
           <span class="ind-value {% if result.bb_status == '下限接近' %}rsi-low{% elif result.bb_status == '上限接近' %}rsi-high{% else %}rsi-normal{% endif %}">
-            {{ result.bb_status }}
+            {% if result.bb_status == '下限接近' %}下限に近い（反発しやすい水準）
+            {% elif result.bb_status == '上限接近' %}上限に近い（反落しやすい水準）
+            {% else %}{{ result.bb_status }}{% endif %}
           </span>
         </div>
       </div>
+      <small class="ai-disclaimer">※ 価格が動く範囲の上限・下限を統計的に示した帯。上限や下限に近いほど反転しやすいとされる。</small>
     </section>
 
     <!-- MACD -->
     <section class="card">
-      <h3 class="card-title">MACD（12・26・9）</h3>
+      <h3 class="card-title">上昇・下降の勢い（MACD）</h3>
       <div class="indicators-grid">
         <div class="indicator-item">
-          <span class="ind-label">MACDライン</span>
+          <span class="ind-label">勢いの数値</span>
           <span class="ind-value">{{ "%.5f"|format(result.macd_value) if result.macd_value is not none else "---" }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">シグナルライン</span>
+          <span class="ind-label">基準の数値</span>
           <span class="ind-value">{{ "%.5f"|format(result.macd_signal_value) if result.macd_signal_value is not none else "---" }}</span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">ヒストグラム</span>
+          <span class="ind-label">差（プラスなら上昇方向）</span>
           <span class="ind-value {% if result.macd_histogram is not none %}{% if result.macd_histogram > 0 %}trend-上昇{% elif result.macd_histogram < 0 %}trend-下降{% endif %}{% endif %}">
             {{ "%.5f"|format(result.macd_histogram) if result.macd_histogram is not none else "---" }}
           </span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">MACD状態</span>
+          <span class="ind-label">現在の状態</span>
           <span class="ind-value {% if result.macd_status in ['ゴールデンクロス', '上昇モメンタム'] %}trend-上昇{% elif result.macd_status in ['デッドクロス', '下降モメンタム'] %}trend-下降{% endif %}">
-            {{ result.macd_status }}
+            {% if result.macd_status == 'ゴールデンクロス' %}上昇に転換
+            {% elif result.macd_status == 'デッドクロス' %}下降に転換
+            {% elif result.macd_status == '上昇モメンタム' %}上昇の勢い
+            {% elif result.macd_status == '下降モメンタム' %}下降の勢い
+            {% else %}{{ result.macd_status }}{% endif %}
           </span>
         </div>
       </div>
+      <small class="ai-disclaimer">※ 短期・長期の平均価格の差を見て、上昇・下降の勢いを判断する指標。</small>
     </section>
 
     <!-- 通貨強弱 -->
     <section class="card">
-      <h3 class="card-title">通貨強弱（日足モメンタム）</h3>
+      <h3 class="card-title">通貨の強さ比較</h3>
       <div class="indicators-grid">
         <div class="indicator-item">
-          <span class="ind-label">モメンタムスコア</span>
+          <span class="ind-label">強さのスコア</span>
           <span class="ind-value">
             {% if result.currency_strength is not none %}
               {% if result.currency_strength > 0 %}+{% endif %}{{ "%.2f"|format(result.currency_strength) }}%
@@ -402,42 +466,69 @@
           </span>
         </div>
         <div class="indicator-item">
-          <span class="ind-label">{{ result.symbol }}の強弱</span>
+          <span class="ind-label">{{ result.symbol }}の状態</span>
           <span class="ind-value {% if result.currency_strength_status == '強い' %}trend-上昇{% elif result.currency_strength_status == '弱い' %}trend-下降{% endif %}">
             {{ result.currency_strength_status }}
           </span>
         </div>
       </div>
-      <small class="ai-disclaimer">※ 5・10・20日間の変化率平均（正値=ベース通貨強い、負値=クォート通貨強い）</small>
+      <small class="ai-disclaimer">※ 過去5・10・20日間の価格変化から算出。プラスが大きいほど左の通貨が強く、マイナスなら右の通貨が強い。</small>
+    </section>
+
+    <!-- Phase 85: ローソク足パターン -->
+    <section class="card">
+      <h3 class="card-title">価格パターン（直近の値動きの形）</h3>
+      {% if result.candlestick_patterns %}
+      <div class="candle-patterns">
+        {% for p in result.candlestick_patterns %}
+        <div class="candle-pattern-item {% if p.direction == 'bullish' %}pattern-bullish{% elif p.direction == 'bearish' %}pattern-bearish{% else %}pattern-neutral{% endif %}">
+          <div class="pattern-header">
+            <span class="pattern-name">{{ p.name }}</span>
+            <span class="pattern-name-en">{{ p.name_en }}</span>
+            <span class="pattern-strength">
+              {% for i in range(p.strength) %}★{% endfor %}{% for i in range(3 - p.strength) %}☆{% endfor %}
+            </span>
+            <span class="pattern-dir-badge {% if p.direction == 'bullish' %}badge-bullish{% elif p.direction == 'bearish' %}badge-bearish{% else %}badge-neutral{% endif %}">
+              {% if p.direction == 'bullish' %}強気{% elif p.direction == 'bearish' %}弱気{% else %}中立{% endif %}
+            </span>
+          </div>
+          <p class="pattern-desc">{{ p.description }}</p>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="color:var(--text-muted);font-size:0.85rem;margin:0;">直近のローソク足に特徴的なパターンは検出されませんでした。</p>
+      {% endif %}
+      <small class="ai-disclaimer">※ 参考情報のみ。このパターンは自動売買と無関係です。最終判断は必ず人間が行ってください。</small>
     </section>
 
     <!-- エントリー候補 -->
     <section class="card">
-      <h3 class="card-title">トレードセットアップ</h3>
+      <h3 class="card-title">取引の目安価格</h3>
       {% if result.signal == 'SKIP' %}
-      <p class="no-setup-message">現在は見送り判定のため、エントリーセットアップは表示されません。</p>
+      <p class="no-setup-message">現在は見送り判定のため、取引の目安価格は表示されません。</p>
       {% else %}
       <div class="setup-grid">
         <div class="setup-item">
-          <span class="setup-label">エントリー候補</span>
+          <span class="setup-label">買う・売る価格の目安</span>
           <span class="setup-value entry">
             {{ "%.3f"|format(result.entry_price) if result.entry_price is not none else "---" }}
           </span>
         </div>
         <div class="setup-item">
-          <span class="setup-label">損切り候補</span>
+          <span class="setup-label">損失を止める価格（損切りライン）</span>
           <span class="setup-value stoploss">
             {{ "%.3f"|format(result.stop_loss) if result.stop_loss is not none else "---" }}
           </span>
         </div>
         <div class="setup-item">
-          <span class="setup-label">利確候補</span>
+          <span class="setup-label">利益確定の目標価格</span>
           <span class="setup-value takeprofit">
             {{ "%.3f"|format(result.take_profit) if result.take_profit is not none else "---" }}
           </span>
         </div>
         <div class="setup-item">
-          <span class="setup-label">リスクリワード</span>
+          <span class="setup-label">損失と利益の比率（例: 2.0なら損の2倍を狙う）</span>
           <span class="setup-value {% if result.risk_reward and result.risk_reward >= 1.5 %}rr-good{% else %}rr-bad{% endif %}">
             {{ "%.2f"|format(result.risk_reward) if result.risk_reward is not none else "---" }}
           </span>
@@ -455,7 +546,7 @@
     {% set hs = result.historical_stats %}
     {% if hs and result.signal in ('BUY', 'SELL') and (hs.overall_closed or hs.pattern_closed) %}
     <section class="card">
-      <h3 class="card-title">過去トレードからの学習</h3>
+      <h3 class="card-title">過去の取引結果の参考</h3>
       <div class="history-grid" style="margin-bottom:0;">
         {% if hs.overall_closed and hs.overall_closed > 0 %}
         <div style="text-align:center;">
@@ -471,7 +562,7 @@
         {% endif %}
         {% if hs.pattern_closed and hs.pattern_closed > 0 %}
         <div style="text-align:center;">
-          <div class="h-label">同パターン勝率<br><small>日足{{ result.daily_trend }}・4H{{ result.h4_trend }}</small></div>
+          <div class="h-label">同じ状況での勝率<br><small>1日{{ result.daily_trend }}・4時間{{ result.h4_trend }}</small></div>
           <div class="price-value" style="font-size:1.6rem;
             {% if hs.pattern_win_rate is not none and hs.pattern_win_rate >= 50 %}color:#4ade80;
             {% elif hs.pattern_win_rate is not none %}color:#f87171;{% endif %}">
@@ -483,7 +574,7 @@
         {% endif %}
         {% if hs.recent_outcomes and hs.recent_outcomes|length > 0 %}
         <div style="text-align:center;">
-          <div class="h-label">同パターン直近結果</div>
+          <div class="h-label">同じ状況での直近の結果</div>
           <div style="margin-top:0.4rem;">
             {% for outcome in hs.recent_outcomes %}
               <span style="{% if outcome == 'win' %}color:#4ade80;{% else %}color:#f87171;{% endif %}font-weight:bold;margin-right:4px;">
@@ -502,12 +593,19 @@
 
     <!-- AIコメント -->
     <section class="card">
-      <h3 class="card-title">AIコメント（補足説明）</h3>
+      <h3 class="card-title">AIによる補足コメント
+        <span class="ai-source-badge {% if ai_source == 'claude' %}ai-source-claude{% elif ai_source == 'openai' %}ai-source-openai{% else %}ai-source-mock{% endif %}">
+          🤖 {{ ai_source_label if ai_source_label else 'ルールベース自動生成' }}
+        </span>
+      </h3>
       <div class="ai-comment">
         <p>{{ result.ai_comment }}</p>
         <small class="ai-disclaimer">
           ※ AIコメントは補足説明のみです。売買判定はルールエンジンが決定しており、AIは変更できません。
           このシステムの判定は投資アドバイスではありません。
+          {% if ai_source == 'mock' %}
+          ／ Claude AI を使う場合は <a href="/settings" style="color:var(--color-buy);">/settings</a> ページを確認してください。
+          {% endif %}
         </small>
       </div>
     </section>
@@ -594,195 +692,6 @@
     <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
     <p id="refresh-status" style="font-size:0.75rem; color:var(--text-muted); margin-top:4px;"></p>
   </footer>
-
-  <!-- Phase 28/30/31: ローソク足チャート描画（複数時間足タブ・MA20・MA50・BB） -->
-  <script>
-  (function() {
-    var symbol = (new URLSearchParams(location.search).get('symbol')) || 'USD/JPY';
-    var entryPrice  = {{ result.entry_price  if result and result.entry_price  is not none else 'null' }};
-    var stopLoss    = {{ result.stop_loss    if result and result.stop_loss    is not none else 'null' }};
-    var takeProfit  = {{ result.take_profit  if result and result.take_profit  is not none else 'null' }};
-    var currentPrice = {{ result.current_price if result and result.current_price is not none else 'null' }};
-    var signal = '{{ result.signal if result else "" }}';
-    var activeTf = '1h';
-
-    function drawCandles(candles, tf) {
-      tf = tf || '1h';
-      var svg = document.getElementById('candle-svg');
-      if (!svg) return;
-      var W = 760, H = 260;
-      var PAD = {top: 16, right: 56, bottom: 36, left: 60};
-      var cw = W - PAD.left - PAD.right;
-      var ch = H - PAD.top - PAD.bottom;
-
-      if (!candles || candles.length === 0) {
-        svg.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#888" font-size="13">データなし</text>';
-        return;
-      }
-
-      // price range (include MA/BB and overlay lines)
-      var allPrices = [];
-      candles.forEach(function(c) {
-        allPrices.push(c.h, c.l);
-        if (c.ma20 != null) allPrices.push(c.ma20);
-        if (c.ma50 != null) allPrices.push(c.ma50);
-        if (c.bb_upper != null) allPrices.push(c.bb_upper);
-        if (c.bb_lower != null) allPrices.push(c.bb_lower);
-      });
-      if (entryPrice  !== null) allPrices.push(entryPrice);
-      if (stopLoss    !== null) allPrices.push(stopLoss);
-      if (takeProfit  !== null) allPrices.push(takeProfit);
-      if (currentPrice !== null) allPrices.push(currentPrice);
-
-      var maxP = Math.max.apply(null, allPrices);
-      var minP = Math.min.apply(null, allPrices);
-      var span = maxP - minP || 1;
-      var padP = span * 0.06;
-      maxP += padP; minP -= padP; span = maxP - minP;
-
-      function toY(p) { return PAD.top + ch * (1 - (p - minP) / span); }
-
-      var n = candles.length;
-      var candleW = Math.max(3, Math.floor(cw / n * 0.7));
-      var step = cw / n;
-      function toX(i) { return PAD.left + step * i + step / 2; }
-
-      var parts = [];
-
-      // Grid lines
-      for (var gi = 0; gi <= 4; gi++) {
-        var gp = minP + (span / 4) * gi;
-        var gy = toY(gp);
-        parts.push('<line x1="' + PAD.left + '" y1="' + gy + '" x2="' + (PAD.left + cw) + '" y2="' + gy +
-          '" stroke="#1e2040" stroke-width="1"/>');
-        parts.push('<text x="' + (PAD.left - 4) + '" y="' + (gy + 4) + '" text-anchor="end" fill="#666" font-size="10">' +
-          gp.toFixed(3) + '</text>');
-      }
-
-      // BB band (filled area between upper and lower)
-      var bbUpperPts = [], bbLowerPts = [];
-      candles.forEach(function(c, i) {
-        if (c.bb_upper != null && c.bb_lower != null) {
-          bbUpperPts.push(toX(i) + ',' + toY(c.bb_upper));
-          bbLowerPts.push(toX(i) + ',' + toY(c.bb_lower));
-        }
-      });
-      if (bbUpperPts.length > 1) {
-        var polyPts = bbUpperPts.concat(bbLowerPts.slice().reverse()).join(' ');
-        parts.push('<polygon points="' + polyPts + '" fill="rgba(99,179,237,0.08)" stroke="none"/>');
-        parts.push('<polyline points="' + bbUpperPts.join(' ') + '" fill="none" stroke="#63b3ed" stroke-width="1" opacity="0.5"/>');
-        parts.push('<polyline points="' + bbLowerPts.join(' ') + '" fill="none" stroke="#63b3ed" stroke-width="1" opacity="0.5"/>');
-      }
-
-      // MA50 (water blue)
-      var ma50Pts = [];
-      candles.forEach(function(c, i) { if (c.ma50 != null) ma50Pts.push(toX(i) + ',' + toY(c.ma50)); });
-      if (ma50Pts.length > 1)
-        parts.push('<polyline points="' + ma50Pts.join(' ') + '" fill="none" stroke="#38bdf8" stroke-width="1.5"/>');
-
-      // MA20 (orange)
-      var ma20Pts = [];
-      candles.forEach(function(c, i) { if (c.ma20 != null) ma20Pts.push(toX(i) + ',' + toY(c.ma20)); });
-      if (ma20Pts.length > 1)
-        parts.push('<polyline points="' + ma20Pts.join(' ') + '" fill="none" stroke="#fb923c" stroke-width="1.5"/>');
-
-      // Candles
-      for (var i = 0; i < n; i++) {
-        var c = candles[i];
-        var x = toX(i);
-        var isUp = c.c >= c.o;
-        var color = isUp ? '#4ade80' : '#f87171';
-        var yH = toY(c.h), yL = toY(c.l);
-        var yO = toY(c.o), yC = toY(c.c);
-        var yTop = Math.min(yO, yC), yBot = Math.max(yO, yC);
-        var bodyH = Math.max(1, yBot - yTop);
-        parts.push('<line x1="' + x + '" y1="' + yH + '" x2="' + x + '" y2="' + yL + '" stroke="' + color + '" stroke-width="1"/>');
-        parts.push('<rect x="' + (x - candleW/2) + '" y="' + yTop + '" width="' + candleW + '" height="' + bodyH + '" fill="' + color + '" rx="1"/>');
-      }
-
-      // X-axis labels（日足は日付のみ、それ以外は日付+時刻）
-      var labelEvery = Math.max(1, Math.floor(n / 6));
-      for (var li = 0; li < n; li += labelEvery) {
-        var lx = toX(li);
-        var t = candles[li].t;
-        var lbl = tf === '1d' ? t.slice(5, 10) : t.slice(5, 13).replace('T', ' ');
-        parts.push('<text x="' + lx + '" y="' + (H - 4) + '" text-anchor="middle" fill="#555" font-size="9">' + lbl + '</text>');
-      }
-
-      // Horizontal overlay lines (EP/SL/TP/現在値)
-      function hline(price, color, dash, label) {
-        if (price === null || price === undefined) return;
-        var ly = toY(price);
-        parts.push('<line x1="' + PAD.left + '" y1="' + ly + '" x2="' + (PAD.left + cw) + '" y2="' + ly +
-          '" stroke="' + color + '" stroke-width="1.5" stroke-dasharray="' + dash + '"/>');
-        parts.push('<text x="' + (PAD.left + cw + 2) + '" y="' + (ly + 4) + '" fill="' + color + '" font-size="9">' +
-          label + ' ' + price.toFixed(3) + '</text>');
-      }
-      if (signal !== 'SKIP') {
-        hline(entryPrice, '#facc15', '4 2', 'EP');
-        hline(stopLoss,   '#f87171', '3 2', 'SL');
-        hline(takeProfit, '#4ade80', '3 2', 'TP');
-      }
-      hline(currentPrice, '#a78bfa', '2 2', '現在');
-
-      // Legend
-      var lx0 = PAD.left + 4, ly0 = PAD.top + 4;
-      [
-        ['#fb923c', 'MA20'],
-        ['#38bdf8', 'MA50'],
-        ['#63b3ed', 'BB±2σ'],
-      ].forEach(function(item, idx) {
-        var lx = lx0 + idx * 64;
-        parts.push('<line x1="' + lx + '" y1="' + (ly0+5) + '" x2="' + (lx+14) + '" y2="' + (ly0+5) + '" stroke="' + item[0] + '" stroke-width="2"/>');
-        parts.push('<text x="' + (lx+17) + '" y="' + (ly0+9) + '" fill="#999" font-size="9">' + item[1] + '</text>');
-      });
-
-      // Border
-      parts.push('<rect x="' + PAD.left + '" y="' + PAD.top + '" width="' + cw + '" height="' + ch + '" fill="none" stroke="#1e2040" stroke-width="1"/>');
-
-      svg.innerHTML = parts.join('');
-    }
-
-    function loadChart(tf) {
-      activeTf = tf;
-      var limit = tf === '1d' ? 120 : tf === '4h' ? 90 : 60;
-      var svg = document.getElementById('candle-svg');
-      if (svg) svg.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#666" font-size="13">読み込み中...</text>';
-      fetch('/api/candles?symbol=' + encodeURIComponent(symbol) + '&limit=' + limit + '&tf=' + tf)
-        .then(function(r){ return r.json(); })
-        .then(function(d){
-          var lbl = document.getElementById('candle-symbol-label');
-          var tfLabel = tf === '1d' ? '日足' : tf === '4h' ? '4時間足' : '1時間足';
-          if (lbl) lbl.textContent = d.symbol + '  ' + tfLabel + '  ' + d.count + '本';
-          drawCandles(d.candles, tf);
-          var st = document.getElementById('candle-status');
-          if (st) st.textContent = '最新: ' + (d.candles.length ? d.candles[d.candles.length-1].t : '');
-        })
-        .catch(function(){
-          var s = document.getElementById('candle-svg');
-          if (s) s.innerHTML = '<text x="380" y="135" text-anchor="middle" fill="#888" font-size="13">チャートデータの読み込みに失敗しました</text>';
-        });
-    }
-
-    // タブボタンのクリックイベント
-    document.getElementById('tf-tabs').addEventListener('click', function(e) {
-      var btn = e.target.closest('.tf-btn');
-      if (!btn) return;
-      var tf = btn.getAttribute('data-tf');
-      // アクティブスタイル切替
-      document.querySelectorAll('.tf-btn').forEach(function(b) {
-        var isActive = b.getAttribute('data-tf') === tf;
-        b.style.border = isActive ? '1px solid #4ade80' : '1px solid #444';
-        b.style.background = isActive ? '#4ade8022' : 'transparent';
-        b.style.color = isActive ? '#4ade80' : '#aaa';
-      });
-      loadChart(tf);
-    });
-
-    // 初回ロード
-    loadChart('1h');
-  })();
-  </script>
 
   <!-- Phase 29: ブラウザ通知 -->
   <script>

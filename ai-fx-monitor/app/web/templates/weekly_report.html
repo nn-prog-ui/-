@@ -51,6 +51,8 @@
       <a href="/weekly-report" class="nav-link active">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
       <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -83,17 +85,24 @@
         </button>
       </div>
 
-      <div id="generateStatus" style="display:none;color:#aaa;font-size:0.85rem;margin-bottom:0.75rem;">
-        生成中... Claude APIを呼び出しています
+      <!-- Phase 79: 生成ステータス -->
+      <div id="generateStatus" style="display:none;margin-bottom:0.75rem;">
+        <div style="display:flex;align-items:center;gap:0.75rem;color:#60a5fa;font-size:0.85rem;">
+          <span id="generateSpinner" style="display:inline-block;width:16px;height:16px;border:2px solid #60a5fa;border-top-color:transparent;border-radius:50%;animation:spin 0.8s linear infinite;"></span>
+          AIレポートを生成中... しばらくお待ちください
+        </div>
       </div>
 
+      <!-- Phase 79: 生成結果（3セクション構造） -->
       <div id="generateResult" style="display:none;">
         <div class="card" style="background:#0f0f23;border:1px solid #4ade80;margin-top:0.5rem;">
-          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:1rem;flex-wrap:wrap;">
             <span style="font-weight:700;color:#4ade80;" id="resWeekLabel"></span>
             <span id="resProvider" style="font-size:0.75rem;background:#1a1a2e;padding:2px 8px;border-radius:4px;color:#aaa;"></span>
+            <span style="font-size:0.72rem;color:#4ade80;border:1px solid #4ade80;padding:1px 6px;border-radius:10px;">新規生成</span>
           </div>
-          <p id="resNarrative" style="line-height:1.8;color:#e0e0e0;margin:0;font-size:0.9rem;"></p>
+          <!-- 3セクション表示エリア -->
+          <div id="resSections" style="display:flex;flex-direction:column;gap:0.75rem;"></div>
           <div id="resMetrics" style="margin-top:1rem;display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:0.5rem;"></div>
         </div>
       </div>
@@ -107,15 +116,18 @@
       <p style="color:#666;font-size:0.85rem;">レポートがまだありません。上のボタンから生成してください。</p>
       {% else %}
       {% for rpt in reports %}
-      <div class="card" style="background:#0f0f23;border:1px solid #333;margin-bottom:1rem;">
+      <div class="card" style="background:#0f0f23;border:1px solid {% if loop.first %}#4ade80{% else %}#333{% endif %};margin-bottom:1rem;">
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:0.75rem;margin-bottom:0.75rem;">
-          <span style="font-weight:700;color:#60a5fa;">{{ rpt.metrics.week_label }}</span>
+          <span style="font-weight:700;color:{% if loop.first %}#4ade80{% else %}#60a5fa{% endif %};">{{ rpt.metrics.week_label }}</span>
           <span style="font-size:0.75rem;color:#aaa;">
             {{ rpt.metrics.week_start }} 〜 {{ rpt.metrics.week_end }}
           </span>
           <span style="font-size:0.75rem;background:#1a1a2e;padding:2px 8px;border-radius:4px;color:#888;">
             {{ rpt.ai_provider }}
           </span>
+          {% if loop.first %}
+          <span style="font-size:0.72rem;color:#4ade80;border:1px solid #4ade80;padding:1px 6px;border-radius:10px;">最新</span>
+          {% endif %}
           <span style="font-size:0.75rem;color:#555;margin-left:auto;">{{ rpt.created_at[:16] }}</span>
         </div>
 
@@ -159,10 +171,13 @@
           </div>
         </div>
 
-        <!-- AIナレーティブ -->
+        <!-- Phase 79: AIナレーティブ（3セクション対応） -->
         {% if rpt.ai_narrative %}
-        <div style="background:#1a1a2e;border-radius:6px;padding:1rem;border-left:3px solid #60a5fa;">
-          <p style="margin:0;line-height:1.8;color:#d0d0d0;font-size:0.875rem;">{{ rpt.ai_narrative }}</p>
+        <div class="ai-narrative-block" data-narrative="{{ rpt.ai_narrative | e }}">
+          <!-- JSで3セクション解析して挿入 -->
+          <div style="background:#1a1a2e;border-radius:6px;padding:1rem;border-left:3px solid #60a5fa;">
+            <p style="margin:0;line-height:1.8;color:#d0d0d0;font-size:0.875rem;white-space:pre-wrap;">{{ rpt.ai_narrative }}</p>
+          </div>
         </div>
         {% endif %}
 
@@ -230,7 +245,53 @@
 
   </main>
 
+  <style>
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
   <script>
+    // Phase 79: 3セクション解析ヘルパー
+    const SECTION_DEFS = [
+      { key: '振り返り',      icon: '📊', color: '#60a5fa' },
+      { key: '改善ポイント',  icon: '💡', color: '#fbbf24' },
+      { key: '来週の注目通貨', icon: '🔭', color: '#a78bfa' },
+    ];
+
+    function parseSections(narrative) {
+      if (!narrative) return null;
+      const found = [];
+      SECTION_DEFS.forEach(def => {
+        const re = new RegExp('###\\s*' + def.key + '\\s*\\n([\\s\\S]*?)(?=###|$)', 'i');
+        const m = narrative.match(re);
+        if (m) found.push({ ...def, content: m[1].trim() });
+      });
+      return found.length >= 2 ? found : null; // 2セクション以上あれば構造化
+    }
+
+    function renderSections(narrative, container) {
+      const sections = parseSections(narrative);
+      if (sections) {
+        container.innerHTML = sections.map(s =>
+          `<div style="background:#1a1a2e;border-radius:8px;padding:0.85rem 1rem;border-left:3px solid ${s.color};">
+            <div style="font-size:0.82rem;color:${s.color};font-weight:700;margin-bottom:0.4rem;">${s.icon} ${s.key}</div>
+            <p style="margin:0;line-height:1.8;color:#d0d0d0;font-size:0.875rem;">${s.content.replace(/\n/g,'<br>')}</p>
+          </div>`
+        ).join('');
+      } else {
+        // 旧形式: そのまま表示
+        container.innerHTML = `<div style="background:#1a1a2e;border-radius:6px;padding:1rem;border-left:3px solid #60a5fa;">
+          <p style="margin:0;line-height:1.8;color:#d0d0d0;font-size:0.875rem;white-space:pre-wrap;">${narrative}</p>
+        </div>`;
+      }
+    }
+
+    // 既存レポートの3セクション化（ページロード時）
+    document.addEventListener('DOMContentLoaded', function() {
+      document.querySelectorAll('.ai-narrative-block').forEach(function(block) {
+        const narrative = block.dataset.narrative;
+        renderSections(narrative, block);
+      });
+    });
+
     async function generateReport() {
       const symbol = document.getElementById('symbolSelect').value;
       const btn = document.getElementById('generateBtn');
@@ -250,13 +311,18 @@
 
         if (data.ok) {
           document.getElementById('resWeekLabel').textContent = data.week_label;
-          document.getElementById('resProvider').textContent =
-            data.ai_provider === 'claude' ? 'Claude AI' :
-            data.ai_provider === 'openai' ? 'OpenAI' : 'Mock';
-          document.getElementById('resNarrative').textContent = data.ai_narrative;
+          const providerMap = { claude: '✨ Claude AI', openai: '🤖 OpenAI', mock: '📝 Mock' };
+          document.getElementById('resProvider').textContent = providerMap[data.ai_provider] || data.ai_provider;
+
+          // Phase 79: 3セクション表示
+          const sectionsEl = document.getElementById('resSections');
+          renderSections(data.ai_narrative, sectionsEl);
 
           // 指標カード
           const m = data.metrics;
+          const sentimentStr = m.sentiment_total > 0
+            ? `強気${m.sentiment_bullish_pct.toFixed(0)}% / 弱気${m.sentiment_bearish_pct.toFixed(0)}%`
+            : 'N/A';
           const metricsEl = document.getElementById('resMetrics');
           metricsEl.innerHTML = [
             { label: '今週取引', value: m.week_trades + '件' },
@@ -266,6 +332,7 @@
             { label: '累計pips', value: (m.total_pips >= 0 ? '+' : '') + m.total_pips.toFixed(1),
               color: m.total_pips >= 0 ? '#4ade80' : '#f87171' },
             { label: 'グレード', value: m.overall_grade },
+            { label: 'センチメント', value: sentimentStr },
           ].map(item =>
             `<div class="perf-card">
               <div class="perf-label">${item.label}</div>
@@ -275,7 +342,7 @@
 
           result.style.display = 'block';
           // ページリロードして履歴に追加
-          setTimeout(() => location.reload(), 3000);
+          setTimeout(() => location.reload(), 4000);
         } else {
           alert('エラー: ' + (data.error || '不明なエラー'));
         }

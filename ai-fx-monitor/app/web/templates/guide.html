@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 使い方ガイド</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <style>
+    .guide-section { margin-bottom: 2rem; }
+    .guide-section h2 {
+      font-size: 1.15rem; font-weight: 700; color: #4ade80;
+      border-left: 4px solid #4ade80; padding-left: 0.75rem;
+      margin: 0 0 1rem;
+    }
+    .guide-section h3 {
+      font-size: 0.95rem; font-weight: 600; color: #e2e8f0;
+      margin: 1.2rem 0 0.5rem;
+    }
+    .guide-section p, .guide-section li {
+      font-size: 0.88rem; color: #cbd5e1; line-height: 1.8;
+    }
+    .guide-section ul { padding-left: 1.4rem; margin: 0.4rem 0; }
+    .guide-table {
+      width: 100%; border-collapse: collapse; font-size: 0.85rem;
+      margin: 0.75rem 0;
+    }
+    .guide-table th {
+      background: #1e293b; color: #94a3b8; font-weight: 600;
+      padding: 0.5rem 0.75rem; text-align: left;
+      border-bottom: 1px solid #334155;
+    }
+    .guide-table td {
+      padding: 0.5rem 0.75rem; color: #cbd5e1;
+      border-bottom: 1px solid #1e293b;
+    }
+    .guide-table tr:last-child td { border-bottom: none; }
+    .verdict-buy   { color: #4ade80; font-weight: 700; }
+    .verdict-sell  { color: #f87171; font-weight: 700; }
+    .verdict-skip  { color: #94a3b8; font-weight: 700; }
+    .step-box {
+      display: flex; align-items: flex-start; gap: 1rem;
+      background: #0f172a; border-radius: 8px; padding: 1rem;
+      margin: 0.6rem 0;
+    }
+    .step-num {
+      flex-shrink: 0; width: 2rem; height: 2rem;
+      background: #4ade80; color: #0d0d1a;
+      border-radius: 50%; display: flex; align-items: center;
+      justify-content: center; font-weight: 700; font-size: 0.9rem;
+    }
+    .step-body { flex: 1; }
+    .step-body strong { color: #f1f5f9; font-size: 0.92rem; }
+    .step-body p { margin: 0.3rem 0 0; font-size: 0.85rem; color: #94a3b8; }
+    .note-box {
+      background: #1e293b; border-left: 3px solid #facc15;
+      padding: 0.75rem 1rem; border-radius: 0 6px 6px 0;
+      margin: 0.75rem 0; font-size: 0.85rem; color: #fde68a;
+    }
+    .safe-box {
+      background: #052e16; border: 1px solid #166534;
+      border-radius: 8px; padding: 0.9rem 1rem;
+      font-size: 0.85rem; color: #86efac; margin: 0.5rem 0;
+    }
+    .safe-box strong { color: #4ade80; }
+    .code-inline {
+      font-family: monospace; background: #1e293b;
+      padding: 1px 6px; border-radius: 4px; font-size: 0.82rem;
+      color: #7dd3fc;
+    }
+    .faq-item { margin: 1rem 0; }
+    .faq-q {
+      font-weight: 600; color: #f1f5f9; font-size: 0.9rem;
+      margin-bottom: 0.3rem;
+    }
+    .faq-q::before { content: "Q. "; color: #4ade80; }
+    .faq-a { font-size: 0.85rem; color: #94a3b8; padding-left: 1.5rem; }
+    .faq-a::before { content: "A. "; color: #60a5fa; font-weight: 600; }
+    .toc {
+      background: #0f172a; border-radius: 8px; padding: 1rem 1.25rem;
+      margin-bottom: 1.5rem;
+    }
+    .toc-title { font-size: 0.8rem; color: #64748b; margin-bottom: 0.5rem; }
+    .toc a {
+      display: block; font-size: 0.85rem; color: #60a5fa;
+      text-decoration: none; padding: 0.2rem 0;
+    }
+    .toc a:hover { color: #93c5fd; }
+    .score-demo {
+      display: flex; align-items: center; gap: 0.5rem; margin: 0.4rem 0;
+    }
+    .score-cell {
+      width: 22px; height: 14px; border-radius: 3px;
+    }
+    .score-cell.on-buy  { background: #4ade80; }
+    .score-cell.on-sell { background: #f87171; }
+    .score-cell.off     { background: #334155; }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link">世界イベント</a>
+      <a href="/weekly-report" class="nav-link">週次レポート</a>
+      <a href="/geopolitical" class="nav-link">地政学分析</a>
+      <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link active">使い方</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+
+    <!-- ページタイトル -->
+    <section class="card">
+      <h2 class="card-title" style="font-size:1.3rem;">
+        📖 使い方ガイド
+        <span style="font-size:0.8rem;color:#64748b;font-weight:400;margin-left:1rem;">
+          AI FX市場監視システム 取扱説明書
+        </span>
+      </h2>
+      <p style="font-size:0.88rem;color:#94a3b8;margin:0.5rem 0 0;">
+        このページではシステムの使い方を順番に説明します。
+        FX初心者の方でも迷わず使えるよう、できるだけわかりやすく書いています。
+      </p>
+
+      <!-- 目次 -->
+      <div class="toc" style="margin-top:1rem;">
+        <div class="toc-title">目次</div>
+        <a href="#about">1. このシステムは何をするの？</a>
+        <a href="#start">2. 起動方法</a>
+        <a href="#daily">3. 毎日の使い方（3ステップ）</a>
+        <a href="#verdict">4. 判定の読み方</a>
+        <a href="#score">5. スコアの読み方</a>
+        <a href="#sections">6. 各セクションの説明</a>
+        <a href="#datasource">7. リアルタイムデータに切り替える</a>
+        <a href="#trade">8. 実際のFX取引との関係</a>
+        <a href="#faq">9. よくある質問</a>
+        <a href="#safety">10. 安全に関する原則</a>
+      </div>
+    </section>
+
+    <!-- 1. このシステムは何をするの？ -->
+    <section class="card guide-section" id="about">
+      <h2>1. このシステムは何をするの？</h2>
+      <p>
+        為替（FX）の価格を自動で分析して、<strong style="color:#f1f5f9;">「今買いやすいか・売りやすいか・どちらでもないか」</strong>を
+        画面に表示します。
+      </p>
+      <p style="margin-top:0.75rem;">表示される判定は3種類です：</p>
+      <table class="guide-table" style="margin-top:0.5rem;">
+        <thead>
+          <tr><th>判定</th><th>意味</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="verdict-buy">📈 買い候補</span></td>
+            <td>上がる可能性が高い条件が7つすべて揃っている状態</td>
+          </tr>
+          <tr>
+            <td><span class="verdict-sell">📉 売り候補</span></td>
+            <td>下がる可能性が高い条件が7つすべて揃っている状態</td>
+          </tr>
+          <tr>
+            <td><span class="verdict-skip">⏸ 見送り</span></td>
+            <td>条件が揃っていない・リスクが高い・どちらとも言えない状態</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="note-box" style="margin-top:1rem;">
+        ⚠️ <strong>重要：</strong> このシステムは「参考情報の提示」だけを行います。
+        <strong>自動で注文を出す機能はありません。</strong>
+        最終的な売買の判断は、必ずあなた自身が行ってください。
+      </div>
+
+      <h3>対応している通貨ペア（8種類）</h3>
+      <p>
+        <span class="code-inline">USD/JPY</span>
+        <span class="code-inline">EUR/USD</span>
+        <span class="code-inline">GBP/USD</span>
+        <span class="code-inline">EUR/JPY</span>
+        <span class="code-inline">AUD/JPY</span>
+        <span class="code-inline">AUD/USD</span>
+        <span class="code-inline">EUR/GBP</span>
+        <span class="code-inline">GBP/JPY</span>
+      </p>
+    </section>
+
+    <!-- 2. 起動方法 -->
+    <section class="card guide-section" id="start">
+      <h2>2. 起動方法</h2>
+      <div class="step-box">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>ターミナル（黒い画面）を開く</strong>
+          <p>Mac なら「ターミナル」、Windows なら「コマンドプロンプト」を開きます。</p>
+        </div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>プロジェクトフォルダに移動してサーバーを起動する</strong>
+          <p>以下のコマンドをコピーして実行してください。</p>
+          <pre style="background:#0f172a;padding:0.75rem;border-radius:6px;font-size:0.82rem;color:#7dd3fc;margin-top:0.5rem;overflow-x:auto;">pip3 install -r requirements.txt   # 初回のみ
+python3 -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000</pre>
+        </div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>ブラウザで開く</strong>
+          <p>
+            <a href="http://localhost:8000" target="_blank" style="color:#4ade80;">
+              http://localhost:8000
+            </a>
+            にアクセスすると判定ページが表示されます。
+          </p>
+        </div>
+      </div>
+      <div class="note-box">
+        サーバーを止めるには、ターミナルで <span class="code-inline">Ctrl + C</span> を押してください。
+      </div>
+    </section>
+
+    <!-- 3. 毎日の使い方 -->
+    <section class="card guide-section" id="daily">
+      <h2>3. 毎日の使い方（3ステップ）</h2>
+      <div class="step-box">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>ブラウザで <a href="/" style="color:#4ade80;">http://localhost:8000</a> を開く</strong>
+          <p>ページを開くたびに最新データで分析が実行されます。</p>
+        </div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong>判定を確認する</strong>
+          <p>画面の上部に大きく「買い候補」「売り候補」「見送り」のどれかが表示されます。</p>
+        </div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>自分で判断して記録する</strong>
+          <p>
+            画面を最後まで読んで納得できたら「買い承認」「売り承認」「見送り記録」ボタンを押します。
+            <strong style="color:#fde68a;">ボタンを押しても実際の取引は発生しません。</strong>
+            判断の履歴が記録されるだけです。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 4. 判定の読み方 -->
+    <section class="card guide-section" id="verdict">
+      <h2>4. 判定の読み方</h2>
+      <p>判定は <strong style="color:#f1f5f9;">7つの条件</strong> をすべて満たしたときだけ出ます。</p>
+      <table class="guide-table" style="margin-top:0.75rem;">
+        <thead>
+          <tr><th>条件の満たし方</th><th>判定結果</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>買い条件 7つ全部 ✅</td>
+            <td><span class="verdict-buy">買い候補</span></td>
+          </tr>
+          <tr>
+            <td>売り条件 7つ全部 ✅</td>
+            <td><span class="verdict-sell">売り候補</span></td>
+          </tr>
+          <tr>
+            <td>どちらか 6つ以下</td>
+            <td><span class="verdict-skip">見送り</span>（6/7でも見送りになります）</td>
+          </tr>
+        </tbody>
+      </table>
+      <div class="note-box">
+        6個揃っても「見送り」になるのは、安全を最優先にしているためです。
+        「惜しい！」と感じても、条件不足のときは慎重に判断してください。
+      </div>
+    </section>
+
+    <!-- 5. スコアの読み方 -->
+    <section class="card guide-section" id="score">
+      <h2>5. スコアの読み方</h2>
+      <p>
+        スコアは <strong style="color:#f1f5f9;">−7 〜 +7</strong> の数値で、
+        7つの条件のうち何個を満たしているかを表します。
+      </p>
+      <table class="guide-table" style="margin-top:0.75rem;">
+        <thead>
+          <tr><th>スコア</th><th>意味</th><th>判定</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>+7</td>
+            <td>買い条件 7つすべて満たした</td>
+            <td><span class="verdict-buy">買い候補</span></td>
+          </tr>
+          <tr>
+            <td>+4 〜 +6</td>
+            <td>買い条件が多め・でも不足あり</td>
+            <td><span class="verdict-skip">見送り</span></td>
+          </tr>
+          <tr>
+            <td>0 前後</td>
+            <td>どちらともいえない</td>
+            <td><span class="verdict-skip">見送り</span></td>
+          </tr>
+          <tr>
+            <td>−4 〜 −6</td>
+            <td>売り条件が多め・でも不足あり</td>
+            <td><span class="verdict-skip">見送り</span></td>
+          </tr>
+          <tr>
+            <td>−7</td>
+            <td>売り条件 7つすべて満たした</td>
+            <td><span class="verdict-sell">売り候補</span></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>スコアバーの見方</h3>
+      <p>画面では塗りつぶしたマス目でスコアを視覚的に表示しています。</p>
+      <div style="margin-top:0.75rem;">
+        <div style="font-size:0.85rem;color:#94a3b8;margin-bottom:0.4rem;">例）買い 6/7</div>
+        <div class="score-demo">
+          <span style="font-size:0.85rem;color:#4ade80;font-weight:600;width:50px;">▲ 買い</span>
+          <div class="score-cell on-buy"></div>
+          <div class="score-cell on-buy"></div>
+          <div class="score-cell on-buy"></div>
+          <div class="score-cell on-buy"></div>
+          <div class="score-cell on-buy"></div>
+          <div class="score-cell on-buy"></div>
+          <div class="score-cell off"></div>
+          <span style="font-size:0.82rem;color:#64748b;margin-left:0.5rem;">6/7（あと1つで買い候補）</span>
+        </div>
+        <div style="font-size:0.85rem;color:#94a3b8;margin:0.75rem 0 0.4rem;">例）売り 2/7</div>
+        <div class="score-demo">
+          <span style="font-size:0.85rem;color:#f87171;font-weight:600;width:50px;">▼ 売り</span>
+          <div class="score-cell on-sell"></div>
+          <div class="score-cell on-sell"></div>
+          <div class="score-cell off"></div>
+          <div class="score-cell off"></div>
+          <div class="score-cell off"></div>
+          <div class="score-cell off"></div>
+          <div class="score-cell off"></div>
+          <span style="font-size:0.82rem;color:#64748b;margin-left:0.5rem;">2/7（条件不足）</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. 各セクションの説明 -->
+    <section class="card guide-section" id="sections">
+      <h2>6. 各セクションの説明</h2>
+
+      <h3>📊 相場の流れ</h3>
+      <table class="guide-table">
+        <thead><tr><th>項目</th><th>意味</th></tr></thead>
+        <tbody>
+          <tr><td>1日単位</td><td>大きな流れ（長い目で見た方向）</td></tr>
+          <tr><td>4時間単位</td><td>中くらいの流れ（半日〜1日の動き）</td></tr>
+          <tr><td>1時間単位</td><td>直近の状態（最近の高値・安値を抜けたか）</td></tr>
+          <tr><td>上昇</td><td>価格が上がる方向</td></tr>
+          <tr><td>下降</td><td>価格が下がる方向</td></tr>
+          <tr><td>横ばい</td><td>あまり動いていない</td></tr>
+        </tbody>
+      </table>
+
+      <h3>📈 価格分析の数値</h3>
+      <table class="guide-table">
+        <thead><tr><th>項目</th><th>意味</th><th>目安</th></tr></thead>
+        <tbody>
+          <tr>
+            <td>上がりすぎ・下がりすぎ（RSI）</td>
+            <td>0〜100の数値。過熱感を示す</td>
+            <td>70以上 = 買われすぎ、30以下 = 売られすぎ</td>
+          </tr>
+          <tr>
+            <td>値動きの激しさ</td>
+            <td>最近の値動きの大きさ</td>
+            <td>「通常」が安全。「高い」は注意</td>
+          </tr>
+          <tr>
+            <td>最近の高い価格</td>
+            <td>直近20時間の最高値</td>
+            <td>この価格を超えると「上昇突破」のサイン</td>
+          </tr>
+          <tr>
+            <td>最近の安い価格</td>
+            <td>直近20時間の最安値</td>
+            <td>この価格を下回ると「下降突破」のサイン</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>📉 価格の上限・下限（ボリンジャーバンド）</h3>
+      <p>
+        統計的に「このくらいの範囲で動くだろう」という上限・下限の帯です。
+      </p>
+      <ul>
+        <li><strong style="color:#f1f5f9;">上限に近い</strong> → 反落しやすい水準（上がりすぎ注意）</li>
+        <li><strong style="color:#f1f5f9;">下限に近い</strong> → 反発しやすい水準（下がりすぎ注意）</li>
+      </ul>
+
+      <h3>⚡ 上昇・下降の勢い（MACD）</h3>
+      <p>短期と長期の平均価格の差を見て、今の勢いを判断します。</p>
+      <ul>
+        <li><strong style="color:#4ade80;">上昇に転換</strong> → 下から上に勢いが変わった</li>
+        <li><strong style="color:#f87171;">下降に転換</strong> → 上から下に勢いが変わった</li>
+      </ul>
+
+      <h3>🕯️ 価格パターン（直近の値動きの形）</h3>
+      <p>
+        ローソク足チャートの形から「上がりやすい形か、下がりやすい形か」を自動判定します。
+        ★の数が多いほど信頼性が高いとされます（あくまで参考）。
+      </p>
+
+      <h3>💰 取引の目安価格</h3>
+      <table class="guide-table">
+        <thead><tr><th>項目</th><th>意味</th></tr></thead>
+        <tbody>
+          <tr><td>買う・売る価格の目安</td><td>このあたりで取引を検討する価格</td></tr>
+          <tr><td>損失を止める価格</td><td>ここまで逆に動いたら撤退する価格（損切りライン）</td></tr>
+          <tr><td>利益確定の目標価格</td><td>ここまで動いたら利益を確定する価格</td></tr>
+          <tr><td>損失と利益の比率</td><td>例）2.0 = 損失の2倍の利益を狙う設定</td></tr>
+        </tbody>
+      </table>
+
+      <h3>🌍 国際情勢（スコア補正）</h3>
+      <p>
+        世界情勢（戦争・経済制裁など）が USD に大きく影響するとき、スコアを ±1 補正します。
+        あくまで参考情報です。
+      </p>
+
+      <h3>🤖 AI コメント</h3>
+      <p>
+        分析結果を自然な文章で説明するコメントです。
+        右上に表示されるバッジで、どのAIが生成したか確認できます。
+      </p>
+      <ul>
+        <li><strong style="color:#a78bfa;">Claude AI</strong> — Anthropic の Claude（APIキー設定時）</li>
+        <li><strong style="color:#60a5fa;">OpenAI</strong> — ChatGPT（APIキー設定時）</li>
+        <li><strong style="color:#94a3b8;">ルールベース自動生成</strong> — APIキーなしの場合</li>
+      </ul>
+    </section>
+
+    <!-- 7. リアルタイムデータ -->
+    <section class="card guide-section" id="datasource">
+      <h2>7. リアルタイムデータに切り替える</h2>
+      <p>
+        デフォルトでは CSV ファイルのデータを使います。
+        <strong style="color:#fde68a;">リアルタイムの価格で分析するには設定変更が必要です。</strong>
+      </p>
+      <div class="step-box">
+        <div class="step-num">1</div>
+        <div class="step-body">
+          <strong>プロジェクトフォルダの <span class="code-inline">.env</span> ファイルを開く</strong>
+          <p>テキストエディタで開いてください（メモ帳など）。</p>
+        </div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">2</div>
+        <div class="step-body">
+          <strong><span class="code-inline">DATA_SOURCE=csv</span> を書き換える</strong>
+          <pre style="background:#0f172a;padding:0.75rem;border-radius:6px;font-size:0.82rem;color:#7dd3fc;margin-top:0.5rem;">DATA_SOURCE=yfinance</pre>
+        </div>
+      </div>
+      <div class="step-box">
+        <div class="step-num">3</div>
+        <div class="step-body">
+          <strong>サーバーを再起動する</strong>
+          <p>ターミナルで <span class="code-inline">Ctrl + C</span> で止めて、もう一度起動コマンドを実行します。</p>
+        </div>
+      </div>
+      <div class="note-box">
+        yfinance（Yahoo Finance）のデータは数分程度の遅延があります。
+        証券会社のリアルタイム価格とは少し異なる場合があります。
+      </div>
+    </section>
+
+    <!-- 8. 実際のFX取引との関係 -->
+    <section class="card guide-section" id="trade">
+      <h2>8. 実際のFX取引との関係</h2>
+      <p>このシステムと実際のFX取引の関係を図で示します。</p>
+      <div style="background:#0f172a;border-radius:8px;padding:1.25rem;margin:0.75rem 0;text-align:center;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:1rem;flex-wrap:wrap;">
+          <div style="background:#1e3a5f;border:1px solid #2563eb;border-radius:8px;padding:0.75rem 1.25rem;font-size:0.85rem;">
+            <div style="color:#60a5fa;font-weight:700;">このシステム</div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.3rem;">「買い候補」を表示</div>
+          </div>
+          <div style="font-size:1.5rem;color:#475569;">→</div>
+          <div style="background:#1a2e1a;border:1px solid #166534;border-radius:8px;padding:0.75rem 1.25rem;font-size:0.85rem;">
+            <div style="color:#4ade80;font-weight:700;">あなたが判断</div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.3rem;">内容を確認・納得する</div>
+          </div>
+          <div style="font-size:1.5rem;color:#475569;">→</div>
+          <div style="background:#2d1a1a;border:1px solid #991b1b;border-radius:8px;padding:0.75rem 1.25rem;font-size:0.85rem;">
+            <div style="color:#f87171;font-weight:700;">FX会社で手動注文</div>
+            <div style="color:#94a3b8;font-size:0.78rem;margin-top:0.3rem;">DMM FX など（別途）</div>
+          </div>
+        </div>
+      </div>
+      <div class="safe-box">
+        <strong>このシステムが注文を出すことは絶対にありません。</strong><br>
+        注文はすべて、あなたが FX 会社のアプリ・サイトで手動で行います。
+      </div>
+      <div class="note-box" style="margin-top:0.75rem;">
+        ⚠️ まずは <strong>デモ口座（仮想資金）</strong> でお試しください。
+        FX は元本が保証されない投資です。このシステムの判定は参考情報であり、
+        利益を保証するものではありません。
+      </div>
+    </section>
+
+    <!-- 9. よくある質問 -->
+    <section class="card guide-section" id="faq">
+      <h2>9. よくある質問</h2>
+
+      <div class="faq-item">
+        <div class="faq-q">ボタンを押したら本当に注文されませんか？</div>
+        <div class="faq-a">
+          はい、されません。データベースに「記録した」という履歴が保存されるだけです。
+          実際の取引とは一切連動していません。
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">スコア +6 でも「見送り」になるのはなぜ？</div>
+        <div class="faq-a">
+          このシステムは安全を最優先して「全7条件が揃ったときだけ」を買い・売りと判定します。
+          6/7では「惜しい」ですが「見送り」です。
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">判定は何分ごとに更新されますか？</div>
+        <div class="faq-a">
+          ページを開くたびに最新データで分析します。
+          自動スキャンは <a href="/settings" style="color:#60a5fa;">設定ページ</a> で間隔を変更できます（デフォルト60分）。
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">CSVファイルがなくても使えますか？</div>
+        <div class="faq-a">
+          はい。<span class="code-inline">DATA_SOURCE=yfinance</span> に設定すれば
+          Yahoo Finance からリアルタイムに取得できます。
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">AIコメントはどこから来ていますか？</div>
+        <div class="faq-a">
+          <span class="code-inline">ANTHROPIC_API_KEY</span> を設定すると Claude AI、
+          <span class="code-inline">OPENAI_API_KEY</span> を設定すると OpenAI が使われます。
+          どちらもない場合はルールベースで自動生成します。
+          <a href="/settings" style="color:#60a5fa;">設定ページ</a> で接続テストができます。
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">24時間自動で動きますか？</div>
+        <div class="faq-a">
+          はい。サーバーを起動したまま放置すると、設定した間隔（デフォルト60分）で
+          自動スキャンが動き続けます。条件を満たしたときはメールで通知します。
+        </div>
+      </div>
+
+      <div class="faq-item">
+        <div class="faq-q">スコアに「補正」と書いてあるのはなぜ？</div>
+        <div class="faq-a">
+          世界情勢（戦争・経済制裁など）が USD に大きく影響するとき、スコアを±1 補正します。
+          「国際情勢」セクションに詳細が表示されます。あくまで参考です。
+        </div>
+      </div>
+    </section>
+
+    <!-- 10. 安全に関する原則 -->
+    <section class="card guide-section" id="safety">
+      <h2>10. 安全に関する原則</h2>
+      <div class="safe-box" style="margin-bottom:0.75rem;">
+        <strong>1. 自動売買しない</strong><br>
+        ボタンを押しても注文は出ない。すべての売買はあなたが手動で行う。
+      </div>
+      <div class="safe-box" style="margin-bottom:0.75rem;">
+        <strong>2. 本番口座への接続機能はない</strong><br>
+        このシステムは FX 会社のシステムと接続していない。
+      </div>
+      <div class="safe-box" style="margin-bottom:0.75rem;">
+        <strong>3. APIキーはファイルに直接書かない</strong><br>
+        すべて <span class="code-inline" style="color:#86efac;">.env</span> ファイルで管理。コードに書いてはいけない。
+      </div>
+      <div class="safe-box">
+        <strong>4. 判断は人間が行う</strong><br>
+        AI・システムの判定はあくまで参考情報。最終判断は必ずあなた自身が行う。
+      </div>
+
+      <div style="margin-top:1.25rem;padding:0.75rem;background:#0f172a;border-radius:8px;font-size:0.82rem;color:#64748b;text-align:center;">
+        AI FX市場監視システム | 分析・通知のみ / 自動注文なし<br>
+        投資判断は自己責任で。過去の成績は将来の利益を保証しません。
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>AI FX市場監視システム MVP v0.1 | 本番注文機能なし | 投資判断は自己責任で</p>
+  </footer>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

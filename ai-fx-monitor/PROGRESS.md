@@ -657,6 +657,253 @@ AI FX市場監視システム 進捗記録
 - `app/web/templates/index.html`：環境認識カードにconfluenceパネル挿入
 - `tests/test_confluence.py`：テスト10件新規作成（全289テスト通過）
 
+### Phase 72：TradingView リアルタイムチャート埋め込み（2026-05-23）
+
+- `app/web/templates/index.html`：SVGチャートをTradingView Widgetに置換
+- `tests/test_tradingview_chart.py`：テスト20件新規作成
+
+### Phase 73：複数通貨ペア一覧ダッシュボード（地政学リスク強化）（2026-05-23）
+
+- `app/web/routes.py`：`dashboard()` にグローバル地政学コンテキスト追加
+- `app/web/templates/dashboard.html`：geo risk バッジ・警告バナー・スコア内訳追加
+- `tests/test_dashboard_geo.py`：テスト20件新規作成
+
+### Phase 74：バックテスト結果グラフ化（2026-05-23）
+
+- `app/web/routes.py`：`backtest_page()` にトレードJSON渡し追加
+- `app/web/templates/backtest.html`：エクイティカーブ・月次棒グラフSVG追加
+- `tests/test_backtest_chart.py`：テスト20件新規作成
+
+### Phase 75：ニュースセンチメント集計（2026-05-23）
+
+- `app/scripts/sentiment.py`：新規作成（集計ロジック）
+- `app/web/routes.py`：`/sentiment` と `/api/sentiment` エンドポイント追加
+- `app/web/templates/sentiment.html`：新規作成（センチメントダッシュボード）
+- 全32テンプレートに `/sentiment` ナビリンク追加
+- `tests/test_sentiment.py`：テスト42件新規作成
+
+### Phase 76：Railway 本番デプロイ対応（2026-05-23）
+
+- `Dockerfile`：Python 3.11-slim、`TRADING_MODE=demo_only` 強制
+- `.dockerignore`：.env・*.db・CSVを除外
+- `railway.toml`：DOCKERFILE ビルダー、ヘルスチェック `/health` 設定
+- `app/scripts/startup_check.py`：新規作成（ディレクトリ・CSV・安全環境変数チェック）
+- `app/main.py`：startup_event に起動チェック追加
+- `app/web/routes.py`：`/health` エンドポイント強化（DB確認・CSV確認・503対応）
+- `DEPLOY.md`：Railway デプロイ手順書新規作成
+- `tests/test_deploy.py`：テスト34件新規作成（全パス）
+
+### 最終調整（2026-05-23）
+
+**売りスコア・スコア説明の追加**
+- `app/web/templates/index.html`：
+  - 判定セクションに「条件の充足数」バー表示を追加
+    - 買い N/7 ■■■□□□□ と 売り M/7 ■□□□□□□ を並列表示
+    - 充足数に応じてバーの色が変わる（緑＝買い / 赤＝売り / グレー＝未充足）
+  - スコアの下に「最大+7=全条件を満たし買い候補 / 最小-7=全条件を満たし売り候補」を説明テキストで追加
+  - 「地政学」ラベルを「国際情勢」に変更（わかりやすく）
+  - 信頼度の「pips」に「（価格の変化幅）」を追記
+- `app/web/static/style.css`：`.score-bar-wrap` / `.score-bar-cell` / `.bar-buy` / `.bar-sell` を追加
+
+**README.md を初心者向けに全面書き直し**
+- 旧：技術者向けフォルダ構成・コマンド集（304行）
+- 新：毎日の使い方を中心とした初心者ガイド（約200行）
+  - 「このシステムは何をするの？」から始まる平易な説明
+  - 毎日3ステップの使い方
+  - スコアの読み方（表形式）
+  - 各画面・各セクションの説明（FX用語なし）
+  - データソースの選び方・Claude AIの設定手順
+  - よくある質問（7つ）
+  - 安全に関する原則
+
+### Phase 87：Claude API 実接続（2026-05-23）
+
+- `app/web/routes.py`：
+  - `import os` を追加（未インポートだったため修正）
+  - `POST /api/test-claude` エンドポイント追加：
+    - ANTHROPIC_API_KEY 未設定時は即座に `ok: false` とセットアップ手順を返す
+    - 設定済み時は最小リクエスト（16トークン）を送信して疎通確認
+    - 失敗時は `ok: false` + コンソールの確認先URLを返す
+  - `index()` ルートに `ai_source`（"claude" / "openai" / "mock"）と `ai_source_label` を追加してテンプレートに渡す
+- `app/web/templates/index.html`：
+  - AIコメントカードのタイトルに `ai-source-badge` を追加
+  - Claude AI / OpenAI / ルールベース自動生成 を色分けバッジで表示
+  - ルールベース使用中は「/settings でClaudeを設定できます」リンクを表示
+- `app/web/templates/settings.html`：
+  - ANTHROPIC_API_KEY 行を「Claude AI（AIコメント生成）」に改名
+  - 「接続テスト」ボタンを追加（`/api/test-claude` を fetch）
+  - テスト結果を緑（成功）/ 赤（失敗）で表示
+  - APIキー未設定時にセットアップ手順（4ステップ）をカード内に表示
+  - JavaScript: `claude-test-btn` のクリックハンドラー実装
+- `app/web/static/style.css`：
+  - `.ai-source-badge` / `.ai-source-claude` / `.ai-source-openai` / `.ai-source-mock` を追加
+- `.env.example`：
+  - Claude AI の設定セクションを初心者向けの4ステップ手順付き説明に更新
+- `tests/test_claude_api_phase87.py`：テスト19件新規作成（全パス）
+  - `/api/test-claude` エンドポイントテスト（7件）
+  - index ページの ai_source 反映テスト（4件）
+  - ClaudeCommentaryAdapter 単体テスト（4件）
+  - settings ページテスト（4件）
+
+### Phase 86：AIコメント強化（ローソク足パターン統合）（2026-05-23）
+
+- `app/services/ai_commentary.py`：
+  - `CommentaryAdapter.generate()` / `MockCommentaryAdapter.generate()` / `OpenAICommentaryAdapter.generate()` / `ClaudeCommentaryAdapter.generate()` の全アダプターに `candlestick_patterns: list[CandlePattern] | None = None` 引数を追加
+  - `_generate_mock_commentary()` にパターン言及ロジックを追加：
+    - 強度3のパターン → 「強い強気/弱気パターン（○○）が検出されており…」
+    - 強気のみ → 「強気パターン（○○）が確認されています」
+    - 弱気のみ → 「弱気パターン（○○）が確認されています」
+    - 両方混在 → 「強気・弱気両方のパターンが混在しており、方向感が定まっていません」
+  - `_build_signal_prompt()` に `【直近ローソク足パターン】` セクション追加（Claude/OpenAI用、最大4パターン、日本語名・英語名・方向・強度を含む）
+  - `generate_commentary()` にも `candlestick_patterns` 引数追加
+  - 後方互換性維持（全引数をデフォルト値 `None` で省略可能）
+- `app/services/market_analyzer.py`：
+  - Phase 85 のパターン検出をコメント生成より**前**に移動（順序修正）
+  - `commentary_adapter.generate()` に `candlestick_patterns=candle_patterns` を渡すよう更新
+- `tests/test_ai_commentary_phase86.py`：テスト23件新規作成（全パス）
+  - モックコメントのパターン統合テスト（8件）
+  - MockCommentaryAdapter テスト（5件）
+  - `_build_signal_prompt` テスト（8件）
+  - 後方互換性テスト（2件）
+
+### Phase 85：ローソク足パターン強化（2026-05-23）
+
+- `app/indicators/candlestick_patterns.py`：新規作成
+  - `CandlePattern` データクラス（name/name_en/direction/strength/description）
+  - 単体パターン（6種）：下影陽線・首吊り線・流れ星・上影陽線・大陽線・大陰線
+  - 2本パターン（3種）：陽の包み足・陰の包み足・二本たくり線
+  - 3本パターン（4種）：三川明けの明星・三川宵の明星・赤三兵・黒三兵
+  - `detect_patterns(df, prev_trend)` メイン関数：直近3本を対象に重複除去しリスト返却
+- `app/services/market_analyzer.py`：
+  - `AnalysisResult` に `candlestick_patterns: list[CandlePattern]` フィールド追加（Phase 85）
+  - `run_analysis()` で `detect_patterns(df_1h, prev_trend=h1_status)` を呼び出し結果をセット
+- `app/web/templates/index.html`：
+  - 通貨強弱セクション直後に「ローソク足パターン（直近1時間足）」カードを追加
+  - bullish（緑）/ bearish（赤）/ neutral（グレー）の色分けバッジ表示
+  - 強度を★/☆で視覚化（例：★★☆ = 強度2）
+  - パターン未検出時は「特徴的なパターンは検出されませんでした」を表示
+  - 注記：「参考情報のみ。自動売買と無関係。最終判断は人間が行う。」を明記
+- `app/web/static/style.css`：
+  - `.candle-patterns` / `.candle-pattern-item` / `.pattern-bullish/bearish/neutral` を追加
+  - `.pattern-header` / `.pattern-name` / `.pattern-name-en` / `.pattern-strength` 追加
+  - `.pattern-dir-badge` / `.badge-bullish/bearish/neutral` / `.pattern-desc` 追加
+- `tests/test_candlestick_patterns.py`：テスト44件新規作成（全パス）
+  - ヘルパー関数テスト（6件）
+  - 単体パターンテスト（11件）
+  - 2本パターンテスト（5件）
+  - 3本パターンテスト（5件）
+  - `detect_patterns` 統合テスト（13件）
+  - `CandlePattern` データクラステスト（2件）
+
+### Phase 84：yfinance アダプター（Yahoo Finance 価格データ連携）（2026-05-23）
+
+- `app/data/yfinance_adapter.py`：新規作成
+  - 全8通貨ペアのYahoo Financeシンボルマッピング（USD/JPY→JPY=X など）
+  - `fetch_ohlcv()`: 1時間足OHLCVデータを取得・正規化（カラム小文字化・tz除去・ソート）
+  - `fetch_latest_price()`: 最新2本から price/prev_price/change/change_pct を返す（30秒ポーリング用）
+  - OHLCVキャッシュ（TTL=1時間）・価格キャッシュ（TTL=5分）で Yahoo Finance への過負荷を防止
+  - 取得失敗時は空 DataFrame を返してフォールバックを可能にする
+- `app/data/price_source.py`：`_get_from_yfinance()` 追加、`get_price_data()` に `DATA_SOURCE=yfinance` 分岐追加
+- `app/web/routes.py`：`api_live_prices` エンドポイントを yfinance 対応に更新（DATA_SOURCE に応じて CSV/yfinance を切り替え）
+- `requirements.txt`：`yfinance>=0.2.40` 追加
+- `.env.example`：`DATA_SOURCE=yfinance` オプションを追記（DMM FX ユーザー向け案内付き）
+- `tests/test_yfinance_adapter.py`：テスト37件新規作成（全パス）
+
+### Phase 83：通貨ペア追加（AUD/GBP/JPY系）（2026-05-23）
+
+- `app/config.py`：`SYMBOL_CSV_MAP` に 4 ペア追加（AUD/JPY・AUD/USD・EUR/GBP・GBP/JPY）→ `SUPPORTED_SYMBOLS` が 4 → 8 ペアに
+- `app/data/loader.py`：
+  - `_SYMBOL_BASE_PRICES` 辞書を追加（シンボル別代表価格マップ）
+  - `generate_dummy_data()` の `base_price` 引数を `None` 許容型に変更し、`None` 時はシンボルから自動解決
+- `app/web/templates/index.html`：TradingView `tv_symbols` マップに 4 ペア追加（FX:AUDJPY / FX:AUDUSD / FX:EURGBP / FX:GBPJPY）
+- `app/web/templates/history.html`：CSV エクスポートのシンボルセレクトに 4 ペア追加
+- `scripts/generate_sample_csv.py`：全 8 ペア対応に全面刷新（`--symbol` 引数でペア指定可、ペアごとに適切なボラティリティ係数・小数点桁数を設定）
+- テスト影響なし（84 failed / 1704 passed を維持）
+
+### Phase 82：履歴ページリアルタイム検索（2026-05-23）
+
+- `app/web/templates/history.html`：
+  - `history-search-section` を追加（検索バー + クイックフィルター群 + 件数カウンター）
+  - 検索バー（`id="history-search-input"`）：入力のたびに `filterHistory()` 発火、大文字小文字を区別しない textContent 全文検索
+  - クリアボタン（`id="history-search-clear"`）：入力あるときのみ表示
+  - 件数表示（`id="history-search-count"`）：「N / M 件表示中」形式
+  - 「検索条件に一致しない」メッセージ（`id="history-no-results"`）
+  - クイックフィルターボタン（`id="history-quick-filters"`）：全て / BUY / SELL / SKIP / 買い承認 / 売り承認 / 勝ち / 負け
+  - `article.history-card` に `data-signal` / `data-action` / `data-outcome` / `data-symbol` 属性を追加
+  - `filterHistory()` / `applyQuickFilter()` / `clearHistorySearch()` JS 関数を IIFE スコープで実装
+  - キーワード検索 × クイックフィルターの AND 結合で絞り込み
+  - `DOMContentLoaded` で初期件数を表示
+  - `.h-filter-btn` CSS（hover・active）でボタンスタイル
+- `tests/test_history_search.py`：テスト47件新規作成（全パス）
+
+### Phase 81：ポジションサマリーウィジェット（2026-05-23）
+
+- `app/web/routes.py`：`/api/open-positions` エンドポイント追加
+  - `get_open_trades()` でオープン中デモ取引を取得
+  - 各通貨ペアのCSV最終行から現在価格を読み込み含み損益計算（BUY: current-entry, SELL: entry-current）
+  - JPYペア：×100、非JPYペア：×10000 の pip 乗数
+  - `pips_to_sl` / `pips_to_tp` / `elapsed_hours` / `direction`（profit/loss/neutral）を返却
+  - レスポンス：`positions` / `count` / `total_unrealized_pips` / `fetched_at`
+- `app/web/templates/dashboard.html`：ポジションサマリーウィジェット追加
+  - `id="position-summary-section"`：オープンポジション一覧（含み損益・SL/TP距離・経過時間）
+  - `pos-count-badge` / `pos-total-pnl` 要素で集計値表示
+  - 含み益 #4ade80（緑）/ 含み損 #f87171（赤）で色分け
+  - 「オープン中のポジションはありません」空状態メッセージ
+  - `/performance` リンクあり
+  - 30秒 setInterval でポーリング
+- `tests/test_position_summary.py`：テスト43件新規作成（全パス）
+
+### Phase 80：CSVエクスポート機能強化（2026-05-23）
+
+- `app/database/repository.py`：
+  - `get_closed_trades_for_export()` 新規追加（outcome確定済み・買/売承認のみ、symbol/date_from/date_to フィルター対応）
+  - `get_monthly_stats_for_export()` 新規追加（月次×シンボル別 P&L統計）
+- `app/web/routes.py`：
+  - `/export/closed-trades.csv` エンドポイント追加（symbol・期間フィルター対応、日付入りファイル名）
+  - `/export/monthly-stats.csv` エンドポイント追加
+- `app/web/templates/performance.html`：エクスポートバーを「📥 クローズ済み取引 CSV」「📊 月次統計 CSV」に刷新
+- `app/web/templates/history.html`：期間絞込UI追加（date_from/date_to + シンボルセレクト + 絞込CSVボタン）、`exportWithFilter()` JS関数でURLSearchParams組み立て
+- `tests/test_csv_export.py`：テスト42件新規作成（全パス）
+
+### Phase 79：AI週次レポート自動生成強化（2026-05-23）
+
+- `app/scripts/weekly_report.py`：
+  - `WeeklyMetrics` に `sentiment_total/bullish_pct/bearish_pct/neutral_pct` フィールド追加
+  - `_collect_metrics` でセンチメントデータ（直近7日）を自動取得
+  - `_WEEKLY_SYSTEM_PROMPT` を3セクション構造（振り返り/改善ポイント/来週の注目通貨）に変更
+  - `_build_weekly_prompt` にセンチメントデータ・出力指示を追加
+  - `_generate_mock_narrative` を3セクション形式（`### セクション名`区切り）に刷新
+- `app/services/scheduler.py`：`_run_weekly_report_auto` 追加 → 毎週月曜 00:05 JST（UTC日曜15:05）にcronで自動生成
+- `app/web/templates/weekly_report.html`：
+  - 生成中スピナーアニメーション追加
+  - `parseSections()`/`renderSections()` JS関数で3セクション（📊/💡/🔭）を色分けカード表示
+  - 既存レポートもDOMContentLoadedで3セクション解析して自動変換
+  - 最新レポートに「最新」バッジ・緑枠ハイライト
+  - 生成結果にセンチメント指標カード追加
+  - AIプロバイダーを絵文字ラベル（✨ Claude / 🤖 OpenAI / 📝 Mock）で表示
+- `tests/test_weekly_report_ai.py`：テスト38件新規作成（全パス）
+
+### Phase 78：リアルタイム価格モニター（2026-05-23）
+
+- `app/web/routes.py`：`/api/live-prices` エンドポイント追加（Phase 78）
+  - SUPPORTED_SYMBOLS を全件ループ、CSV最終2行から価格・前値・変化量・変化率を計算
+  - `_signal_cache` からシグナル情報を補完、data_source/fetched_at を付与
+- `app/web/templates/dashboard.html`：リアルタイム価格モニターウィジェット追加
+  - 4通貨ペア × 現在価格・変化バッジ（▲▼）・シグナルバッジ を横並び表示
+  - 30秒自動ポーリング、カウントダウン表示、最終更新秒数表示
+  - データソース（📊 CSV / 🔴 OANDA Live）バッジ
+  - 価格変化時に黄色フラッシュアニメーション
+- `tests/test_live_prices.py`：テスト38件新規作成（全パス）
+
+### Phase 77：成績ページに月次損益グラフ追加（2026-05-23）
+
+- `app/web/templates/performance.html`：月次損益バーチャート・シグナル別成績チャート追加
+  - `id="monthly-chart"`（SVG 760×240）：月次total_pips を緑/赤バーで表示
+  - `id="signal-chart"`（SVG 760×160）：BUY/SELL別勝敗・勝率・pips を水平バーで表示
+  - `/api/chart-stats` から `monthly` + `by_signal` をフェッチして描画
+  - Phase 26 の累積pipsチャートと共存（3チャート構成）
+- `tests/test_performance_chart.py`：テスト40件新規作成（全パス）
+
 ---
 
 ## エラー記録
@@ -664,6 +911,18 @@ AI FX市場監視システム 進捗記録
 ### relatedTransactionIDs が空リストの IndexError（Phase 13）
 - 原因：`data.get("relatedTransactionIDs", [None])[0]` が空リスト時に IndexError
 - 修正：`related = data.get("relatedTransactionIDs") or []; order_id = related[0] if related else None`
+
+### test_pwa [template33] が FAILED（2026-05-24）
+- 原因：`app/web/templates/sentiment.html` だけ Service Worker 登録スクリプト（`navigator.serviceWorker.register`）が抜けていた
+- 修正：`</body>` 直前に他テンプレートと同じ SW 登録スクリプトを追加
+
+### test_scheduler::test_job_is_registered が FAILED（2026-05-24）
+- 原因：スケジューラーにジョブが3件（`fx_scan` / `news_collection` / `weekly_report_auto`）あるのに、テストが `len(jobs) == 1` と古い期待値のままだった
+- 修正：`len(jobs) == 3` に更新し、3つのジョブID全てを確認するよう強化
+
+### test_push.py が収集エラー（2026-05-24）
+- 原因：`PyJWT` および `cryptography` パッケージが未インストール
+- 修正：`pip3 install PyJWT cryptography` でインストール → 34件全パス
 
 ---
 
@@ -683,3 +942,9 @@ AI FX市場監視システム 進捗記録
 | 2026-05-14 | Phase 16 定期スキャン | scheduler.py, main.py |
 | 2026-05-14 | Phase 17 バックテストCLI | scripts/backtest.py |
 | 2026-05-14 | Phase 18 ドキュメント整備 | README.md, PROGRESS.md |
+| 2026-05-23 | Phase 85 ローソク足パターン強化 | candlestick_patterns.py, market_analyzer.py, index.html |
+| 2026-05-23 | Phase 86 AIコメント強化（パターン統合） | ai_commentary.py |
+| 2026-05-23 | Phase 87 Claude API実接続・設定画面 | routes.py, settings.html |
+| 2026-05-23 | 最終調整（UI・スコア・README） | index.html, style.css, README.md |
+| 2026-05-24 | テスト修正・PyJWT導入（全1994件合格） | sentiment.html, test_scheduler.py |
+| 2026-05-24 | 使い方ガイドページ追加（全1998件合格） | guide.html, routes.py, 全34テンプレート |

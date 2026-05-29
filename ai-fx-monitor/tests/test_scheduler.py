@@ -86,8 +86,12 @@ class TestStartScheduler:
         start_scheduler()
 
         jobs = scheduler_module._scheduler.get_jobs()
-        assert len(jobs) == 1
-        assert jobs[0].id == "fx_scan"
+        job_ids = {j.id for j in jobs}
+        # fx_scan / news_collection / weekly_report_auto の3ジョブが登録される
+        assert len(jobs) == 3
+        assert "fx_scan" in job_ids
+        assert "news_collection" in job_ids
+        assert "weekly_report_auto" in job_ids
 
 
 # ---------------------------------------------------------------------------

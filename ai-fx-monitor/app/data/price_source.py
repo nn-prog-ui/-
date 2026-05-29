@@ -38,11 +38,18 @@ def get_price_data(
 
     Returns:
         (timeframes_dict, is_dummy): {"1h": df, "4h": df, "daily": df} とダミーフラグ
+
+    DATA_SOURCE の選択肢:
+        csv      : CSVファイルから読み込む（デフォルト）
+        yfinance : Yahoo Finance から取得（Phase 84: 口座不要・無料）
+        oanda    : OANDA デモAPI（Phase 8）
     """
     source = os.getenv("DATA_SOURCE", "csv").lower()
 
     if source == "oanda":
         return _get_from_oanda(symbol)
+    elif source == "yfinance":
+        return _get_from_yfinance(symbol)
     else:
         return _get_from_csv(csv_path)
 
@@ -89,6 +96,28 @@ def _get_from_oanda(symbol: str) -> tuple[dict[str, pd.DataFrame], bool]:
         return _get_from_csv(None)
     except Exception as exc:
         logger.error("予期しないエラー（%s）→ CSVにフォールバック", exc)
+        return _get_from_csv(None)
+
+
+def _get_from_yfinance(symbol: str) -> tuple[dict[str, pd.DataFrame], bool]:
+    """Yahoo Finance からデータを取得する（Phase 84）。
+
+    失敗時は CSV フォールバックを行う。
+    """
+    from app.data.yfinance_adapter import fetch_ohlcv  # noqa: PLC0415
+
+    try:
+        df_1h = fetch_ohlcv(symbol, period="6mo", interval="1h")
+        if df_1h.empty:
+            logger.warning("yfinance: データが空。CSVにフォールバック: %s", symbol)
+            return _get_from_csv(None)
+
+        timeframes = get_all_timeframes(df_1h)
+        logger.info("yfinance データ取得成功: %s 1h=%d本", symbol, len(df_1h))
+        return timeframes, False
+
+    except Exception as exc:
+        logger.warning("yfinance 取得失敗（%s）→ CSVにフォールバック", exc)
         return _get_from_csv(None)
 
 

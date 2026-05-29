@@ -51,6 +51,8 @@
       <a href="/weekly-report" class="nav-link">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
       <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -200,6 +202,174 @@
         </div>
       </div>
     </section>
+
+    <!-- Phase 74: グラフセクション -->
+    {% if result.trades %}
+    <script>var BT_TRADES = {{ trades_json | safe }};</script>
+
+    <!-- 累積損益グラフ（エクイティカーブ） -->
+    <section class="card" style="margin-top:1rem;">
+      <h3 class="card-title">累積損益グラフ（エクイティカーブ）</h3>
+      <div style="width:100%;overflow-x:auto;">
+        <svg id="equity-svg" width="760" height="220"
+             style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;"></svg>
+      </div>
+      <p style="font-size:0.75rem;color:var(--text-muted);margin:0.3rem 0 0;">
+        横軸: 取引番号 / 縦軸: 累積pips / 緑=勝ち・赤=負け・灰=未決
+      </p>
+    </section>
+
+    <!-- 月次損益棒グラフ -->
+    <section class="card" style="margin-top:1rem;">
+      <h3 class="card-title">月次損益</h3>
+      <p id="monthly-note" style="font-size:0.8rem;color:#888;margin-bottom:0.5rem;">
+        ※ バーインデックスをもとに推定（実際の日付は含まれません）
+      </p>
+      <div style="width:100%;overflow-x:auto;">
+        <svg id="monthly-svg" width="760" height="200"
+             style="display:block;background:#0d0d1a;border-radius:6px;min-width:320px;"></svg>
+      </div>
+    </section>
+
+    <script>
+    (function() {
+      var trades = BT_TRADES;
+      if (!trades || trades.length === 0) return;
+
+      // ── 累積損益グラフ ──────────────────────────────────────────────
+      (function drawEquity() {
+        var svg = document.getElementById('equity-svg');
+        if (!svg) return;
+        var W = 760, H = 220;
+        var PAD = {top:16, right:20, bottom:28, left:56};
+        var cw = W - PAD.left - PAD.right, ch = H - PAD.top - PAD.bottom;
+
+        // 累積pips 計算
+        var cum = 0, points = [{x:0, y:0, outcome:''}];
+        trades.forEach(function(t, i) {
+          if (t.outcome !== 'open') cum += t.pnl_pips || 0;
+          points.push({x: i+1, y: cum, outcome: t.outcome});
+        });
+
+        var maxY = Math.max.apply(null, points.map(function(p){return p.y;}));
+        var minY = Math.min.apply(null, points.map(function(p){return p.y;}));
+        var spanY = maxY - minY || 1;
+        var padY = spanY * 0.1;
+        maxY += padY; minY -= padY; spanY = maxY - minY;
+
+        var n = points.length;
+        function toX(i) { return PAD.left + (i / (n-1)) * cw; }
+        function toY(v) { return PAD.top + ch * (1 - (v - minY) / spanY); }
+
+        var parts = [];
+
+        // グリッドライン
+        for (var gi = 0; gi <= 4; gi++) {
+          var gv = minY + spanY * gi / 4;
+          var gy = toY(gv);
+          parts.push('<line x1="'+PAD.left+'" y1="'+gy+'" x2="'+(PAD.left+cw)+'" y2="'+gy+'" stroke="#1e2040" stroke-width="1"/>');
+          parts.push('<text x="'+(PAD.left-4)+'" y="'+(gy+4)+'" text-anchor="end" fill="#666" font-size="10">'+gv.toFixed(0)+'</text>');
+        }
+
+        // ゼロライン
+        var zeroY = toY(0);
+        parts.push('<line x1="'+PAD.left+'" y1="'+zeroY+'" x2="'+(PAD.left+cw)+'" y2="'+zeroY+'" stroke="#444" stroke-width="1.5" stroke-dasharray="4 3"/>');
+
+        // エクイティ曲線（折れ線）
+        var linePts = points.map(function(p,i){ return toX(i)+','+toY(p.y); }).join(' ');
+        // 色はゼロラインより上なら緑、下なら赤のグラデーション（単色で対応）
+        var lineColor = points[points.length-1].y >= 0 ? '#4ade80' : '#f87171';
+        parts.push('<polyline points="'+linePts+'" fill="none" stroke="'+lineColor+'" stroke-width="2"/>');
+
+        // 各取引ドット
+        trades.forEach(function(t, i) {
+          var p = points[i+1];
+          var col = t.outcome==='win' ? '#4ade80' : t.outcome==='loss' ? '#f87171' : '#666';
+          parts.push('<circle cx="'+toX(i+1)+'" cy="'+toY(p.y)+'" r="3" fill="'+col+'" opacity="0.85"/>');
+        });
+
+        // X軸ラベル
+        var labelEvery = Math.max(1, Math.floor(n / 8));
+        for (var li = 0; li < n; li += labelEvery) {
+          parts.push('<text x="'+toX(li)+'" y="'+(H-4)+'" text-anchor="middle" fill="#555" font-size="9">'+(li)+'</text>');
+        }
+
+        // 枠
+        parts.push('<rect x="'+PAD.left+'" y="'+PAD.top+'" width="'+cw+'" height="'+ch+'" fill="none" stroke="#1e2040" stroke-width="1"/>');
+        svg.innerHTML = parts.join('');
+      })();
+
+      // ── 月次損益棒グラフ ──────────────────────────────────────────
+      (function drawMonthly() {
+        var svg = document.getElementById('monthly-svg');
+        if (!svg) return;
+        var W = 760, H = 200;
+        var PAD = {top:16, right:20, bottom:36, left:56};
+        var cw = W - PAD.left - PAD.right, ch = H - PAD.top - PAD.bottom;
+
+        // バーインデックスを「N件目の20件ブロック」として月近似
+        var blockSize = 20;
+        var blocks = {};
+        trades.forEach(function(t) {
+          if (t.outcome === 'open') return;
+          var blk = Math.floor(t.bar_index / blockSize);
+          if (!blocks[blk]) blocks[blk] = {pips:0, wins:0, losses:0};
+          blocks[blk].pips += t.pnl_pips || 0;
+          if (t.outcome === 'win') blocks[blk].wins++;
+          else blocks[blk].losses++;
+        });
+
+        var keys = Object.keys(blocks).map(Number).sort(function(a,b){return a-b;});
+        if (keys.length === 0) {
+          svg.innerHTML = '<text x="380" y="100" text-anchor="middle" fill="#666" font-size="12">データなし</text>';
+          return;
+        }
+
+        var values = keys.map(function(k){ return blocks[k].pips; });
+        var maxV = Math.max.apply(null, values.concat([0]));
+        var minV = Math.min.apply(null, values.concat([0]));
+        var span = Math.max(maxV - minV, 1);
+        var padV = span * 0.1;
+        maxV += padV; minV -= padV; span = maxV - minV;
+
+        function toY(v) { return PAD.top + ch * (1 - (v - minV) / span); }
+        var zeroY = toY(0);
+
+        var parts = [];
+
+        // グリッドライン
+        for (var gi = 0; gi <= 4; gi++) {
+          var gv = minV + span * gi / 4;
+          var gy = toY(gv);
+          parts.push('<line x1="'+PAD.left+'" y1="'+gy+'" x2="'+(PAD.left+cw)+'" y2="'+gy+'" stroke="#1e2040" stroke-width="1"/>');
+          parts.push('<text x="'+(PAD.left-4)+'" y="'+(gy+4)+'" text-anchor="end" fill="#666" font-size="10">'+gv.toFixed(0)+'</text>');
+        }
+
+        // ゼロライン
+        parts.push('<line x1="'+PAD.left+'" y1="'+zeroY+'" x2="'+(PAD.left+cw)+'" y2="'+zeroY+'" stroke="#555" stroke-width="1"/>');
+
+        // 棒グラフ
+        var n = keys.length;
+        var barW = Math.max(4, Math.floor(cw / n * 0.7));
+        var step = cw / n;
+        keys.forEach(function(k, i) {
+          var v = blocks[k].pips;
+          var x = PAD.left + step * i + step/2;
+          var col = v >= 0 ? '#4ade80' : '#f87171';
+          var y1 = Math.min(toY(v), zeroY), y2 = Math.max(toY(v), zeroY);
+          var bh = Math.max(1, y2 - y1);
+          parts.push('<rect x="'+(x - barW/2)+'" y="'+y1+'" width="'+barW+'" height="'+bh+'" fill="'+col+'" rx="2"/>');
+          parts.push('<text x="'+x+'" y="'+(H-4)+'" text-anchor="middle" fill="#555" font-size="9">'+k+'</text>');
+        });
+
+        // 枠
+        parts.push('<rect x="'+PAD.left+'" y="'+PAD.top+'" width="'+cw+'" height="'+ch+'" fill="none" stroke="#1e2040" stroke-width="1"/>');
+        svg.innerHTML = parts.join('');
+      })();
+
+    })();
+    </script>
+    {% endif %}
 
     <!-- 取引一覧 -->
     {% if result.trades %}

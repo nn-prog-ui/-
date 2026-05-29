@@ -51,6 +51,8 @@
       <a href="/weekly-report" class="nav-link">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
       <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -60,11 +62,34 @@
     <section class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <h2 class="card-title" style="margin:0;">承認履歴（全 {{ total }} 件）</h2>
-        <div class="export-bar">
-          <span class="export-label">エクスポート</span>
-          <a href="/export/history.csv" class="export-btn">📥 全件 CSV</a>
-          <a href="/export/history.csv?signal=BUY" class="export-btn">買いのみ</a>
-          <a href="/export/history.csv?signal=SELL" class="export-btn">売りのみ</a>
+        <!-- Phase 80: 日付範囲・シンボルフィルター付きエクスポート -->
+        <div class="export-bar" style="flex-direction:column;align-items:flex-start;gap:0.5rem;">
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+            <span class="export-label">エクスポート</span>
+            <a href="/export/history.csv" class="export-btn">📥 全件 CSV</a>
+            <a href="/export/history.csv?signal=BUY" class="export-btn">買いのみ</a>
+            <a href="/export/history.csv?signal=SELL" class="export-btn">売りのみ</a>
+            <a href="/export/closed-trades.csv" class="export-btn">✅ 勝敗確定のみ</a>
+          </div>
+          <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;font-size:0.8rem;">
+            <span style="color:#888;">期間絞込:</span>
+            <input type="date" id="exportDateFrom" style="background:#1a1a2e;color:#ccc;border:1px solid #333;border-radius:4px;padding:2px 6px;font-size:0.78rem;">
+            <span style="color:#666;">〜</span>
+            <input type="date" id="exportDateTo" style="background:#1a1a2e;color:#ccc;border:1px solid #333;border-radius:4px;padding:2px 6px;font-size:0.78rem;">
+            <select id="exportSymbol" style="background:#1a1a2e;color:#ccc;border:1px solid #333;border-radius:4px;padding:2px 6px;font-size:0.78rem;">
+              <option value="">全ペア</option>
+              <option value="USD/JPY">USD/JPY</option>
+              <option value="EUR/USD">EUR/USD</option>
+              <option value="GBP/USD">GBP/USD</option>
+              <option value="EUR/JPY">EUR/JPY</option>
+              <option value="AUD/JPY">AUD/JPY</option>
+              <option value="AUD/USD">AUD/USD</option>
+              <option value="EUR/GBP">EUR/GBP</option>
+              <option value="GBP/JPY">GBP/JPY</option>
+            </select>
+            <button onclick="exportWithFilter('history')" style="background:#1d4ed822;color:#60a5fa;border:1px solid #60a5fa;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.78rem;">📥 絞込CSV</button>
+            <button onclick="exportWithFilter('closed')" style="background:#16653422;color:#4ade80;border:1px solid #4ade80;border-radius:4px;padding:2px 10px;cursor:pointer;font-size:0.78rem;">✅ 勝敗+絞込</button>
+          </div>
         </div>
       </div>
       <p class="history-note" style="margin-top:8px;">
@@ -72,10 +97,44 @@
       </p>
     </section>
 
+    <!-- Phase 82: リアルタイム検索バー -->
+    <section class="card" id="history-search-section" style="margin-bottom:0.75rem;padding:0.75rem 1rem;">
+      <style>
+        .h-filter-btn{background:#0f0f1e;color:#888;border:1px solid #333;border-radius:14px;padding:3px 12px;cursor:pointer;font-size:0.78rem;transition:all 0.15s;}
+        .h-filter-btn:hover{border-color:#60a5fa;color:#60a5fa;}
+        .h-filter-btn.active{background:#1d4ed822;border-color:#60a5fa;color:#60a5fa;font-weight:600;}
+        #history-search-input:focus{border-color:#60a5fa;box-shadow:0 0 0 2px #60a5fa22;}
+      </style>
+      <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <span style="font-size:1rem;">🔍</span>
+        <input
+          type="text"
+          id="history-search-input"
+          placeholder="シンボル・シグナル・コメントで絞り込み..."
+          style="flex:1;min-width:180px;background:#0f0f1e;color:#e8e8f0;border:1px solid #333;border-radius:6px;padding:6px 12px;font-size:0.88rem;outline:none;transition:border-color 0.15s;"
+          autocomplete="off"
+          oninput="filterHistory()"
+        >
+        <button id="history-search-clear" onclick="clearHistorySearch()" title="クリア" style="display:none;background:transparent;color:#888;border:none;cursor:pointer;font-size:1rem;padding:0 4px;">✕</button>
+        <span id="history-search-count" style="font-size:0.82rem;color:#888;white-space:nowrap;"></span>
+      </div>
+      <div id="history-quick-filters" style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.6rem;">
+        <button class="h-filter-btn active" data-filter="all" onclick="applyQuickFilter(this,'all')">全て</button>
+        <button class="h-filter-btn" data-filter="BUY" onclick="applyQuickFilter(this,'BUY')">📈 BUY</button>
+        <button class="h-filter-btn" data-filter="SELL" onclick="applyQuickFilter(this,'SELL')">📉 SELL</button>
+        <button class="h-filter-btn" data-filter="SKIP" onclick="applyQuickFilter(this,'SKIP')">⏭ SKIP</button>
+        <button class="h-filter-btn" data-filter="buy_approved" onclick="applyQuickFilter(this,'buy_approved')">✅ 買い承認</button>
+        <button class="h-filter-btn" data-filter="sell_approved" onclick="applyQuickFilter(this,'sell_approved')">✅ 売り承認</button>
+        <button class="h-filter-btn" data-filter="win" onclick="applyQuickFilter(this,'win')">🏆 勝ち</button>
+        <button class="h-filter-btn" data-filter="loss" onclick="applyQuickFilter(this,'loss')">❌ 負け</button>
+      </div>
+      <p id="history-no-results" style="display:none;color:#888;font-size:0.85rem;margin:0.5rem 0 0 0;">検索条件に一致する履歴はありません。</p>
+    </section>
+
     {% if records %}
-    <div class="history-list">
+    <div class="history-list" id="history-list">
       {% for r in records %}
-      <article class="history-card card signal-{{ r.signal|lower if r.signal else 'skip' }}" data-id="{{ r.id }}">
+      <article class="history-card card signal-{{ r.signal|lower if r.signal else 'skip' }}" data-id="{{ r.id }}" data-signal="{{ r.signal or '' }}" data-action="{{ r.human_action or '' }}" data-outcome="{{ r.outcome or '' }}" data-symbol="{{ r.symbol or '' }}">
         <header class="history-card-header">
           <div class="history-meta">
             <span class="history-id">#{{ r.id }}</span>
@@ -282,6 +341,85 @@
       const el = document.querySelector('.history-card[data-id="' + hid + '"]');
       if (el) { el.scrollIntoView({behavior:'smooth', block:'center'}); el.style.outline='2px solid #4ade80'; }
     }
+  </script>
+  <!-- Phase 80: 絞込エクスポートJS -->
+  <script>
+    function exportWithFilter(type) {
+      var dateFrom = document.getElementById('exportDateFrom').value;
+      var dateTo   = document.getElementById('exportDateTo').value;
+      var symbol   = document.getElementById('exportSymbol').value;
+      var params = new URLSearchParams();
+      if (dateFrom) params.set('date_from', dateFrom);
+      if (dateTo)   params.set('date_to',   dateTo);
+      if (symbol)   params.set('symbol',    symbol);
+      var base = type === 'closed' ? '/export/closed-trades.csv' : '/export/history.csv';
+      var qs = params.toString();
+      window.location.href = base + (qs ? '?' + qs : '');
+    }
+  </script>
+  <!-- Phase 82: リアルタイム検索JS -->
+  <script>
+    (function() {
+      var _activeFilter = 'all';
+
+      function matchQuickFilter(card, filter) {
+        if (filter === 'all') return true;
+        var outcome = (card.dataset.outcome || '').toLowerCase();
+        if (filter === 'win')  return outcome === 'win';
+        if (filter === 'loss') return outcome === 'loss';
+        if (filter === 'BUY' || filter === 'SELL' || filter === 'SKIP')
+          return card.dataset.signal === filter;
+        return card.dataset.action === filter;
+      }
+
+      window.filterHistory = function() {
+        var q         = document.getElementById('history-search-input').value.trim().toLowerCase();
+        var clearBtn  = document.getElementById('history-search-clear');
+        var countEl   = document.getElementById('history-search-count');
+        var noResults = document.getElementById('history-no-results');
+        var cards     = document.querySelectorAll('.history-card');
+
+        if (clearBtn) clearBtn.style.display = q ? 'inline' : 'none';
+
+        var shown = 0;
+        cards.forEach(function(card) {
+          var matchKw     = !q || card.textContent.toLowerCase().includes(q);
+          var matchFilter = matchQuickFilter(card, _activeFilter);
+          var visible     = matchKw && matchFilter;
+          card.style.display = visible ? '' : 'none';
+          if (visible) shown++;
+        });
+
+        if (countEl) {
+          if (q || _activeFilter !== 'all') {
+            countEl.textContent = shown + ' / ' + cards.length + ' 件表示中';
+          } else {
+            countEl.textContent = cards.length + ' 件（このページ）';
+          }
+        }
+        if (noResults) {
+          noResults.style.display = (shown === 0 && cards.length > 0) ? 'block' : 'none';
+        }
+      };
+
+      window.applyQuickFilter = function(btn, filter) {
+        _activeFilter = filter;
+        document.querySelectorAll('.h-filter-btn').forEach(function(b) {
+          b.classList.toggle('active', b === btn);
+        });
+        filterHistory();
+      };
+
+      window.clearHistorySearch = function() {
+        var inp = document.getElementById('history-search-input');
+        if (inp) inp.value = '';
+        filterHistory();
+      };
+
+      document.addEventListener('DOMContentLoaded', function() {
+        filterHistory();
+      });
+    })();
   </script>
   <script>
     if ("serviceWorker" in navigator) {

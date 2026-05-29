@@ -98,6 +98,21 @@ def _run_news_collection() -> None:
         logger.error("ニュース自動収集エラー: %s", exc, exc_info=True)
 
 
+def _run_weekly_report_auto() -> None:
+    """Phase 79: 週次AIレポートを全通貨ペアで自動生成する（毎週月曜 00:05 JST）。"""
+    try:
+        from app.scripts.weekly_report import generate_and_save_weekly_report
+        # 全ペアのサマリーを生成
+        report = generate_and_save_weekly_report(symbol="")
+        logger.info(
+            "週次レポート自動生成完了: week=%s provider=%s",
+            report.metrics.week_label,
+            report.ai_provider,
+        )
+    except Exception as exc:
+        logger.error("週次レポート自動生成エラー: %s", exc, exc_info=True)
+
+
 def start_scheduler() -> None:
     """バックグラウンドスケジューラーを起動する。
 
@@ -134,6 +149,18 @@ def start_scheduler() -> None:
             hours=2,
             id="news_collection",
             name="ニュース自動収集",
+            replace_existing=True,
+        )
+        # Phase 79: 週次AIレポート自動生成（毎週月曜 00:05 JST = UTC 日曜 15:05）
+        _scheduler.add_job(
+            _run_weekly_report_auto,
+            trigger="cron",
+            day_of_week="sun",
+            hour=15,
+            minute=5,
+            timezone="UTC",
+            id="weekly_report_auto",
+            name="週次AIレポート自動生成",
             replace_existing=True,
         )
         _scheduler.start()

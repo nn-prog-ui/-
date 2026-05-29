@@ -17,6 +17,7 @@ from app.data.price_source import get_price_data
 from app.data.resampler import get_all_timeframes
 from app.indicators.atr import get_atr_status, get_atr_value, get_recent_high, get_recent_low
 from app.indicators.bollinger_bands import get_bb_status, get_bb_values
+from app.indicators.candlestick_patterns import CandlePattern, detect_patterns
 from app.indicators.currency_strength import calculate_pair_momentum, get_strength_status
 from app.indicators.macd import get_macd_status, get_macd_values
 from app.indicators.rsi import get_rsi_value
@@ -76,6 +77,8 @@ class AnalysisResult:
     # Phase 68: 地政学リスクスコア補正
     geo_score_adjustment: int = 0
     geo_risk_level: str = "neutral"
+    # Phase 85: ローソク足パターン
+    candlestick_patterns: list[CandlePattern] = field(default_factory=list)
 
     @property
     def signal_label(self) -> str:
@@ -174,8 +177,17 @@ def run_analysis(
     except Exception:
         historical_stats = {}
 
+    # Phase 85: ローソク足パターン検出（1時間足）— コメント生成より前に実行
+    candle_patterns: list[CandlePattern] = []
+    try:
+        candle_patterns = detect_patterns(df_1h, prev_trend=signal_result.h1_status)
+    except Exception:
+        candle_patterns = []
+
+    # Phase 86: ローソク足パターンをコメントに反映
     commentary_adapter = MockCommentaryAdapter()
-    ai_comment = commentary_adapter.generate(signal_result, setup, historical_stats)
+    ai_comment = commentary_adapter.generate(signal_result, setup, historical_stats,
+                                             candlestick_patterns=candle_patterns)
 
     score_val: int | None = None
     if signal_result.score is not None:
@@ -274,4 +286,5 @@ def run_analysis(
         signal_quality=signal_quality,
         geo_score_adjustment=geo_score_adjustment,
         geo_risk_level=geo_risk_level,
+        candlestick_patterns=candle_patterns,
     )

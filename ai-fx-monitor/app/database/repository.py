@@ -1111,6 +1111,75 @@ def get_history_for_export(
     return [dict(r) for r in rows]
 
 
+def get_closed_trades_for_export(
+    symbol: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    db_path: Path | None = None,
+) -> list[dict[str, Any]]:
+    """Phase 80: クローズ済み取引（outcome確定済み）をフィルター付きで返す（エクスポート用）。
+
+    Returns:
+        id, created_at, symbol, signal, human_action, current_price,
+        entry_price, stop_loss, take_profit, risk_reward,
+        pnl_pips, outcome, daily_trend, h4_trend, score, rsi, atr_value
+    """
+    where_clauses = ["outcome IS NOT NULL", "human_action IN ('buy_approved', 'sell_approved')"]
+    params: list[Any] = []
+    if symbol:
+        where_clauses.append("symbol = ?")
+        params.append(symbol)
+    if date_from:
+        where_clauses.append("created_at >= ?")
+        params.append(date_from)
+    if date_to:
+        where_clauses.append("created_at <= ?")
+        params.append(date_to + " 23:59:59")
+
+    where = "WHERE " + " AND ".join(where_clauses)
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                id, created_at, symbol, signal, human_action,
+                current_price, entry_price, stop_loss, take_profit, risk_reward,
+                pnl_pips, outcome, daily_trend, h4_trend, score, rsi, atr_value
+            FROM approval_history
+            {where}
+            ORDER BY created_at DESC
+            """,
+            params,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_monthly_stats_for_export(db_path: Path | None = None) -> list[dict[str, Any]]:
+    """Phase 80: 月次P&L統計をCSVエクスポート用に返す。"""
+    with get_db(db_path) as conn:
+        rows = conn.execute(
+            """
+            SELECT
+                SUBSTR(created_at, 1, 7)                                         AS month,
+                symbol,
+                COUNT(*)                                                         AS total_trades,
+                SUM(CASE WHEN outcome = 'win'  THEN 1 ELSE 0 END)               AS wins,
+                SUM(CASE WHEN outcome = 'loss' THEN 1 ELSE 0 END)               AS losses,
+                ROUND(SUM(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE 0 END), 2) AS total_pips,
+                ROUND(AVG(CASE WHEN outcome IS NOT NULL THEN pnl_pips ELSE NULL END), 2) AS avg_pips,
+                ROUND(
+                    CAST(SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) AS REAL)
+                    / NULLIF(COUNT(*), 0) * 100, 1
+                )                                                                AS win_rate_pct
+            FROM approval_history
+            WHERE outcome IS NOT NULL
+              AND human_action IN ('buy_approved', 'sell_approved')
+            GROUP BY month, symbol
+            ORDER BY month DESC, symbol
+            """,
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def get_journal_for_export(
     tag_filter: str | None = None,
     entry_type_filter: str | None = None,

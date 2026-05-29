@@ -50,6 +50,8 @@
       <a href="/macro-events" class="nav-link">世界イベント</a>
       <a href="/weekly-report" class="nav-link">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
+      <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
       <a href="/settings" class="nav-link active">設定</a>
     </nav>
   </header>
@@ -167,9 +169,27 @@
           <span class="ind-label">OANDA_ENVIRONMENT</span>
           <span class="ind-value">{{ oanda_env }}</span>
         </div>
-        <div class="indicator-item">
-          <span class="ind-label">ANTHROPIC_API_KEY</span>
-          <span class="ind-value">{{ '✅ 設定済み' if anthropic_key else '未設定（モック使用）' }}</span>
+        <div class="indicator-item" style="flex-direction:column;align-items:flex-start;gap:8px;">
+          <span class="ind-label">Claude AI（AIコメント生成）</span>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <span class="ind-value" id="claude-key-status">
+              {{ '✅ APIキー設定済み' if anthropic_key else '❌ 未設定（ルールベース自動生成を使用中）' }}
+            </span>
+            <button id="claude-test-btn" class="btn-secondary" style="padding:4px 14px;font-size:0.8rem;">
+              接続テスト
+            </button>
+          </div>
+          <div id="claude-test-result" style="font-size:0.82rem;display:none;padding:8px 12px;border-radius:6px;margin-top:4px;"></div>
+          {% if not anthropic_key %}
+          <div style="font-size:0.8rem;color:var(--text-muted);line-height:1.6;background:#0f0f23;padding:10px 12px;border-radius:6px;border-left:3px solid #444;">
+            <strong style="color:#ccc;">Claude AI を使う手順：</strong><br>
+            1. <a href="https://console.anthropic.com/" target="_blank" style="color:var(--color-buy);">https://console.anthropic.com/</a> でアカウントを作成（無料）<br>
+            2. 「API Keys」ページで新しいキー（<code>sk-ant-...</code>）を発行<br>
+            3. プロジェクトの <code>.env</code> ファイルを開き、下記を追記して保存：<br>
+            <code style="display:block;margin-top:4px;padding:4px 8px;background:#1a1a2e;border-radius:4px;">ANTHROPIC_API_KEY=sk-ant-ここにキーを貼り付ける</code>
+            4. サーバーを再起動（<code>python3 -m uvicorn app.main:app --reload</code>）
+          </div>
+          {% endif %}
         </div>
         <div class="indicator-item">
           <span class="ind-label">OANDA_API_KEY</span>
@@ -348,6 +368,44 @@
           .catch((err) => console.warn("SW registration failed:", err));
       });
     }
+  </script>
+  <!-- Phase 87: Claude API 接続テスト -->
+  <script>
+  (function() {
+    const testBtn    = document.getElementById('claude-test-btn');
+    const resultDiv  = document.getElementById('claude-test-result');
+    if (!testBtn || !resultDiv) return;
+
+    testBtn.addEventListener('click', async () => {
+      testBtn.disabled = true;
+      testBtn.textContent = 'テスト中…';
+      resultDiv.style.display = 'none';
+      try {
+        const res  = await fetch('/api/test-claude', { method: 'POST' });
+        const data = await res.json();
+        resultDiv.style.display = 'block';
+        if (data.ok) {
+          resultDiv.style.background = '#14532d';
+          resultDiv.style.border = '1px solid #4ade80';
+          resultDiv.style.color = '#86efac';
+          resultDiv.innerHTML = `✅ ${data.message}<br><small style="color:#4ade80;">応答: ${data.reply || ''}</small>`;
+        } else {
+          resultDiv.style.background = '#450a0a';
+          resultDiv.style.border = '1px solid #f87171';
+          resultDiv.style.color = '#fca5a5';
+          resultDiv.innerHTML = `❌ ${data.error || '接続に失敗しました'}<br><small style="color:#f87171;">${data.help || ''}</small>`;
+        }
+      } catch (e) {
+        resultDiv.style.display = 'block';
+        resultDiv.style.background = '#450a0a';
+        resultDiv.style.color = '#fca5a5';
+        resultDiv.textContent = `通信エラー: ${e.message}`;
+      } finally {
+        testBtn.disabled = false;
+        testBtn.textContent = '接続テスト';
+      }
+    });
+  })();
   </script>
 </body>
 </html>

@@ -65,16 +65,32 @@ def _clean_ohlc(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+# Phase 83: シンボル別の代表価格（ダミーデータ生成時のベース価格）
+_SYMBOL_BASE_PRICES: dict[str, float] = {
+    "USD/JPY": 150.0,
+    "EUR/USD": 1.085,
+    "GBP/USD": 1.265,
+    "EUR/JPY": 162.0,
+    "AUD/JPY": 97.0,
+    "AUD/USD": 0.644,
+    "EUR/GBP": 0.850,
+    "GBP/JPY": 192.0,
+}
+
+
 def generate_dummy_data(
     n_bars: int = 500,
-    base_price: float = 150.0,
+    base_price: float | None = None,
     symbol: str = "USD/JPY",
     freq: str = "1h",
 ) -> pd.DataFrame:
     """テスト用ダミーOHLCデータを生成する。
 
     実際の市場データがない開発・テスト段階でのみ使用すること。
+    base_price が None の場合はシンボルに応じた代表価格を使用する。
     """
+    if base_price is None:
+        base_price = _SYMBOL_BASE_PRICES.get(symbol, 150.0)
     np.random.seed(42)
     periods = pd.date_range(end=pd.Timestamp.now().floor("h"), periods=n_bars, freq=freq)
 

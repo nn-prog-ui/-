@@ -5,7 +5,9 @@ import csv
 import io
 import json
 import logging
+import os
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
@@ -22,9 +24,11 @@ from app.database.repository import (
     delete_alert,
     get_alerts,
     get_all_settings,
+    get_closed_trades_for_export,
     get_demo_orders_for_export,
     get_history_for_export,
     get_journal_for_export,
+    get_monthly_stats_for_export,
     get_journal_count,
     get_journal_entries,
     get_journal_entry,
@@ -145,14 +149,56 @@ router = APIRouter()
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
 # 分析結果をリクエスト間で一時保持（本番ではRedisや引数渡しに変更）
-_last_result: AnalysisResult | None = None
+_last_result: Optional[AnalysisResult] = None
 # 通貨ペアごとの最新シグナルを保持（Phase 29: ブラウザ通知用）
 _signal_cache: dict[str, dict] = {}
 
 
 @router.get("/health")
 async def health_check():
-    return {"status": "ok"}
+    """Phase 76: ヘルスチェックエンドポイント（Railway 向け強化版）。
+    認証不要（BasicAuthMiddleware で is_public_path 対象）。
+    """
+    import os
+    from pathlib import Path
+
+    # DB 接続チェック
+    db_ok = False
+    db_records = 0
+    try:
+        from app.database.db import get_db
+        from app.config import DB_PATH
+        with get_db(DB_PATH) as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM approval_history"
+            ).fetchone()
+            db_records = row[0] if row else 0
+            db_ok = True
+    except Exception:
+        db_ok = False
+
+    # CSV データ確認
+    from app.config import SYMBOL_CSV_MAP, DATA_DIR
+    csv_status = {
+        sym: (DATA_DIR / csv).exists()
+        for sym, csv in SYMBOL_CSV_MAP.items()
+    }
+
+    # 全体ステータス
+    all_ok = db_ok
+    status_code = 200 if all_ok else 503
+
+    payload = {
+        "status": "ok" if all_ok else "degraded",
+        "version": "0.1.0",
+        "app_env": os.getenv("APP_ENV", "development"),
+        "trading_mode": os.getenv("TRADING_MODE", "demo_only"),
+        "db": {"ok": db_ok, "records": db_records},
+        "csv_data": csv_status,
+    }
+
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=payload, status_code=status_code)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -219,6 +265,17 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
         USD_IMPACT_LABELS = {}
         USD_IMPACT_COLORS = {}
 
+    # Phase 87: AIコメントのソースを判定（UIバッジ表示用）
+    if os.getenv("ANTHROPIC_API_KEY"):
+        _ai_source = "claude"
+        _ai_source_label = "Claude AI"
+    elif os.getenv("OPENAI_API_KEY"):
+        _ai_source = "openai"
+        _ai_source_label = "OpenAI"
+    else:
+        _ai_source = "mock"
+        _ai_source_label = "ルールベース自動生成"
+
     return templates.TemplateResponse(
         "index.html",
         {
@@ -231,6 +288,8 @@ async def index(request: Request, symbol: str = DEFAULT_SYMBOL):
             "geo_risk": geo_risk,
             "usd_impact_labels": USD_IMPACT_LABELS,
             "usd_impact_colors": USD_IMPACT_COLORS,
+            "ai_source": _ai_source,
+            "ai_source_label": _ai_source_label,
         },
     )
 
@@ -654,6 +713,15 @@ async def backtest_page(
         except Exception as exc:
             logger.error("バックテスト結果の保存エラー: %s", exc)
 
+    # Phase 74: グラフ用にトレードをJSON化
+    import dataclasses as _dc
+    trades_json = "[]"
+    if result and result.trades:
+        try:
+            trades_json = json.dumps([_dc.asdict(t) for t in result.trades], ensure_ascii=False)
+        except Exception:
+            trades_json = "[]"
+
     return templates.TemplateResponse(
         "backtest.html",
         {
@@ -664,6 +732,7 @@ async def backtest_page(
             "saved_count": saved_count,
             "supported_symbols": SUPPORTED_SYMBOLS,
             "params": {"symbol": symbol, "window": window, "step": step, "future": future},
+            "trades_json": trades_json,  # Phase 74
         },
     )
 
@@ -671,6 +740,12 @@ async def backtest_page(
 # ============================================================
 # Phase 22: 設定画面
 # ============================================================
+
+@router.get("/guide", response_class=HTMLResponse)
+async def guide_page(request: Request):
+    """使い方ガイドページ。"""
+    return templates.TemplateResponse("guide.html", {"request": request})
+
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, saved: bool = False):
@@ -746,6 +821,24 @@ async def dashboard(request: Request):
         streak_all = None
         streak_by_sym = []
 
+    # Phase 73: グローバル地政学コンテキスト
+    geo_latest = None
+    geo_risk_global = "neutral"
+    geo_labels_global = {}
+    geo_colors_global = {}
+    try:
+        from app.scripts.geopolitical import (
+            get_geopolitical_records, USD_IMPACT_LABELS, USD_IMPACT_COLORS,
+        )
+        geo_recs = get_geopolitical_records(limit=1)
+        if geo_recs:
+            geo_latest = geo_recs[0]
+            geo_risk_global = geo_latest.usd_impact
+        geo_labels_global = USD_IMPACT_LABELS
+        geo_colors_global = USD_IMPACT_COLORS
+    except Exception:
+        pass
+
     return templates.TemplateResponse(
         "dashboard.html",
         {
@@ -754,6 +847,11 @@ async def dashboard(request: Request):
             "supported_symbols": SUPPORTED_SYMBOLS,
             "streak_all": streak_all,
             "streak_by_sym": streak_by_sym,
+            # Phase 73
+            "geo_latest": geo_latest,
+            "geo_risk_global": geo_risk_global,
+            "geo_labels": geo_labels_global,
+            "geo_colors": geo_colors_global,
         },
     )
 
@@ -889,7 +987,7 @@ async def api_candles(symbol: str = DEFAULT_SYMBOL, limit: int = 60, tf: str = "
     ma50_series = ma50_series.iloc[-limit:]
     bb_df = bb_df.iloc[-limit:]
 
-    def _val(v) -> float | None:
+    def _val(v) -> Optional[float]:
         import math
         if v is None:
             return None
@@ -945,6 +1043,187 @@ async def api_all_signals():
         else:
             result.append({"symbol": sym, "signal": "NONE", "score": None, "current_price": None, "analyzed_at": None})
     return {"signals": result}
+
+
+# ============================================================
+# Phase 78: リアルタイム価格モニターAPI
+# ============================================================
+
+@router.get("/api/live-prices")
+async def api_live_prices():
+    """Phase 78: 全通貨ペアの最新価格をまとめて返す（30秒ポーリング用）。
+
+    CSVの最終2行から現在価格と前回価格を取得し、変化量・変化率を計算。
+    シグナルキャッシュが存在する場合はシグナル情報も付加する。
+    """
+    import pandas as pd
+    from datetime import datetime as _dt
+
+    prices = []
+    for sym in SUPPORTED_SYMBOLS:
+        entry: dict = {
+            "symbol": sym,
+            "price": None,
+            "prev_price": None,
+            "change": None,
+            "change_pct": None,
+            "signal": None,
+            "analyzed_at": None,
+            "source": "unavailable",
+        }
+        # シグナルキャッシュからシグナル情報を補完
+        cached = _signal_cache.get(sym)
+        if cached:
+            entry["signal"] = cached.get("signal")
+            entry["analyzed_at"] = cached.get("analyzed_at")
+
+        # Phase 84: データソースに応じて価格を取得
+        from app.config import DATA_SOURCE as _DS
+        if _DS == "yfinance":
+            # yfinance から最新価格を取得
+            try:
+                from app.data.yfinance_adapter import fetch_latest_price
+                _price_data = fetch_latest_price(sym)
+                if _price_data:
+                    entry.update({
+                        "price":      _price_data["price"],
+                        "prev_price": _price_data["prev_price"],
+                        "change":     _price_data["change"],
+                        "change_pct": _price_data["change_pct"],
+                        "source":     "yfinance",
+                    })
+            except Exception as _exc:
+                logger.debug("live-prices yfinance エラー [%s]: %s", sym, _exc)
+        else:
+            # CSVから最終2行を読んで価格・変化を計算（軽量）
+            try:
+                csv_file = SYMBOL_CSV_MAP.get(sym)
+                if csv_file:
+                    csv_path = DATA_DIR / csv_file
+                    df = pd.read_csv(csv_path, usecols=["close"])
+                    if len(df) >= 2:
+                        price = round(float(df["close"].iloc[-1]), 5)
+                        prev = round(float(df["close"].iloc[-2]), 5)
+                        chg = round(price - prev, 5)
+                        chg_pct = round(chg / prev * 100, 4) if prev else None
+                        entry.update({
+                            "price": price,
+                            "prev_price": prev,
+                            "change": chg,
+                            "change_pct": chg_pct,
+                            "source": "csv",
+                        })
+                    elif len(df) == 1:
+                        entry["price"] = round(float(df["close"].iloc[-1]), 5)
+                        entry["source"] = "csv"
+            except Exception as _exc:
+                logger.debug("live-prices CSV 読み込みエラー [%s]: %s", sym, _exc)
+
+        prices.append(entry)
+
+    from app.config import DATA_SOURCE as _DATA_SOURCE
+    return {
+        "prices": prices,
+        "fetched_at": _dt.utcnow().isoformat() + "Z",
+        "data_source": _DATA_SOURCE,
+    }
+
+
+@router.get("/api/open-positions")
+async def api_open_positions():
+    """Phase 81: オープン中デモ取引の含み損益を返す（30秒ポーリング用）。
+
+    各ポジションに対し、CSVの最終価格を取得して含み損益・SL/TP距離・経過時間を計算する。
+    """
+    import pandas as pd
+    from datetime import datetime as _dt
+
+    def _pip_multiplier(symbol: str) -> float:
+        """JPYペアは100、その他は10000"""
+        return 100.0 if "JPY" in symbol else 10000.0
+
+    open_trades = get_open_trades()
+    now = _dt.utcnow()
+    positions = []
+
+    for trade in open_trades:
+        sym = trade.get("symbol", "")
+        signal = trade.get("signal", "")
+        entry = trade.get("entry_price")
+        sl = trade.get("stop_loss")
+        tp = trade.get("take_profit")
+        opened_at_str = trade.get("created_at", "")
+        mult = _pip_multiplier(sym)
+
+        # 経過時間（時間単位）
+        elapsed_h: Optional[float] = None
+        try:
+            opened_at = _dt.strptime(opened_at_str[:16], "%Y-%m-%d %H:%M")
+            elapsed_h = round((now - opened_at).total_seconds() / 3600, 1)
+        except Exception:
+            pass
+
+        # 現在価格をCSVから取得
+        current_price: Optional[float] = None
+        try:
+            csv_file = SYMBOL_CSV_MAP.get(sym)
+            if csv_file:
+                df = pd.read_csv(DATA_DIR / csv_file, usecols=["close"])
+                if len(df) >= 1:
+                    current_price = round(float(df["close"].iloc[-1]), 5)
+        except Exception as _exc:
+            logger.debug("open-positions CSV 読み込みエラー [%s]: %s", sym, _exc)
+
+        # 含み損益・SL/TP距離を計算
+        unrealized_pips: Optional[float] = None
+        pips_to_sl: Optional[float] = None
+        pips_to_tp: Optional[float] = None
+        direction = "neutral"
+
+        if current_price is not None and entry is not None:
+            if signal == "BUY":
+                unrealized_pips = round((current_price - entry) * mult, 1)
+                if sl is not None:
+                    pips_to_sl = round((current_price - sl) * mult, 1)
+                if tp is not None:
+                    pips_to_tp = round((tp - current_price) * mult, 1)
+            elif signal == "SELL":
+                unrealized_pips = round((entry - current_price) * mult, 1)
+                if sl is not None:
+                    pips_to_sl = round((sl - current_price) * mult, 1)
+                if tp is not None:
+                    pips_to_tp = round((current_price - tp) * mult, 1)
+
+            if unrealized_pips is not None:
+                direction = "profit" if unrealized_pips > 0 else "loss" if unrealized_pips < 0 else "neutral"
+
+        positions.append({
+            "id": trade.get("id"),
+            "symbol": sym,
+            "signal": signal,
+            "entry_price": entry,
+            "stop_loss": sl,
+            "take_profit": tp,
+            "current_price": current_price,
+            "unrealized_pips": unrealized_pips,
+            "pips_to_sl": pips_to_sl,
+            "pips_to_tp": pips_to_tp,
+            "elapsed_hours": elapsed_h,
+            "direction": direction,
+            "opened_at": opened_at_str,
+        })
+
+    total_unrealized = None
+    with_pnl = [p["unrealized_pips"] for p in positions if p["unrealized_pips"] is not None]
+    if with_pnl:
+        total_unrealized = round(sum(with_pnl), 1)
+
+    return {
+        "positions": positions,
+        "count": len(positions),
+        "total_unrealized_pips": total_unrealized,
+        "fetched_at": now.isoformat() + "Z",
+    }
 
 
 # ============================================================
@@ -1131,6 +1410,39 @@ async def export_demo_orders():
     """デモ注文成績を CSV でダウンロード。"""
     rows = get_demo_orders_for_export()
     return _rows_to_csv(rows, "fx_demo_orders.csv")
+
+
+# ============================================================
+# Phase 80: CSVエクスポート強化
+# ============================================================
+
+@router.get("/export/closed-trades.csv")
+async def export_closed_trades(
+    symbol: str = "",
+    date_from: str = "",
+    date_to: str = "",
+):
+    """Phase 80: クローズ済み取引（勝敗確定済み）を CSV でダウンロード。
+
+    フィルター: symbol, date_from (YYYY-MM-DD), date_to (YYYY-MM-DD)
+    """
+    from datetime import date as _date
+    rows = get_closed_trades_for_export(
+        symbol=symbol or None,
+        date_from=date_from or None,
+        date_to=date_to or None,
+    )
+    today = str(_date.today())
+    suffix = f"_{symbol.replace('/', '')}" if symbol else "_all"
+    return _rows_to_csv(rows, f"fx_closed_trades{suffix}_{today}.csv")
+
+
+@router.get("/export/monthly-stats.csv")
+async def export_monthly_stats():
+    """Phase 80: 月次P&L統計を CSV でダウンロード。"""
+    from datetime import date as _date
+    rows = get_monthly_stats_for_export()
+    return _rows_to_csv(rows, f"fx_monthly_stats_{_date.today()}.csv")
 
 
 # ============================================================
@@ -1341,6 +1653,51 @@ async def api_push_unsubscribe(request: Request):
         return {"ok": False, "error": str(exc)}
 
 
+# ============================================================
+# Phase 87: Claude API 接続テスト
+# ============================================================
+
+@router.post("/api/test-claude")
+async def api_test_claude():
+    """Claude API の疎通確認をする（APIキーが実際に使えるか確認）。
+
+    ANTHROPIC_API_KEY が設定されていない場合は即座にエラーを返す。
+    設定されている場合は 1 トークン程度の最小リクエストを送信して疎通を確認する。
+    """
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        return {
+            "ok": False,
+            "source": "none",
+            "error": "ANTHROPIC_API_KEY が .env に設定されていません。",
+            "help": ".env ファイルに ANTHROPIC_API_KEY=sk-ant-xxxx を追加して再起動してください。",
+        }
+    try:
+        import anthropic
+        model = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5")
+        client = anthropic.Anthropic(api_key=api_key)
+        resp = client.messages.create(
+            model=model,
+            max_tokens=16,
+            messages=[{"role": "user", "content": "疎通確認テスト。「OK」とだけ返してください。"}],
+        )
+        reply = resp.content[0].text.strip() if resp.content else ""
+        return {
+            "ok": True,
+            "source": "claude",
+            "model": model,
+            "reply": reply,
+            "message": f"Claude API ({model}) に接続できました。AIコメントが自動的に Claude で生成されます。",
+        }
+    except Exception as exc:
+        return {
+            "ok": False,
+            "source": "claude",
+            "error": str(exc),
+            "help": "APIキーが正しいか、または残高がない可能性があります。https://console.anthropic.com/ で確認してください。",
+        }
+
+
 @router.post("/api/push/test")
 async def api_push_test():
     """全購読者にテスト通知を送信する。"""
@@ -1463,7 +1820,7 @@ async def api_monte_carlo(
     """
     n_simulations = max(10, min(5000, n_simulations))
 
-    is_simulation: bool | None = None
+    is_simulation: Optional[bool] = None
     if data_source == "backtest":
         is_simulation = True
     elif data_source == "real":
@@ -1627,7 +1984,7 @@ async def api_heatmap_calendar(
     注文は発生しない。集計・可視化のみ。
     """
     # symbol バリデーション（空文字は全通貨ペア）
-    sym: str | None = None
+    sym: Optional[str] = None
     if symbol:
         if symbol not in SUPPORTED_SYMBOLS:
             return {"ok": False, "error": f"未対応シンボル: {symbol}"}
@@ -1636,7 +1993,7 @@ async def api_heatmap_calendar(
     if metric not in HEATMAP_VALID_METRICS:
         return {"ok": False, "error": f"未対応metric: {metric}。有効値: {sorted(HEATMAP_VALID_METRICS)}"}
 
-    is_simulation: bool | None = None
+    is_simulation: Optional[bool] = None
     if data_source == "simulation":
         is_simulation = True
     elif data_source == "real":
@@ -1682,8 +2039,8 @@ async def api_heatmap_calendar(
 async def api_signal_quality(
     symbol: str = "",
     signal: str = "",
-    score: int | None = None,
-    rsi: float | None = None,
+    score: Optional[int] = None,
+    rsi: Optional[float] = None,
     daily_trend: str = "",
     h4_trend: str = "",
 ):
@@ -2921,3 +3278,71 @@ async def api_news_articles(limit: int = 30):
         "articles": [asdict(a) for a in articles],
         "stats": stats,
     }
+
+
+# ============================================================
+# Phase 75: ニュースセンチメント集計
+# ============================================================
+
+@router.get("/sentiment", response_class=HTMLResponse)
+async def sentiment_page(request: Request, days: int = 90):
+    """ニュースセンチメント集計ページ（Phase 75）。注文は発生しない。"""
+    from dataclasses import asdict
+    from app.scripts.sentiment import get_sentiment_report
+    from app.scripts.geopolitical import USD_IMPACT_LABELS, USD_IMPACT_COLORS
+
+    try:
+        report = get_sentiment_report(days=days)
+    except Exception as exc:
+        logger.error("センチメント集計エラー: %s", exc)
+        report = None
+
+    # グラフ用JSON
+    daily_json = "[]"
+    cat_json = "[]"
+    if report:
+        try:
+            daily_json = json.dumps(
+                [asdict(d) for d in report.daily], ensure_ascii=False
+            )
+            cat_json = json.dumps(
+                [asdict(c) for c in report.categories], ensure_ascii=False
+            )
+        except Exception:
+            pass
+
+    return templates.TemplateResponse(
+        "sentiment.html",
+        {
+            "request": request,
+            "report": report,
+            "days": days,
+            "daily_json": daily_json,
+            "cat_json": cat_json,
+            "usd_impact_labels": USD_IMPACT_LABELS,
+            "usd_impact_colors": USD_IMPACT_COLORS,
+        },
+    )
+
+
+@router.get("/api/sentiment")
+async def api_sentiment(days: int = 90):
+    """センチメント集計をJSON返却（Phase 75）。"""
+    from dataclasses import asdict
+    from app.scripts.sentiment import get_sentiment_report
+
+    try:
+        report = get_sentiment_report(days=days)
+        return {
+            "ok": True,
+            "summary": asdict(report.summary),
+            "categories": [asdict(c) for c in report.categories],
+            "daily": [asdict(d) for d in report.daily],
+            "top_events": [asdict(e) for e in report.top_events],
+            "total_days": report.total_days,
+            "date_from": report.date_from,
+            "date_to": report.date_to,
+        }
+    except Exception as exc:
+        logger.error("センチメントAPIエラー: %s", exc)
+        return {"ok": False, "error": str(exc)}

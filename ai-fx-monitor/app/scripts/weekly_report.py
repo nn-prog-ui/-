@@ -63,6 +63,12 @@ class WeeklyMetrics:
     geo_events: list[dict] = field(default_factory=list)
     geo_risk_summary: str = ""
 
+    # Phase 79: センチメントサマリー（直近7日）
+    sentiment_total: int = 0
+    sentiment_bullish_pct: float = 0.0
+    sentiment_bearish_pct: float = 0.0
+    sentiment_neutral_pct: float = 0.0
+
 
 @dataclass
 class WeeklyReport:
@@ -237,6 +243,18 @@ def _collect_metrics(symbol: str, week_label: str, db_path=None) -> WeeklyMetric
     except Exception:
         pass
 
+    # Phase 79: センチメントサマリー（直近7日）
+    try:
+        from app.scripts.sentiment import get_sentiment_report
+        sent = get_sentiment_report(days=7)
+        s = sent.summary
+        metrics.sentiment_total = s.total
+        metrics.sentiment_bullish_pct = s.bullish_pct
+        metrics.sentiment_bearish_pct = s.bearish_pct
+        metrics.sentiment_neutral_pct = s.neutral_pct
+    except Exception:
+        pass
+
     return metrics
 
 
@@ -250,12 +268,21 @@ _WEEKLY_SYSTEM_PROMPT = """あなたはFX取引のパフォーマンスレビュ
 ## 絶対に守るルール
 1. 具体的な売買指示・エントリー推奨は行わない
 2. 「必ず」「絶対」「確実に」などの断言表現は使わない
-3. 客観的な成績評価と改善のヒントのみを提供する
-4. 最終判断は常にトレーダー自身が行うことを前提にする
+3. 「儲かる」「勝率100%」「放置で稼げる」などの誇張表現は使わない
+4. 客観的な成績評価と改善のヒントのみを提供する
+5. 最終判断は常にトレーダー自身が行うことを前提にする
 
-## 出力形式
-300〜500文字程度の日本語レポート。箇条書き不要。段落形式。
-週の振り返り → 累計トレンド → 改善ポイント の順に記述。"""
+## 出力形式（Phase 79: 構造化レポート）
+必ず以下の3セクション形式で出力すること。各セクション100〜200文字程度。
+
+### 振り返り
+（今週の取引成績・損益・地政学・センチメントを踏まえた客観的振り返り）
+
+### 改善ポイント
+（今週の成績から見えた課題・次週に意識すべきこと）
+
+### 来週の注目通貨
+（来週注目すべき通貨ペアと理由。ただし具体的なエントリー推奨は行わない）"""
 
 
 def _build_weekly_prompt(m: WeeklyMetrics) -> str:
@@ -297,6 +324,19 @@ def _build_weekly_prompt(m: WeeklyMetrics) -> str:
             }
             label = impact_labels.get(e["usd_impact"], e["usd_impact"])
             lines.append(f"- {e['date']} [{e['category']}] {e['event_text']} → {label}")
+    # Phase 79: センチメントデータ
+    if m.sentiment_total > 0:
+        lines += [
+            "",
+            "【直近7日のニュースセンチメント】",
+            f"- 件数: {m.sentiment_total}件",
+            f"- ドル強気: {m.sentiment_bullish_pct:.1f}% / ドル弱気: {m.sentiment_bearish_pct:.1f}% / 中立: {m.sentiment_neutral_pct:.1f}%",
+        ]
+    lines += [
+        "",
+        "【出力指示】",
+        "必ず「### 振り返り」「### 改善ポイント」「### 来週の注目通貨」の3セクション形式で回答すること。",
+    ]
     return "\n".join(lines)
 
 
@@ -322,39 +362,87 @@ def _summarize_geo_risk(geo_events: list[dict]) -> str:
 
 
 def _generate_mock_narrative(m: WeeklyMetrics) -> str:
-    parts = []
-    # 今週の成績
+    """Phase 79: 3セクション構造のモックナレーティブを生成する。"""
+    sections: list[str] = []
+
+    # ── 振り返り ──────────────────────────────────────────────
+    review_parts: list[str] = []
     if m.week_trades == 0:
-        parts.append(f"{m.week_label}は取引がありませんでした。")
+        review_parts.append(f"{m.week_label}は取引がありませんでした。")
     else:
         wr = f"{m.week_win_rate:.1f}%" if m.week_win_rate is not None else "N/A"
         direction = "プラス" if m.week_pips >= 0 else "マイナス"
-        parts.append(
+        review_parts.append(
             f"{m.week_label}は{m.week_trades}件取引し、"
             f"勝率{wr}・{m.week_pips:+.1f}pipsの{direction}で終えました。"
         )
-    # 累計
     if m.total_trades > 0:
         wr_total = f"{m.total_win_rate:.1f}%" if m.total_win_rate is not None else "N/A"
-        parts.append(
+        review_parts.append(
             f"累計では{m.total_trades}件・勝率{wr_total}・"
-            f"{m.total_pips:+.1f}pips、システムグレードは{m.overall_grade}です。"
+            f"{m.total_pips:+.1f}pips、グレードは{m.overall_grade}です。"
         )
-    # ストリーク
+    if m.geo_events and m.geo_risk_summary:
+        review_parts.append(
+            f"今週の地政学リスクは「{m.geo_risk_summary}」で"
+            f"ドルへの影響が{len(m.geo_events)}件記録されました。"
+        )
+    if m.sentiment_total > 0:
+        review_parts.append(
+            f"ニュースセンチメント（直近7日）はドル強気{m.sentiment_bullish_pct:.0f}%・"
+            f"ドル弱気{m.sentiment_bearish_pct:.0f}%でした。"
+        )
+    sections.append("### 振り返り\n" + "".join(review_parts))
+
+    # ── 改善ポイント ───────────────────────────────────────────
+    improve_parts: list[str] = []
+    if m.week_losses > m.week_wins:
+        improve_parts.append(
+            "今週は損失が勝ちを上回りました。"
+            "エントリー根拠を再確認し、シグナル品質の低いトレードを減らすことを検討しましょう。"
+        )
+    elif m.week_pips < 0:
+        improve_parts.append(
+            "今週はトータルでマイナスです。"
+            "RR比の実績を振り返り、利確目標に到達できているか確認してみましょう。"
+        )
+    else:
+        improve_parts.append(
+            "着実に成績を積み上げています。"
+            "ルールの一貫性を維持しながら、過剰取引が起きていないか確認しましょう。"
+        )
     if m.current_streak > 0:
         ja = _streak_ja(m.current_streak_type)
-        parts.append(f"現在{m.current_streak}連{ja}中です。")
-    # 地政学コンテキスト
-    if m.geo_events and m.geo_risk_summary:
-        parts.append(f"今週の地政学リスクは「{m.geo_risk_summary}」で、ドルへの影響が{len(m.geo_events)}件記録されました。")
-    # 改善ヒント
-    if m.week_losses > m.week_wins:
-        parts.append("今週は損失が多かった週です。エントリー根拠の質を振り返り、無理なトレードがなかったか確認してみましょう。")
-    elif m.week_pips < 0:
-        parts.append("今週はトータルでマイナスです。RR比の実績を見直し、利確目標に到達できているか確認しましょう。")
+        if m.current_streak_type == "loss":
+            improve_parts.append(
+                f"現在{m.current_streak}連{ja}中です。"
+                "ロットを落とすか一時休止してメンタルリセットも選択肢の一つです。"
+            )
+        else:
+            improve_parts.append(f"現在{m.current_streak}連{ja}中です。過信せずにルールを守り続けましょう。")
+    sections.append("### 改善ポイント\n" + "".join(improve_parts))
+
+    # ── 来週の注目通貨 ─────────────────────────────────────────
+    attention_parts: list[str] = []
+    sym = m.symbol or "USD/JPY・EUR/USD・GBP/USD・EUR/JPY"
+    if m.geo_risk_summary and "ドル高" in m.geo_risk_summary:
+        attention_parts.append(
+            f"地政学的にドル高バイアスが続いているため、来週も{sym}でのドル方向の動きに注目です。"
+            "ただし相場環境の変化には柔軟に対応することが重要です。"
+        )
+    elif m.geo_risk_summary and "ドル安" in m.geo_risk_summary:
+        attention_parts.append(
+            f"地政学的にドル安バイアスが続いているため、来週は{sym}でのリスク通貨の動向に注目です。"
+        )
     else:
-        parts.append("着実に成績を積み上げています。ルールを守り続けることが長期的な安定につながります。")
-    return "".join(parts)
+        attention_parts.append(
+            f"来週は{sym}を引き続き監視します。"
+            "マクロイベントや市場動向を確認しながら、シグナルの質を重視したトレードを心がけましょう。"
+        )
+    attention_parts.append("（これはシステムのモックレポートです。実際の投資判断はご自身の責任で行ってください。）")
+    sections.append("### 来週の注目通貨\n" + "".join(attention_parts))
+
+    return "\n\n".join(sections)
 
 
 def _generate_ai_narrative(m: WeeklyMetrics) -> tuple[str, str]:

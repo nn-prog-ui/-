@@ -17,12 +17,17 @@ DB_PATH = BASE_DIR / os.getenv("DB_PATH", "data/fx_monitor.db")
 DEFAULT_SYMBOL = os.getenv("DEFAULT_SYMBOL", "USD/JPY")
 DEFAULT_CSV_FILE = os.getenv("DEFAULT_CSV_FILE", "USDJPY_1h.csv")
 
-# サポートする通貨ペアと対応 CSV ファイルのマッピング（Phase 11: 複数ペア対応）
+# サポートする通貨ペアと対応 CSV ファイルのマッピング（Phase 11: 複数ペア対応, Phase 83: AUD/GBP/JPY系追加）
 SYMBOL_CSV_MAP: dict[str, str] = {
     "USD/JPY": "USDJPY_1h.csv",
     "EUR/USD": "EURUSD_1h.csv",
     "GBP/USD": "GBPUSD_1h.csv",
     "EUR/JPY": "EURJPY_1h.csv",
+    # Phase 83: オーストラリア・ヨーロッパ系追加
+    "AUD/JPY": "AUDJPY_1h.csv",
+    "AUD/USD": "AUDUSD_1h.csv",
+    "EUR/GBP": "EURGBP_1h.csv",
+    "GBP/JPY": "GBPJPY_1h.csv",
 }
 SUPPORTED_SYMBOLS: list[str] = list(SYMBOL_CSV_MAP.keys())
 

@@ -1512,3 +1512,137 @@ a:focus-visible, button:focus-visible, input:focus-visible {
 .quality-c  { background: #7c2d12; color: #fdba74; border: 2px solid #fdba74; }
 .quality-d  { background: #450a0a; color: #f87171; border: 2px solid #f87171; }
 .quality-n\/a { background: #1e1e2e; color: #888; border: 2px solid #444; }
+
+/* Phase 85: ローソク足パターン */
+.candle-patterns {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.candle-pattern-item {
+  border-radius: var(--border-radius-sm);
+  padding: 12px 14px;
+  border-left: 4px solid;
+}
+
+.pattern-bullish {
+  background: var(--color-buy-bg);
+  border-left-color: var(--color-buy-border);
+}
+
+.pattern-bearish {
+  background: var(--color-sell-bg);
+  border-left-color: var(--color-sell-border);
+}
+
+.pattern-neutral {
+  background: var(--color-skip-bg);
+  border-left-color: var(--color-skip-border);
+}
+
+.pattern-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.pattern-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+}
+
+.pattern-name-en {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.pattern-strength {
+  font-size: 0.85rem;
+  color: #f59e0b;
+  letter-spacing: -1px;
+}
+
+.pattern-dir-badge {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.badge-bullish {
+  background: var(--color-buy-bg);
+  color: var(--color-buy);
+  border: 1px solid var(--color-buy-border);
+}
+
+.badge-bearish {
+  background: var(--color-sell-bg);
+  color: var(--color-sell);
+  border: 1px solid var(--color-sell-border);
+}
+
+.badge-neutral {
+  background: var(--color-skip-bg);
+  color: var(--color-skip);
+  border: 1px solid var(--color-skip-border);
+}
+
+.pattern-desc {
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* 買い・売りスコアバー */
+.score-bar-wrap {
+  display: flex;
+  gap: 3px;
+}
+
+.score-bar-cell {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  background: #2a2a3e;
+  border: 1px solid #333;
+}
+
+.bar-buy  { background: var(--color-buy); border-color: var(--color-buy-border); }
+.bar-sell { background: var(--color-sell); border-color: var(--color-sell-border); }
+
+/* Phase 87: AIソースバッジ */
+.ai-source-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  margin-left: 8px;
+  vertical-align: middle;
+  letter-spacing: 0;
+}
+
+.ai-source-claude {
+  background: #1e1b4b;
+  color: #a78bfa;
+  border: 1px solid #7c3aed;
+}
+
+.ai-source-openai {
+  background: #022c22;
+  color: #34d399;
+  border: 1px solid #059669;
+}
+
+.ai-source-mock {
+  background: #1c1917;
+  color: #a8a29e;
+  border: 1px solid #57534e;
+}

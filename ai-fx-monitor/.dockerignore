@@ -1,0 +1,48 @@
+# Phase 76: Docker イメージに含めないファイル
+# ============================================================
+
+# バージョン管理
+.git
+.gitignore
+.gitattributes
+
+# テスト・開発ツール
+tests/
+pytest.ini
+.pytest_cache/
+__pycache__/
+*.pyc
+*.pyo
+.python-version
+
+# 環境変数（絶対に含めない）
+.env
+.env.*
+!.env.example
+
+# ドキュメント
+*.md
+ROADMAP.md
+PROGRESS.md
+
+# ローカル開発用データ（Railway ではボリュームから提供）
+# data/ はコピーするが .db ファイルは除外（ボリュームから使用）
+data/*.db
+data/raw/*.csv
+
+# IDE・エディタ
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS メタデータ
+.DS_Store
+Thumbs.db
+
+# ログ
+*.log
+logs/
+
+# CI/CD
+.github/

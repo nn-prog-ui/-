@@ -51,6 +51,8 @@
       <a href="/weekly-report" class="nav-link">週次レポート</a>
       <a href="/geopolitical" class="nav-link">地政学分析</a>
       <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/guide" class="nav-link">使い方</a>
       <a href="/settings" class="nav-link">設定</a>
     </nav>
   </header>
@@ -60,11 +62,12 @@
     <section class="card">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
         <h2 class="card-title" style="margin:0;">取引成績（シミュレーション）</h2>
+        <!-- Phase 80: エクスポートバー強化 -->
         <div class="export-bar">
           <span class="export-label">エクスポート</span>
-          <a href="/export/history.csv?human_action=buy_approved" class="export-btn">買い承認 CSV</a>
-          <a href="/export/history.csv?human_action=sell_approved" class="export-btn">売り承認 CSV</a>
-          <a href="/export/demo-orders.csv" class="export-btn">📥 デモ注文 CSV</a>
+          <a href="/export/closed-trades.csv" class="export-btn">📥 クローズ済み取引 CSV</a>
+          <a href="/export/monthly-stats.csv" class="export-btn">📊 月次統計 CSV</a>
+          <a href="/export/demo-orders.csv" class="export-btn">デモ注文 CSV</a>
         </div>
       </div>
       <p class="history-note" style="margin-top:8px;">
@@ -278,6 +281,24 @@
       <p id="chart-status" style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:0.5rem;">読み込み中...</p>
     </section>
 
+    <!-- Phase 77: 月次損益バーチャート -->
+    <section class="card" style="margin-top:1.5rem;">
+      <h2 class="card-title">月次損益（直近12ヶ月）</h2>
+      <div id="monthly-container" style="width:100%; overflow-x:auto;">
+        <svg id="monthly-chart" width="760" height="240" style="display:block; margin:0 auto; background:var(--card-bg); border-radius:8px;"></svg>
+      </div>
+      <p id="monthly-status" style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:0.5rem;">読み込み中...</p>
+    </section>
+
+    <!-- Phase 77: シグナル別成績チャート -->
+    <section class="card" style="margin-top:1.5rem;">
+      <h2 class="card-title">シグナル別成績（BUY / SELL）</h2>
+      <div id="signal-container" style="width:100%; overflow-x:auto;">
+        <svg id="signal-chart" width="760" height="160" style="display:block; margin:0 auto; background:var(--card-bg); border-radius:8px;"></svg>
+      </div>
+      <p id="signal-status" style="text-align:center; color:var(--text-muted); font-size:0.8rem; margin-top:0.5rem;">読み込み中...</p>
+    </section>
+
   </main>
 
   <footer class="app-footer">
@@ -378,6 +399,185 @@
       .then(r => r.json())
       .then(d => drawChart(d.trades))
       .catch(() => { status.textContent = 'チャートデータの読み込みに失敗しました'; });
+  })();
+  </script>
+  <!-- Phase 77: 月次損益・シグナル別グラフ -->
+  <script>
+  (function() {
+    const msvg = document.getElementById('monthly-chart');
+    const mstatus = document.getElementById('monthly-status');
+    const ssvg = document.getElementById('signal-chart');
+    const sstatus = document.getElementById('signal-status');
+
+    function el(tag, attrs) {
+      const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+      Object.entries(attrs || {}).forEach(([k, v]) => e.setAttribute(k, v));
+      return e;
+    }
+
+    function drawMonthly(data) {
+      msvg.innerHTML = '';
+      if (!data || data.length === 0) {
+        mstatus.textContent = '月次データがありません（クローズ済み取引がまだありません）';
+        return;
+      }
+      const months = [...data].reverse(); // 古い順→新しい順
+      mstatus.textContent = '直近' + months.length + 'ヶ月の損益';
+
+      const W = 760, H = 240;
+      const PAD = { top: 20, right: 20, bottom: 50, left: 60 };
+      const innerW = W - PAD.left - PAD.right;
+      const innerH = H - PAD.top - PAD.bottom;
+      const pips = months.map(function(m) { return m.total_pips || 0; });
+      const maxAbs = Math.max(1, Math.max.apply(null, pips.map(Math.abs)));
+      const gap = innerW / months.length;
+      const barW = Math.min(40, gap * 0.7);
+      const y0 = PAD.top + innerH / 2;
+
+      // グリッドとY軸ラベル
+      [-1, -0.5, 0, 0.5, 1].forEach(function(frac) {
+        const y = y0 - frac * innerH / 2;
+        msvg.appendChild(el('line', { x1: PAD.left, y1: y, x2: PAD.left + innerW, y2: y,
+          stroke: frac === 0 ? '#555' : '#333', 'stroke-width': frac === 0 ? '1.5' : '1',
+          'stroke-dasharray': frac === 0 ? 'none' : '4,4' }));
+        const label = (frac * maxAbs).toFixed(0);
+        const txt = el('text', { x: PAD.left - 6, y: y + 4, 'text-anchor': 'end',
+          fill: '#888', 'font-size': '10' });
+        txt.textContent = label;
+        msvg.appendChild(txt);
+      });
+
+      // Y軸タイトル
+      const yl = el('text', { x: 14, y: PAD.top + innerH / 2, 'text-anchor': 'middle',
+        fill: '#888', 'font-size': '11',
+        transform: 'rotate(-90, 14, ' + (PAD.top + innerH / 2) + ')' });
+      yl.textContent = 'pips';
+      msvg.appendChild(yl);
+
+      // バー描画
+      months.forEach(function(m, i) {
+        const cx = PAD.left + gap * i + gap / 2;
+        const pipVal = m.total_pips || 0;
+        const barH = Math.abs(pipVal) / maxAbs * (innerH / 2);
+        const color = pipVal >= 0 ? '#4ade80' : '#f87171';
+        const rectY = pipVal >= 0 ? y0 - barH : y0;
+
+        const rect = el('rect', {
+          x: cx - barW / 2, y: rectY,
+          width: barW, height: Math.max(1, barH),
+          fill: color, opacity: '0.85', rx: '2'
+        });
+        const titleEl = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+        titleEl.textContent = m.month + ': ' + (pipVal > 0 ? '+' : '') + pipVal.toFixed(1) +
+          'pips (' + m.wins + '勝' + m.losses + '敗' +
+          (m.win_rate !== null && m.win_rate !== undefined ? ' ' + m.win_rate + '%' : '') + ')';
+        rect.appendChild(titleEl);
+        msvg.appendChild(rect);
+
+        // バー上のpipsラベル（バーが十分大きい場合のみ）
+        if (barH > 14) {
+          const ly = pipVal >= 0 ? rectY - 3 : rectY + barH + 11;
+          const lt = el('text', { x: cx, y: ly, 'text-anchor': 'middle',
+            fill: color, 'font-size': '10', 'font-weight': 'bold' });
+          lt.textContent = (pipVal > 0 ? '+' : '') + pipVal.toFixed(0);
+          msvg.appendChild(lt);
+        }
+
+        // X軸ラベル（月）
+        const xt = el('text', { x: cx, y: H - PAD.bottom + 15, 'text-anchor': 'middle',
+          fill: '#888', 'font-size': '10' });
+        xt.textContent = m.month ? m.month.slice(5) : '';
+        msvg.appendChild(xt);
+
+        // X軸ラベル（年、1月のみ）
+        if (m.month && m.month.slice(5) === '01') {
+          const yt = el('text', { x: cx, y: H - PAD.bottom + 27, 'text-anchor': 'middle',
+            fill: '#666', 'font-size': '9' });
+          yt.textContent = m.month.slice(0, 4);
+          msvg.appendChild(yt);
+        }
+      });
+    }
+
+    function drawBySignal(data) {
+      ssvg.innerHTML = '';
+      if (!data || data.length === 0) {
+        sstatus.textContent = 'シグナル別データがありません（クローズ済み取引がまだありません）';
+        return;
+      }
+      sstatus.textContent = 'BUY / SELL シグナル別 勝敗・損益';
+
+      const W = 760, H = 160;
+      const PAD = { top: 16, right: 20, bottom: 10, left: 85 };
+      const innerW = W - PAD.left - PAD.right;
+      const rowH = 50;
+
+      data.forEach(function(d, i) {
+        const y = PAD.top + i * rowH;
+        const total = (d.wins || 0) + (d.losses || 0);
+        const winFrac = total > 0 ? (d.wins || 0) / total : 0;
+        const lossFrac = total > 0 ? (d.losses || 0) / total : 0;
+        const label = d.signal === 'BUY' ? '買い (BUY)' : '売り (SELL)';
+
+        // シグナルラベル
+        const lt = el('text', { x: PAD.left - 6, y: y + 16, 'text-anchor': 'end',
+          fill: '#ccc', 'font-size': '12', 'font-weight': 'bold' });
+        lt.textContent = label;
+        ssvg.appendChild(lt);
+
+        // 勝ちバー（緑）
+        const winW = winFrac * innerW;
+        if (winW > 0) {
+          const wr = el('rect', { x: PAD.left, y: y, width: winW, height: 22,
+            fill: '#4ade80', opacity: '0.85', rx: '2' });
+          const wt = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          wt.textContent = '勝ち: ' + (d.wins || 0) + '回';
+          wr.appendChild(wt);
+          ssvg.appendChild(wr);
+        }
+
+        // 負けバー（赤）
+        const lossW = lossFrac * innerW;
+        if (lossW > 0) {
+          const lr = el('rect', { x: PAD.left + winW, y: y, width: lossW, height: 22,
+            fill: '#f87171', opacity: '0.85', rx: '2' });
+          const lt2 = document.createElementNS('http://www.w3.org/2000/svg', 'title');
+          lt2.textContent = '負け: ' + (d.losses || 0) + '回';
+          lr.appendChild(lt2);
+          ssvg.appendChild(lr);
+        }
+
+        // 統計テキスト
+        const rateStr = d.win_rate !== null && d.win_rate !== undefined ? '勝率' + d.win_rate + '%' : '';
+        const pipsStr = d.total_pips !== undefined ? ' | ' + (d.total_pips > 0 ? '+' : '') + d.total_pips + 'pips' : '';
+        const avgStr = d.avg_pips !== undefined && d.avg_pips !== null ? ' | 平均' + (d.avg_pips > 0 ? '+' : '') + d.avg_pips + 'pips' : '';
+        const st = el('text', { x: PAD.left, y: y + 38, fill: '#aaa', 'font-size': '11' });
+        st.textContent = (d.wins || 0) + '勝 ' + (d.losses || 0) + '敗  ' + rateStr + pipsStr + avgStr;
+        ssvg.appendChild(st);
+      });
+
+      // 凡例
+      const legX = W - PAD.right - 160;
+      ssvg.appendChild(el('rect', { x: legX, y: 4, width: 12, height: 12, fill: '#4ade80', rx: '2' }));
+      const lt1 = el('text', { x: legX + 16, y: 14, fill: '#aaa', 'font-size': '11' });
+      lt1.textContent = '勝ち';
+      ssvg.appendChild(lt1);
+      ssvg.appendChild(el('rect', { x: legX + 60, y: 4, width: 12, height: 12, fill: '#f87171', rx: '2' }));
+      const lt2 = el('text', { x: legX + 76, y: 14, fill: '#aaa', 'font-size': '11' });
+      lt2.textContent = '負け';
+      ssvg.appendChild(lt2);
+    }
+
+    fetch('/api/chart-stats')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        drawMonthly(d.monthly || []);
+        drawBySignal(d.by_signal || []);
+      })
+      .catch(function() {
+        mstatus.textContent = '月次データの読み込みに失敗しました';
+        sstatus.textContent = 'シグナル別データの読み込みに失敗しました';
+      });
   })();
   </script>
   <script>

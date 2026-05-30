@@ -16,7 +16,6 @@ COPY ai-fx-monitor/requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip && pip install --no-cache-dir -r requirements.txt
 
 COPY ai-fx-monitor/app/ ./app/
-COPY ai-fx-monitor/data/ ./data/
 
 RUN mkdir -p /app/data/raw /app/data/processed /app/logs
 

@@ -66,11 +66,12 @@ def fetch_ohlcv(
         DataFrame（index=datetime, columns=[open, high, low, close, volume]）
         取得失敗時は空の DataFrame
     """
-    # キャッシュ確認
-    if use_cache and symbol in _ohlcv_cache:
-        cached_time, cached_df = _ohlcv_cache[symbol]
+    # キャッシュ確認（symbol + interval でキーを作成）
+    cache_key = f"{symbol}:{interval}"
+    if use_cache and cache_key in _ohlcv_cache:
+        cached_time, cached_df = _ohlcv_cache[cache_key]
         if time.time() - cached_time < _OHLCV_TTL and not cached_df.empty:
-            logger.debug("yfinance キャッシュ使用: %s", symbol)
+            logger.debug("yfinance キャッシュ使用: %s", cache_key)
             return cached_df
 
     try:
@@ -99,7 +100,7 @@ def fetch_ohlcv(
         logger.info("yfinance 取得完了: %s %d本", symbol, len(df))
 
         # キャッシュ保存
-        _ohlcv_cache[symbol] = (time.time(), df)
+        _ohlcv_cache[cache_key] = (time.time(), df)
         return df
 
     except Exception as exc:

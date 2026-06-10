@@ -747,6 +747,57 @@ async def guide_page(request: Request):
     return templates.TemplateResponse("guide.html", {"request": request})
 
 
+# ============================================================
+# Phase 90: 音声AIアシスタント
+# ============================================================
+
+@router.get("/voice", response_class=HTMLResponse)
+async def voice_page(request: Request, symbol: str = DEFAULT_SYMBOL):
+    """音声AIアシスタントページ。マイクで話しかけるとFX分析を音声で回答する。"""
+    if symbol not in SUPPORTED_SYMBOLS:
+        symbol = DEFAULT_SYMBOL
+    cached = _signal_cache.get(symbol)
+    return templates.TemplateResponse(
+        "voice.html",
+        {
+            "request": request,
+            "symbol": symbol,
+            "supported_symbols": SUPPORTED_SYMBOLS,
+            "cached_signal": cached,
+        },
+    )
+
+
+@router.post("/api/voice/chat")
+async def voice_chat(
+    question: str = Form(...),
+    symbol: str = Form(DEFAULT_SYMBOL),
+):
+    """音声AIチャットAPI（Phase 90）。
+
+    Args:
+        question: ユーザーの質問テキスト（音声認識後のテキスト）
+        symbol: 対象通貨ペア
+
+    Returns:
+        {"response": "AIの回答テキスト"}
+    """
+    from app.services.voice_ai import get_voice_response
+
+    if symbol not in SUPPORTED_SYMBOLS:
+        symbol = DEFAULT_SYMBOL
+
+    cached = _signal_cache.get(symbol)
+
+    try:
+        response_text = await get_voice_response(question, symbol, cached)
+    except Exception as exc:
+        logger.error("音声AIエラー: %s", exc)
+        response_text = f"申し訳ありません、回答の生成に失敗しました。しばらくしてからもう一度お試しください。"
+
+    return {"response": response_text, "symbol": symbol}
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, saved: bool = False):
     """設定画面。"""

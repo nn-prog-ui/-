@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1a1a2e">
+  <title>AI FX市場監視 - 音声AIアシスタント</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="manifest" href="/static/manifest.json">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="FX監視">
+  <link rel="apple-touch-icon" href="/static/icons/icon-192.png">
+  <style>
+    /* ── 音声ページ専用スタイル ─────────────────────────────── */
+    .voice-container {
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+    }
+
+    /* 通貨ペア選択 */
+    .symbol-select-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: #0f172a;
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+    }
+    .symbol-select-bar label {
+      font-size: 0.82rem;
+      color: #94a3b8;
+      white-space: nowrap;
+    }
+    .symbol-select-bar select {
+      background: #1e293b;
+      color: #f1f5f9;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 0.35rem 0.6rem;
+      font-size: 0.9rem;
+      cursor: pointer;
+      flex: 1;
+    }
+
+    /* 現在の分析サマリー */
+    .analysis-summary {
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      border: 1px solid #1e293b;
+    }
+    .analysis-summary-title {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-bottom: 0.6rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .analysis-summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+    }
+    .summary-item {
+      text-align: center;
+    }
+    .summary-item-label {
+      font-size: 0.72rem;
+      color: #64748b;
+      margin-bottom: 0.2rem;
+    }
+    .summary-item-value {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #e2e8f0;
+    }
+    .summary-item-value.buy  { color: #4ade80; }
+    .summary-item-value.sell { color: #f87171; }
+    .summary-item-value.skip { color: #94a3b8; }
+    .no-data-hint {
+      font-size: 0.82rem;
+      color: #64748b;
+      text-align: center;
+      padding: 0.5rem 0;
+    }
+
+    /* マイクボタンエリア */
+    .mic-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1rem;
+      padding: 2rem 1rem;
+      background: #0f172a;
+      border-radius: 16px;
+      border: 1px solid #1e293b;
+    }
+    .mic-button {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      border-radius: 50%;
+      border: none;
+      background: linear-gradient(135deg, #4ade80, #22d3ee);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(74, 222, 128, 0.3);
+      transition: transform 0.15s, box-shadow 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mic-button:hover {
+      transform: scale(1.05);
+      box-shadow: 0 6px 28px rgba(74, 222, 128, 0.45);
+    }
+    .mic-button:active {
+      transform: scale(0.96);
+    }
+    .mic-button.listening {
+      background: linear-gradient(135deg, #f87171, #fb923c);
+      box-shadow: 0 4px 20px rgba(248, 113, 113, 0.4);
+      animation: mic-pulse 1.4s ease-in-out infinite;
+    }
+    .mic-button.processing {
+      background: linear-gradient(135deg, #818cf8, #a78bfa);
+      box-shadow: 0 4px 20px rgba(129, 140, 248, 0.4);
+      animation: mic-spin 1.2s linear infinite;
+    }
+    .mic-button.disabled {
+      background: #374151;
+      box-shadow: none;
+      cursor: not-allowed;
+      opacity: 0.5;
+    }
+    @keyframes mic-pulse {
+      0%, 100% { box-shadow: 0 4px 20px rgba(248, 113, 113, 0.3); }
+      50%       { box-shadow: 0 4px 40px rgba(248, 113, 113, 0.7); transform: scale(1.08); }
+    }
+    @keyframes mic-spin {
+      0%   { box-shadow: 0 4px 20px rgba(129,140,248,0.3); }
+      50%  { box-shadow: 0 4px 40px rgba(129,140,248,0.7); }
+      100% { box-shadow: 0 4px 20px rgba(129,140,248,0.3); }
+    }
+    .mic-icon {
+      font-size: 2.4rem;
+      line-height: 1;
+      pointer-events: none;
+    }
+    .mic-status {
+      font-size: 0.9rem;
+      color: #94a3b8;
+      text-align: center;
+      min-height: 1.4rem;
+      transition: color 0.3s;
+    }
+    .mic-status.listening  { color: #f87171; }
+    .mic-status.processing { color: #818cf8; }
+
+    /* 音声波形インジケーター */
+    .waveform {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      height: 32px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .waveform.active { opacity: 1; }
+    .wave-bar {
+      width: 4px;
+      border-radius: 2px;
+      background: #f87171;
+      animation: wave 0.8s ease-in-out infinite;
+    }
+    .wave-bar:nth-child(1) { animation-delay: 0s;    height: 60%; }
+    .wave-bar:nth-child(2) { animation-delay: 0.1s;  height: 100%; }
+    .wave-bar:nth-child(3) { animation-delay: 0.2s;  height: 70%; }
+    .wave-bar:nth-child(4) { animation-delay: 0.3s;  height: 40%; }
+    .wave-bar:nth-child(5) { animation-delay: 0.4s;  height: 80%; }
+    .wave-bar:nth-child(6) { animation-delay: 0.15s; height: 55%; }
+    .wave-bar:nth-child(7) { animation-delay: 0.25s; height: 90%; }
+    @keyframes wave {
+      0%, 100% { transform: scaleY(0.4); }
+      50%       { transform: scaleY(1.0); }
+    }
+
+    /* テキスト入力（代替手段） */
+    .text-input-area {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .text-input-area input {
+      flex: 1;
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 0.6rem 0.9rem;
+      color: #f1f5f9;
+      font-size: 0.9rem;
+    }
+    .text-input-area input:focus {
+      outline: none;
+      border-color: #4ade80;
+    }
+    .text-input-area input::placeholder { color: #475569; }
+    .send-btn {
+      background: #4ade80;
+      color: #0d0d1a;
+      border: none;
+      border-radius: 8px;
+      padding: 0.6rem 1rem;
+      font-weight: 700;
+      font-size: 0.9rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s;
+    }
+    .send-btn:hover { background: #22c55e; }
+    .send-btn:disabled { background: #374151; color: #64748b; cursor: not-allowed; }
+
+    /* 会話バブル */
+    .chat-area {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+      min-height: 120px;
+    }
+    .bubble {
+      border-radius: 12px;
+      padding: 0.85rem 1rem;
+      font-size: 0.9rem;
+      line-height: 1.65;
+      max-width: 92%;
+      animation: bubble-in 0.25s ease;
+    }
+    @keyframes bubble-in {
+      from { opacity: 0; transform: translateY(8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .bubble-user {
+      background: #1e293b;
+      color: #e2e8f0;
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+    .bubble-user::before {
+      content: "🎤 ";
+      font-size: 0.82rem;
+    }
+    .bubble-ai {
+      background: #0c1a0c;
+      border: 1px solid #166534;
+      color: #d1fae5;
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      position: relative;
+    }
+    .bubble-ai::before {
+      content: "🤖 ";
+      font-size: 0.82rem;
+    }
+    .bubble-replay {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.3rem;
+      margin-top: 0.5rem;
+      font-size: 0.75rem;
+      color: #4ade80;
+      cursor: pointer;
+      background: none;
+      border: none;
+      padding: 0;
+    }
+    .bubble-replay:hover { text-decoration: underline; }
+    .empty-hint {
+      text-align: center;
+      color: #475569;
+      font-size: 0.85rem;
+      padding: 2rem 0;
+    }
+
+    /* プリセット質問 */
+    .preset-section {
+      background: #0f172a;
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      border: 1px solid #1e293b;
+    }
+    .preset-title {
+      font-size: 0.78rem;
+      color: #64748b;
+      margin-bottom: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .preset-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    .preset-btn {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 20px;
+      padding: 0.4rem 0.85rem;
+      font-size: 0.82rem;
+      color: #94a3b8;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+      white-space: nowrap;
+    }
+    .preset-btn:hover {
+      background: #1a3320;
+      border-color: #4ade80;
+      color: #4ade80;
+    }
+    .preset-btn:active { transform: scale(0.96); }
+
+    /* 注意書き */
+    .voice-notice {
+      background: #1a1208;
+      border: 1px solid #713f12;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      font-size: 0.78rem;
+      color: #fbbf24;
+      line-height: 1.7;
+    }
+
+    /* ブラウザ非対応 */
+    .no-support-banner {
+      background: #1c1418;
+      border: 1px solid #7c2d12;
+      border-radius: 10px;
+      padding: 1.25rem;
+      text-align: center;
+      color: #fca5a5;
+      font-size: 0.88rem;
+      line-height: 1.8;
+    }
+  </style>
+</head>
+<body>
+  <header class="app-header">
+    <div class="header-content">
+      <h1 class="app-title">AI FX市場監視システム</h1>
+      <span class="safety-badge">分析・通知のみ / 自動注文なし</span>
+    </div>
+    <nav class="header-nav">
+      <a href="/" class="nav-link">判定</a>
+      <a href="/dashboard" class="nav-link">ダッシュボード</a>
+      <a href="/history" class="nav-link">履歴</a>
+      <a href="/performance" class="nav-link">成績</a>
+      <a href="/backtest" class="nav-link">バックテスト</a>
+      <a href="/optimizer" class="nav-link">最適化</a>
+      <a href="/correlation" class="nav-link">相関</a>
+      <a href="/charts" class="nav-link">チャート</a>
+      <a href="/calendar" class="nav-link">指標</a>
+      <a href="/report" class="nav-link">レポート</a>
+      <a href="/journal" class="nav-link">ジャーナル</a>
+      <a href="/alerts" class="nav-link">アラート</a>
+      <a href="/drawdown" class="nav-link">DD分析</a>
+      <a href="/multi-symbol" class="nav-link">通貨比較</a>
+      <a href="/pattern" class="nav-link">パターン</a>
+      <a href="/r-multiple" class="nav-link">R倍数</a>
+      <a href="/position-sizing" class="nav-link">ロット計算</a>
+      <a href="/period-stats" class="nav-link">月次分析</a>
+      <a href="/scorecard" class="nav-link">スコアカード</a>
+      <a href="/goals" class="nav-link">目標管理</a>
+      <a href="/rolling-stats" class="nav-link">ローリング</a>
+      <a href="/signal-score" class="nav-link">スコア分析</a>
+      <a href="/rr-analysis" class="nav-link">R:R分析</a>
+      <a href="/session-stats" class="nav-link">セッション</a>
+      <a href="/tag-stats" class="nav-link">タグ分析</a>
+      <a href="/weekday-stats" class="nav-link">曜日分析</a>
+      <a href="/streak-stats" class="nav-link">ストリーク</a>
+      <a href="/macro-events" class="nav-link">世界イベント</a>
+      <a href="/weekly-report" class="nav-link">週次レポート</a>
+      <a href="/geopolitical" class="nav-link">地政学分析</a>
+      <a href="/news-collector" class="nav-link">ニュース収集</a>
+      <a href="/sentiment" class="nav-link">センチメント</a>
+      <a href="/voice" class="nav-link active">音声AI</a>
+      <a href="/guide" class="nav-link">使い方</a>
+      <a href="/settings" class="nav-link">設定</a>
+    </nav>
+  </header>
+
+  <main class="main-content">
+    <div class="voice-container">
+
+      <!-- タイトル -->
+      <div style="text-align:center; padding:0.5rem 0;">
+        <h2 style="font-size:1.2rem; font-weight:700; color:#4ade80; margin:0;">
+          🎙️ 音声AIアシスタント
+        </h2>
+        <p style="font-size:0.82rem; color:#64748b; margin:0.4rem 0 0;">
+          マイクで話しかけると、FX分析をもとに音声で回答します
+        </p>
+      </div>
+
+      <!-- 通貨ペア選択 -->
+      <div class="symbol-select-bar">
+        <label for="symbolSelect">通貨ペア：</label>
+        <select id="symbolSelect">
+          {% for sym in supported_symbols %}
+          <option value="{{ sym }}" {% if sym == symbol %}selected{% endif %}>{{ sym }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- ブラウザ非対応バナー（JSで表示/非表示） -->
+      <div id="noSupportBanner" class="no-support-banner" style="display:none;">
+        <strong>⚠️ このブラウザはマイク入力に対応していません</strong><br>
+        Chrome または Safari をご利用ください。<br>
+        テキスト入力欄からテキストで質問することは可能です。
+      </div>
+
+      <!-- 現在の分析サマリー -->
+      <div class="analysis-summary" id="analysisSummary">
+        <div class="analysis-summary-title">現在の分析データ（{{ symbol }}）</div>
+        {% if cached_signal %}
+          {% set sig = cached_signal.signal %}
+          {% set sig_label = {'BUY': '買い候補', 'SELL': '売り候補', 'SKIP': '見送り'}.get(sig, 'データなし') %}
+          {% set sig_cls   = {'BUY': 'buy', 'SELL': 'sell', 'SKIP': 'skip'}.get(sig, '') %}
+          <div class="analysis-summary-grid">
+            <div class="summary-item">
+              <div class="summary-item-label">判定</div>
+              <div class="summary-item-value {{ sig_cls }}">{{ sig_label }}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-item-label">スコア</div>
+              <div class="summary-item-value">{{ cached_signal.score if cached_signal.score is not none else 'N/A' }}点</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-item-label">価格</div>
+              <div class="summary-item-value" style="font-size:0.82rem;">
+                {{ '%.3f'|format(cached_signal.current_price) if cached_signal.current_price else 'N/A' }}
+              </div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-item-label">日足</div>
+              <div class="summary-item-value" style="font-size:0.85rem;">{{ cached_signal.daily_trend or 'N/A' }}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-item-label">4H足</div>
+              <div class="summary-item-value" style="font-size:0.85rem;">{{ cached_signal.h4_trend or 'N/A' }}</div>
+            </div>
+            <div class="summary-item">
+              <div class="summary-item-label">1H足</div>
+              <div class="summary-item-value" style="font-size:0.85rem;">{{ cached_signal.h1_status or 'N/A' }}</div>
+            </div>
+          </div>
+        {% else %}
+          <p class="no-data-hint">
+            分析データがありません。<a href="/" style="color:#4ade80;">メイン画面</a>で分析を実行してください。
+          </p>
+        {% endif %}
+      </div>
+
+      <!-- マイクボタン -->
+      <div class="mic-area">
+        <button class="mic-button" id="micBtn" title="タップして話す">
+          <span class="mic-icon" id="micIcon">🎙️</span>
+        </button>
+
+        <!-- 波形アニメーション -->
+        <div class="waveform" id="waveform">
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+          <div class="wave-bar"></div>
+        </div>
+
+        <div class="mic-status" id="micStatus">タップして話す</div>
+      </div>
+
+      <!-- テキスト入力（代替 / マイク非対応時） -->
+      <div class="text-input-area">
+        <input type="text" id="textInput" placeholder="テキストで質問（例：今のドル円はどう？）"
+               autocomplete="off" autocorrect="off" autocapitalize="off">
+        <button class="send-btn" id="sendBtn">送信</button>
+      </div>
+
+      <!-- 会話エリア -->
+      <div class="chat-area" id="chatArea">
+        <div class="empty-hint" id="emptyHint">
+          🎙️ マイクをタップして、FX分析について質問してみてください
+        </div>
+      </div>
+
+      <!-- プリセット質問 -->
+      <div class="preset-section">
+        <div class="preset-title">よくある質問</div>
+        <div class="preset-grid">
+          <button class="preset-btn" data-q="今の判定を教えてください">📊 今の判定は？</button>
+          <button class="preset-btn" data-q="スコアを教えてください">🔢 スコアは？</button>
+          <button class="preset-btn" data-q="日足のトレンドはどうですか">📈 日足トレンドは？</button>
+          <button class="preset-btn" data-q="RSIはいくつですか">⚡ RSIは？</button>
+          <button class="preset-btn" data-q="現在の価格を教えてください">💴 現在の価格は？</button>
+          <button class="preset-btn" data-q="注意することはありますか">⚠️ 注意点は？</button>
+          <button class="preset-btn" data-q="4時間足のトレンドはどうですか">🕐 4時間足は？</button>
+          <button class="preset-btn" data-q="エントリーの判断を教えてください">🎯 エントリー判断は？</button>
+        </div>
+      </div>
+
+      <!-- 注意書き -->
+      <div class="voice-notice">
+        ⚠️ <strong>重要：</strong>このAIアシスタントは参考情報のみを提供します。
+        売買の最終判断は必ずご自身で行ってください。
+        AIの回答を投資の根拠にしないでください。
+      </div>
+
+    </div><!-- /.voice-container -->
+  </main>
+
+  <script>
+  (() => {
+    // ── 要素取得 ────────────────────────────────────────────
+    const micBtn      = document.getElementById('micBtn');
+    const micIcon     = document.getElementById('micIcon');
+    const micStatus   = document.getElementById('micStatus');
+    const waveform    = document.getElementById('waveform');
+    const chatArea    = document.getElementById('chatArea');
+    const emptyHint   = document.getElementById('emptyHint');
+    const textInput   = document.getElementById('textInput');
+    const sendBtn     = document.getElementById('sendBtn');
+    const symbolSel   = document.getElementById('symbolSelect');
+    const noBanner    = document.getElementById('noSupportBanner');
+
+    // ── 状態 ────────────────────────────────────────────────
+    let isListening  = false;
+    let isProcessing = false;
+    let recognition  = null;
+    let synthSupport = ('speechSynthesis' in window);
+
+    // ── Speech Recognition セットアップ ─────────────────────
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.lang = 'ja-JP';
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => {
+        isListening = true;
+        micBtn.classList.add('listening');
+        micIcon.textContent = '🔴';
+        micStatus.textContent = '聞いています...（話し終わると自動で送信）';
+        micStatus.className = 'mic-status listening';
+        waveform.classList.add('active');
+      };
+
+      recognition.onresult = (e) => {
+        const transcript = e.results[0][0].transcript;
+        stopListening();
+        sendQuestion(transcript);
+      };
+
+      recognition.onerror = (e) => {
+        stopListening();
+        const msgs = {
+          'not-allowed': 'マイクの許可が必要です。ブラウザの設定を確認してください。',
+          'no-speech':   '音声が検出されませんでした。もう一度お試しください。',
+          'network':     'ネットワークエラーが発生しました。',
+        };
+        setStatus(msgs[e.error] || `エラー: ${e.error}`, '');
+      };
+
+      recognition.onend = () => {
+        if (isListening) stopListening();
+      };
+    } else {
+      // STT 非対応
+      noBanner.style.display = 'block';
+      micBtn.classList.add('disabled');
+      micStatus.textContent = 'このブラウザはマイク入力に非対応です';
+    }
+
+    // ── マイクボタン ─────────────────────────────────────────
+    micBtn.addEventListener('click', () => {
+      if (!recognition) return;
+      if (isProcessing) return;
+      if (isListening) {
+        recognition.stop();
+        stopListening();
+      } else {
+        try {
+          recognition.start();
+        } catch(e) {
+          setStatus('マイクを起動できませんでした。ページを再読込してください。', '');
+        }
+      }
+    });
+
+    function stopListening() {
+      isListening = false;
+      micBtn.classList.remove('listening');
+      micIcon.textContent = '🎙️';
+      waveform.classList.remove('active');
+      if (!isProcessing) {
+        micStatus.textContent = 'タップして話す';
+        micStatus.className = 'mic-status';
+      }
+    }
+
+    // ── テキスト送信 ──────────────────────────────────────────
+    sendBtn.addEventListener('click', () => {
+      const q = textInput.value.trim();
+      if (q) { sendQuestion(q); textInput.value = ''; }
+    });
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        const q = textInput.value.trim();
+        if (q) { sendQuestion(q); textInput.value = ''; }
+      }
+    });
+
+    // ── プリセット質問 ────────────────────────────────────────
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+      btn.addEventListener('click', () => sendQuestion(btn.dataset.q));
+    });
+
+    // ── メイン送信処理 ───────────────────────────────────────
+    async function sendQuestion(question) {
+      if (isProcessing || !question) return;
+      isProcessing = true;
+      setStatus('考えています...', 'processing');
+      micBtn.classList.add('processing');
+      sendBtn.disabled = true;
+
+      // 空ヒントを消す
+      if (emptyHint) emptyHint.style.display = 'none';
+
+      // ユーザーバブル追加
+      addBubble('user', question);
+
+      try {
+        const formData = new FormData();
+        formData.append('question', question);
+        formData.append('symbol', symbolSel.value);
+
+        const resp = await fetch('/api/voice/chat', {
+          method: 'POST',
+          body: formData,
+        });
+
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+
+        const data = await resp.json();
+        const answer = data.response || '回答を取得できませんでした。';
+
+        addBubble('ai', answer, true);
+        speakText(answer);
+
+      } catch(err) {
+        const errMsg = 'エラーが発生しました。しばらくしてからもう一度お試しください。';
+        addBubble('ai', errMsg, false);
+        console.error('Voice chat error:', err);
+      } finally {
+        isProcessing = false;
+        micBtn.classList.remove('processing');
+        sendBtn.disabled = false;
+        setStatus('タップして話す', '');
+      }
+    }
+
+    // ── バブル追加 ────────────────────────────────────────────
+    function addBubble(type, text, withReplay = false) {
+      const div = document.createElement('div');
+      div.className = `bubble bubble-${type}`;
+
+      const textSpan = document.createElement('span');
+      textSpan.textContent = text;
+      div.appendChild(textSpan);
+
+      if (type === 'ai' && withReplay && synthSupport) {
+        const replayBtn = document.createElement('button');
+        replayBtn.className = 'bubble-replay';
+        replayBtn.innerHTML = '🔊 もう一度聞く';
+        replayBtn.addEventListener('click', () => speakText(text));
+        div.appendChild(document.createElement('br'));
+        div.appendChild(replayBtn);
+      }
+
+      chatArea.appendChild(div);
+      div.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    }
+
+    // ── TTS 読み上げ ─────────────────────────────────────────
+    function speakText(text) {
+      if (!synthSupport) return;
+      speechSynthesis.cancel();
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      utterance.rate = 0.92;
+      utterance.pitch = 1.0;
+      utterance.volume = 1.0;
+
+      // 日本語音声を優先的に選択
+      const voices = speechSynthesis.getVoices();
+      const jaVoice = voices.find(v => v.lang.startsWith('ja'));
+      if (jaVoice) utterance.voice = jaVoice;
+
+      speechSynthesis.speak(utterance);
+    }
+
+    // 音声リスト読み込みを待つ（Safari対応）
+    if (synthSupport && speechSynthesis.onvoiceschanged !== undefined) {
+      speechSynthesis.onvoiceschanged = () => {};
+    }
+
+    // ── ステータス表示 ────────────────────────────────────────
+    function setStatus(text, cls) {
+      micStatus.textContent = text;
+      micStatus.className = 'mic-status' + (cls ? ' ' + cls : '');
+    }
+
+    // ── 通貨ペア変更でサマリー更新 ───────────────────────────
+    symbolSel.addEventListener('change', () => {
+      window.location.href = `/voice?symbol=${encodeURIComponent(symbolSel.value)}`;
+    });
+
+  })();
+  </script>
+
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("/static/sw.js")
+          .catch((err) => console.warn("SW registration failed:", err));
+      });
+    }
+  </script>
+</body>
+</html>

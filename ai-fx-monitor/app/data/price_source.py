@@ -102,18 +102,39 @@ def _get_from_oanda(symbol: str) -> tuple[dict[str, pd.DataFrame], bool]:
 def _get_from_yfinance(symbol: str) -> tuple[dict[str, pd.DataFrame], bool]:
     """Yahoo Finance からデータを取得する（Phase 84）。
 
+    yfinance の interval="1h" は約60日分しか取得できないため、
+    日足・4時間足は interval="1d" で別途取得してリサンプルする。
     失敗時は CSV フォールバックを行う。
     """
     from app.data.yfinance_adapter import fetch_ohlcv  # noqa: PLC0415
 
     try:
-        df_1h = fetch_ohlcv(symbol, period="6mo", interval="1h")
+        # 1時間足（直近60日分）
+        df_1h = fetch_ohlcv(symbol, period="60d", interval="1h")
         if df_1h.empty:
-            logger.warning("yfinance: データが空。CSVにフォールバック: %s", symbol)
+            logger.warning("yfinance: 1h データが空。CSVにフォールバック: %s", symbol)
             return _get_from_csv(None)
 
-        timeframes = get_all_timeframes(df_1h)
-        logger.info("yfinance データ取得成功: %s 1h=%d本", symbol, len(df_1h))
+        # 日足（2年分）― interval="1h" では75本に届かないため別途取得
+        df_daily_raw = fetch_ohlcv(symbol, period="2y", interval="1d")
+
+        if not df_daily_raw.empty and len(df_daily_raw) >= 75:
+            # 4時間足は1時間足からリサンプル
+            from app.data.resampler import to_4h  # noqa: PLC0415
+            df_4h = to_4h(df_1h)
+            timeframes = {"1h": df_1h, "4h": df_4h, "daily": df_daily_raw}
+            logger.info(
+                "yfinance データ取得成功: %s 1h=%d本 4h=%d本 daily=%d本",
+                symbol, len(df_1h), len(df_4h), len(df_daily_raw),
+            )
+        else:
+            # 日足取得失敗時は1時間足からリサンプル（データ不足の可能性あり）
+            timeframes = get_all_timeframes(df_1h)
+            logger.warning(
+                "yfinance: 日足データ不足（%d本）。1h からリサンプル: %s",
+                len(df_daily_raw), symbol,
+            )
+
         return timeframes, False
 
     except Exception as exc:

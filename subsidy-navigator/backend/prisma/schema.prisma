@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Subsidy {
+  id                     String   @id @default(cuid())
+  title                  String
+  description            String
+  category               String
+  targetType             String   // 中小企業, 個人事業主, 農業, etc.
+  prefecture             String
+  municipalityCode       String?
+  municipalityName       String?
+  level                  String   // 国, 都道府県, 市区町村
+  maxAmount              BigInt?
+  subsidyRate            String?
+  applicationStart       DateTime?
+  applicationEnd         DateTime?
+  status                 String   @default("active") // active, closed, upcoming
+  applicationUrl         String?
+  scrapeUrl              String?
+  scrapedAt              DateTime?
+  contactPhone           String?
+  contactEmail           String?
+  requirements           String?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  @@index([prefecture])
+  @@index([category])
+  @@index([status])
+  @@index([level])
+}
+
+model Alert {
+  id                String   @id @default(cuid())
+  email             String
+  token             String   @unique @default(cuid())
+  verified          Boolean  @default(false)
+  prefectures       String[]
+  municipalityCodes String[]
+  categories        String[]
+  keywords          String[]
+  active            Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([email])
+}
+
+model ConsultingRequest {
+  id          String   @id @default(cuid())
+  name        String
+  email       String
+  company     String?
+  phone       String?
+  prefecture  String?
+  industry    String?
+  employees   String?
+  budget      String?
+  message     String
+  status      String   @default("pending") // pending, contacted, closed
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model MatchingResult {
+  id          String   @id @default(cuid())
+  sessionId   String   @unique
+  prefecture  String
+  industry    String
+  employees   String
+  subsidyIds  String[]
+  createdAt   DateTime @default(now())
+}
+
+model Template {
+  id            String   @id @default(cuid())
+  title         String
+  category      String
+  description   String
+  fileName      String
+  downloadCount Int      @default(0)
+  createdAt     DateTime @default(now())
+}
+
+model AdminUser {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+
+model ScrapeLog {
+  id             String   @id @default(cuid())
+  targetCode     String
+  targetName     String
+  status         String   // success, error
+  subsidiesFound Int      @default(0)
+  errorMessage   String?
+  createdAt      DateTime @default(now())
+}

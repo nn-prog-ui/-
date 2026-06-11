@@ -41,10 +41,6 @@ COPY data/ ./data/
 # データ・ログディレクトリを作成（Railway ボリュームのマウント先）
 RUN mkdir -p /app/data/raw /app/data/processed /app/logs
 
-# Railway ボリュームがマウントされる /app/data を永続化対象として明示
-# （実際のボリューム設定は Railway ダッシュボードで行う）
-VOLUME ["/app/data"]
-
 # ポート公開（Railway は PORT 環境変数で上書きするため参考値）
 EXPOSE 8000
 

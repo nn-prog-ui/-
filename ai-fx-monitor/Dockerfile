@@ -36,9 +36,8 @@ COPY --from=deps /usr/local/bin /usr/local/bin
 
 # アプリケーションコードをコピー
 COPY app/ ./app/
-COPY data/ ./data/
 
-# データ・ログディレクトリを作成（Railway ボリュームのマウント先）
+# データ・ログディレクトリを作成
 RUN mkdir -p /app/data/raw /app/data/processed /app/logs
 
 # ポート公開（Railway は PORT 環境変数で上書きするため参考値）
